@@ -7,6 +7,7 @@ import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
+import { IssuesPanel } from './issues.js';
 import { runIdsCheck, colorIdsResult, idsCsv, specSummary } from './ids.js';
 import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS } from './compare.js';
 
@@ -471,11 +472,13 @@ for (const tab of $$('.tab')) {
     for (const x of $$('.tab')) x.classList.toggle('active', x === tab);
     for (const b of $$('.tab-body')) b.classList.toggle('active', b.id === `tab-${tab.dataset.tab}`);
     if (tab.dataset.tab === 'filters') filters.render();
+    if (tab.dataset.tab === 'issues') issues.render();
   });
 }
 
 function renderAll() {
   filters.render();
+  issues.render();
   renderModels();
   renderTree();
   renderClasses();
@@ -1141,6 +1144,21 @@ const filters = new FilterPanel({
   refreshVisibility: () => refreshVisibilityUi(),
 });
 
+// ======================================================================= issues
+const issues = new IssuesPanel({
+  viewer, h, toast, download, state,
+  root: $('#issues'),
+  setSelection: (map) => {
+    state.selection.clear();
+    state.treeKeys.clear();
+    for (const [m, ids] of map) if (ids.length) state.selection.set(m, new Set(ids));
+    state.active = null;
+    applySelection();
+  },
+  setSpacesVisible: (v) => { state.spacesVisible = v; updateSpacesUi(); },
+  afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); },
+});
+
 // ========================================================================== IDS
 let idsResults = null; // [{model, report}]
 let idsName = '';
@@ -1520,7 +1538,7 @@ export function toast(msg, ok = false) {
 }
 
 window.addEventListener('beforeunload', (e) => {
-  if (viewer.models.some((m) => m.changes.length)) { e.preventDefault(); e.returnValue = ''; }
+  if (viewer.models.some((m) => m.changes.length) || issues.dirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
 renderAll();

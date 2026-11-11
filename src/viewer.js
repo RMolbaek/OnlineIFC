@@ -179,6 +179,9 @@ export class Viewer extends EventTarget {
     this.#animateTo(center.clone().add(d.multiplyScalar(dist)), center);
   }
 
+  /** Animates the camera to a position looking at a target. */
+  flyTo(pos, target) { this.#animateTo(pos, target); }
+
   #animateTo(pos, target) {
     const p0 = this.camera.position.clone();
     const t0 = this.controls.target.clone();

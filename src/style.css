@@ -497,3 +497,34 @@ dialog a { color: var(--accent); }
 .ids-reqs li.bad { color: #a61e1e; }
 :root[data-theme="dark"] .ids-reqs li.ok { color: #6ee0a6; }
 :root[data-theme="dark"] .ids-reqs li.bad { color: #ff9b9b; }
+
+/* ---------- issues (BCF) ---------- */
+.tabs .tab { font-size: 12px; }
+.bcf-top { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.bcf-top .field { margin: 0; }
+.bcf-top input[type='text'], .bcf-new input, .bcf-new textarea, .bcf-new select, .bcf-body input, .bcf-body textarea, .bcf-body select {
+  width: 100%; min-width: 0; padding: 5px 7px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); font: inherit; font-size: 12px;
+}
+.bcf-listhead { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.grid2 .field { margin: 0; }
+.bcf-card { border: 1px solid var(--border); border-radius: 8px; margin-bottom: 6px; background: var(--panel-2); overflow: hidden; }
+.bcf-card.open { border-color: var(--accent); }
+.bcf-head { display: flex; gap: 8px; padding: 6px; cursor: pointer; }
+.bcf-head:hover { background: var(--panel); }
+.bcf-thumb { width: 64px; height: 44px; object-fit: cover; border-radius: 4px; flex-shrink: 0; background: var(--border); }
+.bcf-headtext { min-width: 0; flex: 1; }
+.bcf-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bcf-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 11px; align-items: center; margin-top: 2px; }
+.bcf-status { padding: 0 6px; border-radius: 8px; font-weight: 600; color: #fff; }
+.bcf-status.open { background: #e8590c; }
+.bcf-status.progress { background: #1c7ed6; }
+.bcf-status.resolved { background: #2f9e44; }
+.bcf-status.closed { background: #868e96; }
+.bcf-body { padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); }
+.bcf-desc { white-space: pre-wrap; }
+.bcf-comments { display: flex; flex-direction: column; gap: 4px; }
+.bcf-comment { background: var(--panel); border-radius: 6px; padding: 4px 7px; white-space: pre-wrap; }
+.bcf-actions { border-top: 1px solid var(--border); padding-top: 6px; }
+.btn.danger { color: var(--danger); }
+.bcf-body .flt-btns .chk { flex: 1; color: var(--text); font-size: 12px; }
