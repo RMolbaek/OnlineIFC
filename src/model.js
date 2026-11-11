@@ -45,6 +45,7 @@ export class IfcModel {
     this.overrideColor = null; // THREE.Color eller null for originale farver
     this.opacity = 1;
     this.hidden = new Set(); // skjulte expressIDs
+    this.elementOpacity = new Map(); // expressID -> own transparency (0..1)
     this.selected = new Set();
     this.highlightMaterial = null;
 
@@ -95,6 +96,10 @@ export class IfcModel {
     m.transparent = transparent;
     m.opacity = op;
     m.depthWrite = !transparent;
+    for (const f of b.fades || []) {
+      f.material.color.copy(m.color);
+      f.material.opacity = op * f.userData.fadeOpacity;
+    }
   }
 
   setColor(color) {
@@ -114,7 +119,10 @@ export class IfcModel {
 
   // ---------------------------------------------------------------- synlighed
   #rebuild(b) {
-    const anyHidden = b.items.some((it) => this.hidden.has(it.id));
+    // Elements with their own transparency are drawn in separate meshes (see #rebuildFades)
+    const faded = this.elementOpacity.size ? (id) => this.elementOpacity.has(id) : () => false;
+    const excluded = (id) => this.hidden.has(id) || faded(id);
+    const anyHidden = b.items.some((it) => excluded(it.id));
     const starts = [];
     const ids = [];
     if (!anyHidden) {
@@ -122,11 +130,11 @@ export class IfcModel {
       for (const it of b.items) { starts.push(it.start); ids.push(it.id); }
     } else {
       let total = 0;
-      for (const it of b.items) if (!this.hidden.has(it.id)) total += it.count;
+      for (const it of b.items) if (!excluded(it.id)) total += it.count;
       const out = new Uint32Array(total);
       let o = 0;
       for (const it of b.items) {
-        if (this.hidden.has(it.id)) continue;
+        if (excluded(it.id)) continue;
         starts.push(o); ids.push(it.id);
         out.set(b.index.subarray(it.start, it.start + it.count), o);
         o += it.count;
@@ -136,6 +144,67 @@ export class IfcModel {
     b.curStarts = Int32Array.from(starts);
     b.curIds = Int32Array.from(ids);
     b.mesh.visible = ids.length > 0;
+    this.#rebuildFades(b);
+  }
+
+  /** One transparent mesh per bucket and transparency level for elements with their own transparency. */
+  #rebuildFades(b) {
+    for (const f of b.fades || []) {
+      this.group.remove(f);
+      f.geometry.dispose();
+      f.material.dispose();
+    }
+    b.fades = [];
+    if (!this.elementOpacity.size) return;
+    const byOpacity = new Map();
+    for (const it of b.items) {
+      const op = this.elementOpacity.get(it.id);
+      if (op === undefined || this.hidden.has(it.id)) continue;
+      if (!byOpacity.has(op)) byOpacity.set(op, []);
+      byOpacity.get(op).push(it);
+    }
+    for (const [op, items] of byOpacity) {
+      let total = 0;
+      for (const it of items) total += it.count;
+      const out = new Uint32Array(total);
+      const starts = [], ids = [];
+      let o = 0;
+      for (const it of items) {
+        starts.push(o); ids.push(it.id);
+        out.set(b.index.subarray(it.start, it.start + it.count), o);
+        o += it.count;
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', b.geometry.getAttribute('position'));
+      g.setAttribute('normal', b.geometry.getAttribute('normal'));
+      g.setIndex(new THREE.BufferAttribute(out, 1));
+      g.boundingBox = b.geometry.boundingBox;
+      g.boundingSphere = b.geometry.boundingSphere;
+      const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, transparent: true, depthWrite: false });
+      installSectionFill(mat);
+      mat.color.copy(b.material.color);
+      mat.opacity = b.material.opacity * op;
+      const mesh = new THREE.Mesh(g, mat);
+      mesh.userData = { model: this, bucket: b, fade: true, fadeOpacity: op, starts: Int32Array.from(starts), ids: Int32Array.from(ids) };
+      mesh.renderOrder = 5;
+      b.fades.push(mesh);
+      this.group.add(mesh);
+    }
+  }
+
+  /** Sets the transparency of single elements: 0 = invisible, 1 = solid (removes the override). */
+  setElementOpacity(ids, opacity) {
+    const op = Math.round(Math.min(1, Math.max(0, opacity)) * 20) / 20; // steps of 5 %
+    for (const id of ids) {
+      if (op >= 0.999) this.elementOpacity.delete(id);
+      else this.elementOpacity.set(id, Math.max(op, 0.05));
+    }
+    this.#rebuildAll();
+  }
+
+  resetElementOpacity() {
+    this.elementOpacity.clear();
+    this.#rebuildAll();
   }
 
   #rebuildAll() {
@@ -161,6 +230,21 @@ export class IfcModel {
 
   // ------------------------------------------------------------------ picking
   /** expressID for en ramt trekant. */
+  /** expressID for a raycast hit on one of this model's meshes. */
+  idFromHit(object, faceIndex) {
+    if (object.userData.fade) {
+      const pos = faceIndex * 3;
+      const s = object.userData.starts;
+      let lo = 0, hi = s.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (s[mid] <= pos) lo = mid; else hi = mid - 1;
+      }
+      return object.userData.ids[lo];
+    }
+    return this.idFromFace(object.userData.bucket, faceIndex);
+  }
+
   idFromFace(bucket, faceIndex) {
     const pos = faceIndex * 3;
     const s = bucket.curStarts;
@@ -439,6 +523,15 @@ export class IfcModel {
     const n = m.northings + m.scale * (m.b * x + m.a * y);
     const hh = m.height + z * m.scale;
     return { e: e * m.mapScale, n: n * m.mapScale, h: hh * m.mapScale, crs: m.crs };
+  }
+
+  /** Inverse of toMap: map coordinates (metres) -> IFC project coordinates (metres). */
+  fromMap(e, n) {
+    const m = this.georef?.map;
+    if (!m) return null;
+    const de = e / m.mapScale - m.eastings, dn = n / m.mapScale - m.northings;
+    const x = (m.a * de + m.b * dn) / m.scale, y = (-m.b * de + m.a * dn) / m.scale;
+    return { x: x * this.lengthScale, y: y * this.lengthScale };
   }
 
   /** The storey an element belongs to: {id, name, elevation (m)} or null. */
@@ -859,6 +952,7 @@ export class IfcModel {
       b.geometry.dispose();
       b.material.dispose();
       if (b.highlight) b.highlight.geometry.dispose();
+      for (const f of b.fades || []) { f.geometry.dispose(); f.material.dispose(); }
     }
     this.group.removeFromParent();
     try { this.api.CloseModel(this.modelID); } catch { /* already closed */ }

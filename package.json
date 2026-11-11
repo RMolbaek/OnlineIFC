@@ -21,6 +21,7 @@
     "@codemirror/state": "6.7.6",
     "@codemirror/view": "6.43.15",
     "codemirror": "6.0.2",
+    "proj4": "2.22.0",
     "three": "0.186.1",
     "web-ifc": "0.0.78"
   },

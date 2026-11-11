@@ -2,7 +2,7 @@
 
 An IFC viewer and editor that runs entirely in the browser. Files are processed locally (WebAssembly) and are never uploaded.
 
-The interface is in **English**, **Danish** and **German** (language picker in the top right corner; the choice is remembered).
+The interface is in **English**, **Danish**, **German** and **Hindi** (language picker in the top right corner; the choice is remembered). There is a light and a dark theme (moon/sun button).
 
 ## Features
 
@@ -12,18 +12,27 @@ The interface is in **English**, **Danish** and **German** (language picker in t
 - **Sections:** horizontal plan section, vertical sections (X/Y), a section parallel to a clicked face, and a section box around the selection. Every plane can be moved with a slider, flipped, disabled or removed. Cut faces are coloured red.
 - **Colours:** colour and opacity per model, *Colour by model* gives every model its own colour, *Original* restores the colours from the IFC file.
 - **Toolbar menus:** *View*, *Section* and *Visibility* open menus where every tool has a short description.
+- **Axis cross:** an X/Y/Z axis indicator in the top-left corner of the 3D view always shows the directions (IFC axes, Z up).
+- **Side panels** can be hidden (‹ / › buttons) to give the 3D view more room.
 - **Metadata:** click an element to see attributes, its location in the spatial structure, property sets, quantities (with units), type and type properties, materials and layers, and classifications. The panel can be filtered.
 - **Calculated quantities:** for every element the volume, surface area, plan area (top faces), length, width and height are calculated from the 3D geometry, next to the quantities stored in the IFC file. With several elements selected, the totals are shown. The values are also included in the CSV export.
-- **Structure and classes:** a tree from project to element and a list of IFC classes, searchable by name, class, GUID or tag. Select several rows with Ctrl+click (toggle) and Shift+click (range), then hide, show or isolate them all at once with the bar above the list, or with the eye on any selected row.
+- **Structure and classes:** a tree from project to element and a list of IFC classes, searchable by name, class, GUID or tag. Select several rows with Ctrl+click (toggle) and Shift+click (range), then hide, show or isolate them all at once with the bar above the list, or with the eye on any selected row. The same bar has a **transparency** slider for the selected elements (*Solid* makes them solid again).
 - Hide, isolate, show all, show/hide spaces, CSV export of all properties, screenshots.
 
 ### Measure
 **Measure** (toolbar or `M`) opens the measuring panel with three tools:
-- **Distance:** point to point. Shows the distance, the horizontal distance, the height difference (ΔZ), ΔX/ΔY and the slope. Dashed lines show the horizontal and vertical components.
+- **Distance:** point to point. *Lock X/Y* keeps the second point on the vertical line through the first point, so only the height (Z) is measured. Shows the distance, the horizontal distance, the height difference (ΔZ), ΔX/ΔY and the slope. Dashed lines show the horizontal and vertical components.
 - **Length:** a polyline through several points with the length of each segment and the total. Finish with double-click or Enter; Backspace removes the last point.
 - **Spot:** coordinates and elevation of a point. Choose which coordinates (X, Y, Z) the label in the 3D view shows. It shows project X/Y/Z (metres, Z up) and the height above the element's storey. If the model is georeferenced with `IfcMapConversion`, it also shows easting/northing/height in the map coordinate system. Otherwise it shows Z plus the site reference elevation (`IfcSite.RefElevation`) when one is set.
 
 Points snap to corners, edge midpoints and edges (shown by the marker shape); snapping can be turned off. Values are shown in m or mm, every measurement can be zoomed to or removed, and *Copy all* copies the values to the clipboard. Points cut away by section planes cannot be picked. With several models, coordinates refer to the first model's coordinate system.
+
+### Map under the model
+**Map** drapes an orthophoto (Esri World Imagery) or OpenStreetMap under the models, optionally with an **OpenRailwayMap** layer (infrastructure, max speed, signals, electrification or track gauge).
+- If the first model has `IfcMapConversion` (IFC4+), it is used automatically.
+- Otherwise enter the coordinate system (EPSG code, e.g. `EPSG:25832`) and, if needed, the map coordinates of the model origin and a rotation. If the model coordinates already are map coordinates (e.g. UTM in metres), leave them at 0.
+- Common European systems are built in; other EPSG codes are looked up on epsg.io.
+- The map is loaded by the browser from the tile servers (internet needed). The model itself is not sent anywhere. Sources are credited in the corner of the view.
 
 ### Edit metadata
 Turn on **Edit** (toolbar, properties panel or the `E` key):
@@ -87,10 +96,11 @@ Built with [three.js](https://threejs.org), [web-ifc](https://github.com/ThatOpe
 | `src/main.js` | user interface |
 | `src/viewer.js` | three.js scene, picking, sections |
 | `src/measure.js` | measuring tools and snapping |
+| `src/map.js` | map underlay, georeferencing and coordinate conversion (proj4) |
 | `src/ifc.js`, `src/model.js` | loading IFC, metadata and metadata editing (web-ifc) |
 | `src/python.js`, `src/python-worker.js` | Pyodide/IfcOpenShell worker and merge logic |
 | `src/scripting.js`, `src/examples.js` | Python panel and example scripts |
-| `src/i18n.js` | translations (en/da/de) |
+| `src/i18n.js` | translations (en/da/de/hi) |
 | `src/config.js` | where Pyodide and the IfcOpenShell wheel are loaded from |
 
 ### Python runtime sources

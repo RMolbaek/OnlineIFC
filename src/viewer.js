@@ -66,6 +66,7 @@ export class Viewer extends EventTarget {
 
     this.raycaster = new THREE.Raycaster();
     this.#bindPointer();
+    this.#initGizmo();
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -77,6 +78,7 @@ export class Viewer extends EventTarget {
       this.controls.update();
       this.#updateClip();
       renderer.render(this.scene, this.camera);
+      this.#renderGizmo();
       for (const fn of this.renderHooks) fn();
       requestAnimationFrame(loop);
     };
@@ -193,6 +195,80 @@ export class Viewer extends EventTarget {
   }
 
   // ------------------------------------------------------------ picking
+  // ------------------------------------------------------------- axis gizmo
+  /** Small X/Y/Z axis cross in the top-left corner that follows the camera (IFC axes: Z is up). */
+  #initGizmo() {
+    const scene = new THREE.Scene();
+    const cam = new THREE.OrthographicCamera(-1.6, 1.6, 1.6, -1.6, 0.1, 10);
+    const axes = [
+      { dir: new THREE.Vector3(1, 0, 0), color: 0xe5484d, label: 'X' },
+      { dir: new THREE.Vector3(0, 0, -1), color: 0x30a46c, label: 'Y' }, // IFC Y = -Z in three.js
+      { dir: new THREE.Vector3(0, 1, 0), color: 0x3e7bfa, label: 'Z' }, // IFC Z (up) = Y in three.js
+    ];
+    const up = new THREE.Vector3(0, 1, 0);
+    for (const a of axes) {
+      const mat = new THREE.MeshBasicMaterial({ color: a.color, depthTest: true });
+      const q = new THREE.Quaternion().setFromUnitVectors(up, a.dir);
+      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.85, 10), mat);
+      shaft.position.copy(a.dir).multiplyScalar(0.425);
+      shaft.quaternion.copy(q);
+      const head = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.3, 14), mat);
+      head.position.copy(a.dir).multiplyScalar(0.95);
+      head.quaternion.copy(q);
+      scene.add(shaft, head);
+      // faint negative axis
+      const neg = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.6, 8), new THREE.MeshBasicMaterial({ color: a.color, transparent: true, opacity: 0.3 }));
+      neg.position.copy(a.dir).multiplyScalar(-0.3);
+      neg.quaternion.copy(q);
+      scene.add(neg);
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const g = c.getContext('2d');
+      g.fillStyle = `#${new THREE.Color(a.color).getHexString()}`;
+      g.beginPath(); g.arc(32, 32, 26, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#fff'; g.font = 'bold 34px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText(a.label, 32, 34);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false }));
+      sprite.position.copy(a.dir).multiplyScalar(1.3);
+      sprite.scale.setScalar(0.42);
+      sprite.renderOrder = 2;
+      scene.add(sprite);
+    }
+    scene.add(new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 8), new THREE.MeshBasicMaterial({ color: 0x8a8f99 })));
+    this.gizmo = { scene, cam, size: 92, margin: 8 };
+  }
+
+  #renderGizmo() {
+    const gz = this.gizmo;
+    if (!gz) return;
+    const r = this.renderer;
+    const hgt = r.domElement.clientHeight;
+    const q = this.camera.quaternion;
+    gz.cam.position.set(0, 0, 4).applyQuaternion(q);
+    gz.cam.quaternion.copy(q);
+    const planes = r.clippingPlanes;
+    r.clippingPlanes = [];
+    r.autoClear = false;
+    r.setScissorTest(true);
+    r.setScissor(gz.margin, hgt - gz.size - gz.margin, gz.size, gz.size);
+    r.setViewport(gz.margin, hgt - gz.size - gz.margin, gz.size, gz.size);
+    r.clearDepth();
+    r.render(gz.scene, gz.cam);
+    r.setScissorTest(false);
+    r.setViewport(0, 0, r.domElement.clientWidth, hgt);
+    r.autoClear = true;
+    r.clippingPlanes = planes;
+  }
+
+  /** IFC (metres, Z up) -> viewer coordinates. Inverse of toIfc. */
+  fromIfc(x, y, z) {
+    const q = new THREE.Vector3(x, z, -y);
+    if (this.referenceMatrix) q.applyMatrix4(this.referenceMatrix);
+    return q;
+  }
+
   /** Keeps near/far planes suited to how close the camera is to the model. */
   #updateClip() {
     const d = this.camera.position.distanceTo(this.controls.target);
@@ -287,13 +363,19 @@ export class Viewer extends EventTarget {
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     const targets = [];
-    for (const m of this.models) if (m.visible) for (const b of m.buckets) if (b.mesh.visible) targets.push(b.mesh);
+    for (const m of this.models) {
+      if (!m.visible) continue;
+      for (const b of m.buckets) {
+        if (b.mesh.visible) targets.push(b.mesh);
+        for (const f of b.fades || []) targets.push(f);
+      }
+    }
     const hits = this.raycaster.intersectObjects(targets, false);
     const active = this.planes.filter((p) => p.enabled).map((p) => p.plane);
     for (const h of hits) {
       if (active.some((pl) => pl.distanceToPoint(h.point) < -1e-6)) continue; // bortskåret
-      const { model, bucket } = h.object.userData;
-      const id = model.idFromFace(bucket, h.faceIndex);
+      const { model } = h.object.userData;
+      const id = model.idFromHit(h.object, h.faceIndex);
       const normal = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : null;
       return { model, id, point: h.point.clone(), normal, object: h.object, face: h.face };
     }

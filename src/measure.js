@@ -19,6 +19,7 @@ export class MeasureTool extends EventTarget {
     this.mode = null; // 'distance' | 'chain' | 'spot' | null
     this.snapOn = true;
     this.unit = 'm'; // 'm' | 'mm'
+    this.lockXY = false;
     // Which coordinates the spot label shows in the 3D view
     this.spotShow = { x: false, y: false, z: true };
     try { Object.assign(this.spotShow, JSON.parse(localStorage.getItem('onlineifc.spotLabel') || '{}')); } catch { /* ignore */ }
@@ -95,7 +96,7 @@ export class MeasureTool extends EventTarget {
   handleClick(clientX, clientY) {
     const s = this.#snap(clientX, clientY);
     if (!s) return;
-    const p = s.point.clone();
+    const p = this.#locked(s.point);
     if (this.mode === 'spot') {
       this.#add({ type: 'spot', points: [p], info: this.#spotInfo(p, s.hit) });
       return;
@@ -219,8 +220,19 @@ export class MeasureTool extends EventTarget {
     return { point: hit.point, kind: 'face', hit };
   }
 
+  /**
+   * "Lock XY": the second point of a distance keeps the X/Y of the first point, so only the
+   * height difference (Z) is measured, on a vertical line through the first point.
+   */
+  #locked(p) {
+    const a = this.current?.points[0];
+    if (!this.lockXY || this.mode !== 'distance' || !a) return p.clone();
+    return new THREE.Vector3(a.x, p.y, a.z); // three.js Y is IFC Z (up)
+  }
+
   #updateHover(clientX, clientY) {
-    const s = this.#snap(clientX, clientY);
+    const raw = this.#snap(clientX, clientY);
+    const s = raw ? { ...raw, point: this.#locked(raw.point) } : null;
     this.hover = s;
     if (!s) { this.#clearHover(); return; }
     this.marker.hidden = false;

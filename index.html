@@ -7,6 +7,13 @@
     <meta name="description" content="Review, edit, merge and script IFC models in the browser. Files never leave your computer." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 29 9v14l-13 7-13-7V9z' fill='%233aa0ff'/%3E%3Cpath d='M16 2v28M3 9l13 7 13-7' stroke='%23fff' stroke-width='1.5' fill='none'/%3E%3C/svg%3E" />
     <link rel="stylesheet" href="/src/style.css" />
+    <script>
+      // Apply the saved theme before the page is drawn (avoids a white flash in dark mode)
+      try {
+        var th = localStorage.getItem('onlineifc.theme');
+        document.documentElement.dataset.theme = th === 'dark' || th === 'light' ? th : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      } catch (e) { /* ignore */ }
+    </script>
   </head>
   <body>
     <header class="toolbar">
@@ -80,6 +87,9 @@
         <button data-action="toggle-python" data-i18n-title="tb.pythonTitle">
           <svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16"/></svg><span>Python</span>
         </button>
+        <button data-action="map" data-i18n-title="tb.mapTitle">
+          <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg><span data-i18n="tb.map"></span>
+        </button>
       </div>
 
       <div class="spacer"></div>
@@ -88,16 +98,24 @@
         <option value="en">English</option>
         <option value="da">Dansk</option>
         <option value="de">Deutsch</option>
+        <option value="hi">हिन्दी</option>
       </select>
+      <button data-action="theme" id="theme-btn" data-i18n-title="tb.theme">
+        <svg viewBox="0 0 24 24" class="ic-dark"><path d="M20 14.5A8 8 0 0 1 9.5 4 8 8 0 1 0 20 14.5z"/></svg>
+        <svg viewBox="0 0 24 24" class="ic-light"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      </button>
       <button data-action="screenshot" data-i18n-title="tb.screenshot">
         <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
       </button>
       <button data-action="help" data-i18n-title="tb.help">?</button>
+      <button data-action="about" class="about-btn" data-i18n-title="tb.about">i</button>
     </header>
 
     <main class="layout">
+      <button class="panel-reopen left" data-action="toggle-left" data-i18n-title="panel.showLeft" hidden>›</button>
       <aside class="panel left" id="left-panel">
         <nav class="tabs">
+          <button class="panel-collapse" data-action="toggle-left" data-i18n-title="panel.hide">‹</button>
           <button class="tab active" data-tab="models" data-i18n="tabs.models"></button>
           <button class="tab" data-tab="tree" data-i18n="tabs.tree"></button>
           <button class="tab" data-tab="classes" data-i18n="tabs.classes"></button>
@@ -119,6 +137,9 @@
             <button data-action="sel-isolate" data-needs-sel data-i18n="sel.isolate" data-i18n-title="sel.isolateTitle"></button>
             <button data-action="show-all" data-i18n="sel.showAll" data-i18n-title="tb.showAllTitle"></button>
             <button data-action="sel-clear" data-needs-sel class="icon-only" data-i18n-title="sel.clear">✕</button>
+            <label class="sel-opacity" data-i18n-title="sel.opacityTitle"><span data-i18n="sel.opacity"></span>
+              <input type="range" min="0.05" max="1" step="0.05" value="1" data-sel-opacity data-needs-sel /></label>
+            <button data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
           </div>
           <div id="tree"></div>
         </section>
@@ -130,6 +151,9 @@
             <button data-action="sel-isolate" data-needs-sel data-i18n="sel.isolate" data-i18n-title="sel.isolateTitle"></button>
             <button data-action="show-all" data-i18n="sel.showAll" data-i18n-title="tb.showAllTitle"></button>
             <button data-action="sel-clear" data-needs-sel class="icon-only" data-i18n-title="sel.clear">✕</button>
+            <label class="sel-opacity" data-i18n-title="sel.opacityTitle"><span data-i18n="sel.opacity"></span>
+              <input type="range" min="0.05" max="1" step="0.05" value="1" data-sel-opacity data-needs-sel /></label>
+            <button data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
           </div>
           <div id="classes"></div>
         </section>
@@ -171,6 +195,9 @@
               <label class="chk"><input type="checkbox" id="measure-snap" checked /> <span data-i18n="measure.snapLabel"></span></label>
               <select id="measure-unit" class="sm"><option value="m">m</option><option value="mm">mm</option></select>
             </div>
+            <div class="measure-opts lock-opts">
+              <label class="chk" data-i18n-title="measure.lockXYTitle"><input type="checkbox" id="measure-lock-xy" /> <span data-i18n="measure.lockXY"></span></label>
+            </div>
             <div class="measure-opts spot-opts">
               <span class="muted small" data-i18n="measure.spotLabelShows"></span>
               <label class="chk"><input type="checkbox" data-spot-show="x" /> X</label>
@@ -185,6 +212,7 @@
             </div>
           </div>
           <div class="mode-hint" id="mode-hint" hidden></div>
+          <div class="map-attribution" id="map-attribution" hidden></div>
           <div class="statusbar" id="statusbar"></div>
         </div>
 
@@ -208,9 +236,11 @@
         </section>
       </div>
 
+      <button class="panel-reopen right" data-action="toggle-right" data-i18n-title="panel.showRight" hidden><span>‹</span><span class="vtext" data-i18n="props.title"></span></button>
       <aside class="panel right" id="right-panel">
         <div class="panel-title">
-          <span data-i18n="props.title"></span>
+          <button class="panel-collapse" data-action="toggle-right" data-i18n-title="panel.hide">›</button>
+          <span data-i18n="props.title" class="grow"></span>
           <button class="btn sm edit-toggle" data-action="toggle-edit" data-i18n-title="tb.editTitle">
             <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg><span data-i18n="tb.edit"></span>
           </button>
@@ -239,6 +269,65 @@
         <button class="btn" data-action="merge-cancel" data-i18n="common.cancel"></button>
         <button class="btn primary" data-action="merge-run" data-i18n="merge.run"></button>
       </div>
+    </dialog>
+
+    <dialog id="map-dialog" class="wide">
+      <h2 data-i18n="map.title"></h2>
+      <p class="muted small" data-i18n="map.intro"></p>
+      <div class="map-detected" id="map-detected"></div>
+      <fieldset class="map-georef">
+        <label class="chk"><input type="radio" name="map-source" value="model" id="map-src-model" /> <span data-i18n="map.fromModel"></span></label>
+        <label class="chk"><input type="radio" name="map-source" value="manual" id="map-src-manual" /> <span data-i18n="map.manual"></span></label>
+        <div class="map-manual" id="map-manual">
+          <label class="field"><span data-i18n="map.crs"></span>
+            <input id="map-crs" type="text" list="map-crs-list" placeholder="EPSG:25832" />
+            <datalist id="map-crs-list"></datalist>
+          </label>
+          <div class="grid3">
+            <label class="field"><span data-i18n="map.e0"></span><input id="map-e0" type="number" step="any" value="0" /></label>
+            <label class="field"><span data-i18n="map.n0"></span><input id="map-n0" type="number" step="any" value="0" /></label>
+            <label class="field"><span data-i18n="map.rotation"></span><input id="map-rot" type="number" step="any" value="0" /></label>
+          </div>
+          <p class="muted small" data-i18n="map.manualHelp"></p>
+        </div>
+      </fieldset>
+      <div class="grid3">
+        <label class="field"><span data-i18n="map.basemap"></span>
+          <select id="map-basemap">
+            <option value="ortho" data-i18n="map.ortho"></option>
+            <option value="osm" data-i18n="map.osm"></option>
+            <option value="none" data-i18n="map.noBase"></option>
+          </select>
+        </label>
+        <label class="field"><span data-i18n="map.railway"></span>
+          <select id="map-railway">
+            <option value="" data-i18n="map.noRailway"></option>
+            <option value="standard" data-i18n="map.rwStandard"></option>
+            <option value="maxspeed" data-i18n="map.rwMaxspeed"></option>
+            <option value="signals" data-i18n="map.rwSignals"></option>
+            <option value="electrification" data-i18n="map.rwElectrification"></option>
+            <option value="gauge" data-i18n="map.rwGauge"></option>
+          </select>
+        </label>
+        <label class="field"><span data-i18n="map.radius"></span><input id="map-radius" type="number" min="0" step="10" placeholder="auto" /></label>
+      </div>
+      <label class="field"><span data-i18n="map.opacity"></span><input id="map-opacity" type="range" min="0.1" max="1" step="0.05" value="1" /></label>
+      <p class="muted small" data-i18n="map.note"></p>
+      <div class="dialog-btns">
+        <button class="btn" data-action="map-remove" data-i18n="map.remove"></button>
+        <button class="btn" data-action="map-close" data-i18n="common.close"></button>
+        <button class="btn primary" data-action="map-show" data-i18n="map.show"></button>
+      </div>
+    </dialog>
+
+    <dialog id="about-dialog">
+      <h2 data-i18n="about.title"></h2>
+      <p data-i18n="about.purpose"></p>
+      <p data-i18n="about.hobby"></p>
+      <p data-i18n-html="about.repo"></p>
+      <p class="muted small" data-i18n="about.privacy"></p>
+      <p><b data-i18n="about.thanks"></b></p>
+      <form method="dialog"><button class="btn primary" data-i18n="common.close"></button></form>
     </dialog>
 
     <dialog id="help-dialog">
