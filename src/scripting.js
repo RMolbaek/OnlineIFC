@@ -120,31 +120,37 @@ export class PythonPanel {
   }
 
   /** Runs code (from the editor or generated, e.g. for merging). Returns true on success. */
-  async runCode(code, { title = null, show = false } = {}) {
+  async runCode(code, opts = {}) {
+    const res = await this.runCodeResult(code, opts);
+    return !!res;
+  }
+
+  /** Like runCode, but returns the run result ({result, actions}) or null on failure. */
+  async runCodeResult(code, { title = null, show = false, files = [] } = {}) {
     if (show && !this.open) this.toggle(true);
-    if (this.engine.state === 'running') return false;
+    if (this.engine.state === 'running') return null;
     this.#write(`>>> ${title || t('py.runningScript')}  (${new Date().toLocaleTimeString()})`, 'info');
     const started = performance.now();
     let res;
     try {
-      res = await this.engine.run(code, this.getContext());
+      res = await this.engine.run(code, { ...this.getContext(), files });
     } catch (e) {
       this.#write(String(e.message || e), 'err');
-      return false;
+      return null;
     }
     if (!res.ok) {
       this.#write(res.error || 'Error', 'err');
-      return false;
+      return null;
     }
     try {
       if (res.actions?.length) await this.onActions(res.actions);
     } catch (e) {
       console.error(e);
       this.#write(String(e.message || e), 'err');
-      return false;
+      return null;
     }
     this.#write(t('py.finished', { s: ((performance.now() - started) / 1000).toFixed(2) }), 'ok');
-    return true;
+    return res;
   }
 
   #initResize() {

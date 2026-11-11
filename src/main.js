@@ -7,6 +7,7 @@ import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
+import { runIdsCheck, colorIdsResult, idsCsv, specSummary } from './ids.js';
 import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS } from './compare.js';
 
 const $ = (s, el = document) => el.querySelector(s);
@@ -136,6 +137,7 @@ async function loadBytes(name, data, { replace = null } = {}) {
 }
 
 function afterModelsChanged() {
+  if (idsResults && idsResults.some((e) => !viewer.models.includes(e.model))) { idsResults = null; renderIds(); }
   if (comparison && (!viewer.models.includes(comparison.oldM) || !viewer.models.includes(comparison.newM))) { comparison = null; renderComparison(); }
   $('#welcome').hidden = viewer.models.length > 0;
   if (!viewer.models.length && mapLayer.visible) { mapLayer.remove(); updateMapUi(); }
@@ -311,6 +313,9 @@ document.addEventListener('click', (e) => {
     'toggle-right': () => setPanelHidden('right', !document.body.classList.contains('hide-right')),
     map: () => openMapDialog(),
     compare: () => openCompareDialog(),
+    ids: () => openIdsDialog(),
+    'ids-cancel': () => $('#ids-dialog').close(),
+    'ids-run': () => runIds(),
     'compare-cancel': () => $('#compare-dialog').close(),
     'compare-run': () => runCompare(),
     'map-close': () => $('#map-dialog').close(),
@@ -1135,6 +1140,97 @@ const filters = new FilterPanel({
   },
   refreshVisibility: () => refreshVisibilityUi(),
 });
+
+// ========================================================================== IDS
+let idsResults = null; // [{model, report}]
+let idsName = '';
+const idsOpen = new Set(); // "modelUid:specIndex" of expanded specifications
+
+function openIdsDialog() {
+  if (!viewer.models.length) return toast(t('msg.loadFirst'));
+  $('#ids-models').replaceChildren(...viewer.models.map((m) => h('label', { class: 'chk' },
+    h('input', { type: 'checkbox', value: String(m.uid), checked: true }), h('span', { text: `${m.name} (${m.schema})` }))));
+  $('#ids-dialog').showModal();
+}
+
+async function runIds() {
+  const file = $('#ids-file').files[0];
+  if (!file) return toast(t('ids.chooseFile'));
+  const uids = $$('#ids-models input:checked').map((i) => +i.value);
+  const models = viewer.models.filter((m) => uids.includes(m.uid));
+  if (!models.length) return toast(t('msg.loadFirst'));
+  $('#ids-dialog').close();
+  const text = await file.text();
+  idsName = file.name;
+  const res = await runIdsCheck(python, models, text, file.name);
+  if (!res) { toast(t('ids.failed')); return; }
+  idsResults = res;
+  idsOpen.clear();
+  renderIds();
+}
+
+function idsSelect(model, ids) {
+  state.selection.clear();
+  state.treeKeys.clear();
+  if (ids.length) state.selection.set(model, new Set(ids));
+  state.active = ids.length === 1 ? { model, id: ids[0] } : null;
+  applySelection();
+  const b = model.getBox(ids);
+  if (!b.isEmpty()) viewer.fitBox(b);
+}
+
+function renderIds() {
+  const panel = $('#ids-panel');
+  panel.hidden = !idsResults;
+  if (!idsResults) { panel.replaceChildren(); return; }
+  const parts = [
+    h('div', { class: 'cmp-head' }, h('b', { text: t('ids.title') }), h('span', { class: 'spacer' }),
+      h('button', { class: 'icon-btn', title: t('common.close'), text: '✕', onclick: () => { idsResults = null; renderIds(); } })),
+    h('div', { class: 'muted small', text: idsName }),
+  ];
+  for (const entry of idsResults) {
+    const { model, report } = entry;
+    const passed = report.specs.filter((s) => s.status).length;
+    parts.push(h('div', { class: `ids-model ${report.status ? 'ok' : 'bad'}` },
+      h('b', { text: model.name }),
+      h('span', { text: t('ids.modelSummary', { pass: passed, total: report.specs.length }) })));
+    report.specs.forEach((sp, i) => {
+      const key = `${model.uid}:${i}`;
+      const open = idsOpen.has(key);
+      const head = h('button', { class: 'cmp-group-head ids-spec-head' },
+        h('span', { class: `ids-icon ${sp.skipped || !sp.applicable ? 'na' : sp.status ? 'ok' : 'bad'}`, text: sp.skipped || !sp.applicable ? '–' : sp.status ? '✓' : '✗' }),
+        h('span', { class: 'ids-spec-name', text: sp.name || `#${i + 1}` }),
+        h('span', { class: 'muted small', text: specSummary(sp) }),
+        h('span', { class: 'caret', text: open ? '▾' : '▸' }));
+      head.addEventListener('click', () => { open ? idsOpen.delete(key) : idsOpen.add(key); renderIds(); });
+      let body = null;
+      if (open) {
+        body = h('div', { class: 'cmp-group-body' },
+          sp.description ? h('div', { class: 'small', text: sp.description }) : null,
+          sp.instructions ? h('div', { class: 'muted small', text: sp.instructions }) : null,
+          h('ul', { class: 'ids-reqs' }, sp.requirements.map((r) => h('li', { class: r.status ? 'ok' : 'bad' },
+            h('span', { text: r.status ? '✓ ' : '✗ ' }), h('span', { text: r.description }), r.fail ? h('b', { text: ` (${fmtNum(r.fail)})` }) : null))),
+          h('div', { class: 'flt-btns' },
+            sp.failed.length ? h('button', { class: 'btn sm', text: t('ids.selectFailed', { n: fmtNum(sp.failed.length) }), onclick: () => idsSelect(model, sp.failed.map((f) => f.id)) }) : null,
+            h('button', { class: 'btn sm', text: t('ids.colorSpec'), onclick: () => colorIdsResult(entry, i) })),
+          sp.failed.slice(0, 200).map((f) => {
+            const r = h('div', { class: 'cmp-row removed' },
+              h('div', { class: 'cmp-row-head' }, h('span', { class: 'lbl', text: f.name || f.gid }), h('span', { class: 'cls', text: f.cls })),
+              h('div', { class: 'muted small', text: f.reasons.join(' · ') }));
+            r.addEventListener('click', () => idsSelect(model, [f.id]));
+            return r;
+          }),
+          sp.failed.length > 200 ? h('div', { class: 'muted small', text: t('cmp.more', { n: fmtNum(sp.failed.length - 200) }) }) : null);
+      }
+      parts.push(h('div', { class: 'cmp-group' }, head, body));
+    });
+  }
+  parts.push(h('div', { class: 'cmp-foot' },
+    h('button', { class: 'link', text: t('ids.colorAll'), onclick: () => { for (const e of idsResults) colorIdsResult(e); } }),
+    h('button', { class: 'link', text: t('flt.resetColors'), onclick: () => { for (const e of idsResults) e.model.resetElementColors(); } }),
+    h('button', { class: 'link', text: t('ids.exportCsv'), onclick: () => download(`ids-${idsName.replace(/\.(ids|xml)$/i, '')}.csv`, idsCsv(idsResults), 'text/csv;charset=utf-8') })));
+  panel.replaceChildren(...parts);
+}
 
 // ====================================================================== compare
 let comparison = null;

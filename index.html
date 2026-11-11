@@ -87,6 +87,9 @@
         <button data-action="toggle-python" data-i18n-title="tb.pythonTitle">
           <svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16"/></svg><span>Python</span>
         </button>
+        <button data-action="ids" data-i18n-title="tb.idsTitle">
+          <svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg><span>IDS</span>
+        </button>
         <button data-action="compare" data-i18n-title="tb.compareTitle">
           <svg viewBox="0 0 24 24"><path d="M8 3v18M16 3v18M3 8h5M16 16h5M3 16h5M16 8h5"/></svg><span data-i18n="tb.compare"></span>
         </button>
@@ -219,6 +222,7 @@
             </div>
           </div>
           <div class="cmp-panel" id="cmp-panel" hidden></div>
+          <div class="cmp-panel ids-panel" id="ids-panel" hidden></div>
           <div class="mode-hint" id="mode-hint" hidden></div>
           <div class="map-attribution" id="map-attribution" hidden></div>
           <div class="statusbar" id="statusbar"></div>
@@ -325,6 +329,18 @@
         <button class="btn" data-action="map-remove" data-i18n="map.remove"></button>
         <button class="btn" data-action="map-close" data-i18n="common.close"></button>
         <button class="btn primary" data-action="map-show" data-i18n="map.show"></button>
+      </div>
+    </dialog>
+
+    <dialog id="ids-dialog">
+      <h2 data-i18n="ids.title"></h2>
+      <p class="muted small" data-i18n="ids.intro"></p>
+      <label class="field"><span data-i18n="ids.file"></span><input id="ids-file" type="file" accept=".ids,.xml" /></label>
+      <div class="field"><span data-i18n="ids.models"></span><div id="ids-models" class="merge-models"></div></div>
+      <p class="muted small" data-i18n="ids.note"></p>
+      <div class="dialog-btns">
+        <button class="btn" data-action="ids-cancel" data-i18n="common.cancel"></button>
+        <button class="btn primary" data-action="ids-run" data-i18n="ids.run"></button>
       </div>
     </dialog>
 

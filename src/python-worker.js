@@ -123,6 +123,8 @@ class App:
     def merge(self, files, name=None):
         return merge_models(files, name)
 
+    _result = None  # a JSON string returned to the viewer (used by built-in tools such as IDS)
+
     def __repr__(self):
         return "<OnlineIFC app: update(), add_model(), download(), select(), merge()>"
 
@@ -197,8 +199,9 @@ async function ensureLoaded(config) {
   }
 }
 
-async function run({ id, code, models, active, selection }) {
+async function run({ id, code, models, active, selection, files }) {
   const py = pyodide;
+  for (const f of files || []) py.FS.writeFile(f.path, f.text); // extra input files (e.g. an IDS file)
   const keep = [];
   for (const m of models) {
     keep.push(m.key);
@@ -228,6 +231,7 @@ async function run({ id, code, models, active, selection }) {
     ns.destroy?.();
   }
   const actions = JSON.parse(py.globals.get('_take_actions')());
+  const appResult = py.runPython('_r = app._result; app._result = None; _r');
   // Convert texts to bytes so the main thread can load them directly
   const enc = new TextEncoder();
   const transfer = [];
@@ -238,7 +242,7 @@ async function run({ id, code, models, active, selection }) {
       transfer.push(a.bytes.buffer);
     }
   }
-  post({ type: 'done', id, ok: true, actions }, transfer);
+  post({ type: 'done', id, ok: true, actions, result: appResult ?? null }, transfer);
 }
 
 self.onmessage = async ({ data }) => {

@@ -90,7 +90,7 @@ export class PythonEngine extends EventTarget {
    * @param {string} code
    * @param {{models: import('./model.js').IfcModel[], active?: any, selection?: Map}} ctx
    */
-  async run(code, { models, active = null, selection = new Map() }) {
+  async run(code, { models, active = null, selection = new Map(), files = [] }) {
     await this.ensure();
     const transfer = [];
     const payload = models.map((m) => {
@@ -111,7 +111,7 @@ export class PythonEngine extends EventTarget {
     this.#setState('running');
     return new Promise((resolve) => {
       this.pending.set(id, { resolve });
-      this.worker.postMessage({ type: 'run', id, code, models: payload, active: active ? String(active.uid) : null, selection: sel, config: getPythonConfig() }, transfer);
+      this.worker.postMessage({ type: 'run', id, code, models: payload, active: active ? String(active.uid) : null, selection: sel, files, config: getPythonConfig() }, transfer);
     });
   }
 
