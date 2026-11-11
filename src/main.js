@@ -1,16 +1,19 @@
-// OnlineIFC – brugerflade.
+// OnlineIFC – user interface.
 import { Viewer } from './viewer.js';
 import { loadIfcFile } from './ifc.js';
-import { isSpatialType } from './model.js';
+import { isSpatialType, KIND_TYPES } from './model.js';
+import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js';
+import { PythonPanel } from './scripting.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-const h = (tag, props = {}, ...children) => {
+export const h = (tag, props = {}, ...children) => {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
     if (v === undefined || v === null || v === false) continue;
     if (k === 'class') el.className = v;
     else if (k === 'text') el.textContent = v;
+    else if (k === 'value') el.value = v;
     else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
     else el.setAttribute(k, v === true ? '' : v);
   }
@@ -28,45 +31,83 @@ const state = {
   active: null, // {model, id}
   pickPlaneMode: false,
   spacesVisible: false,
+  editMode: false,
 };
 
-// ======================================================================= filer
-async function openFiles(files) {
-  const list = [...files].filter((f) => /\.ifc$/i.test(f.name));
-  if (!list.length) { toast('Vælg venligst en eller flere .ifc-filer.'); return; }
+// ===================================================================== language
+$('#lang-select').value = getLang();
+$('#lang-select').addEventListener('change', (e) => {
+  setLang(e.target.value);
+  applyStaticTranslations();
+  python.translate();
+  renderAll();
+});
+applyStaticTranslations();
+
+// ======================================================================== files
+async function withLoading(fn) {
   const loading = $('#loading');
   loading.hidden = false;
-  try {
+  try { return await fn((msg, frac) => {
+    $('#loading-text').textContent = msg;
+    $('#loading-bar').style.width = `${Math.round(frac * 100)}%`;
+  }); } finally { loading.hidden = true; }
+}
+
+async function openFiles(files) {
+  const list = [...files].filter((f) => /\.ifc$/i.test(f.name));
+  if (!list.length) { toast(t('msg.chooseIfc')); return; }
+  const before = viewer.models.length;
+  await withLoading(async (progress) => {
     for (let i = 0; i < list.length; i++) {
       const file = list[i];
       const prefix = list.length > 1 ? `(${i + 1}/${list.length}) ` : '';
       try {
-        const model = await loadIfcFile(file, {
-          onProgress: (msg, frac) => {
-            $('#loading-text').textContent = prefix + msg;
-            $('#loading-bar').style.width = `${Math.round(((i + frac) / list.length) * 100)}%`;
-          },
-        });
+        const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length) });
         viewer.addModel(model);
         if (state.spacesVisible) model.show(model.spaceIds);
       } catch (err) {
         console.error(err);
-        toast(`Kunne ikke indlæse ${file.name}: ${err.message || err}`);
+        toast(t('msg.loadFailed', { name: file.name, error: err.message || err }));
       }
     }
-  } finally {
-    loading.hidden = true;
+  });
+  afterModelsChanged();
+  viewer.fitBox(viewer.sceneBox(), { keepDirection: before > 0 });
+}
+
+/** Loads IFC bytes (e.g. produced by Python) into the viewer, optionally replacing a model. */
+async function loadBytes(name, data, { replace = null } = {}) {
+  const model = await withLoading((progress) => loadIfcFile({ name, data }, { onProgress: progress }));
+  if (replace) {
+    viewer.replaceModel(replace, model);
+    // Express IDs survive the round trip through IfcOpenShell, so the selection can be kept
+    const prev = state.selection.get(replace);
+    state.selection.delete(replace);
+    if (prev) {
+      const kept = [...prev].filter((id) => model.elementIds.has(id) || model.parent.has(id));
+      if (kept.length) state.selection.set(model, new Set(kept));
+    }
+    if (state.active?.model === replace) state.active = { model, id: state.active.id };
+    searchIndex.delete(replace);
+  } else {
+    viewer.addModel(model);
   }
+  if (state.spacesVisible) model.show(model.spaceIds);
+  afterModelsChanged();
+  return model;
+}
+
+function afterModelsChanged() {
   $('#welcome').hidden = viewer.models.length > 0;
   renderAll();
-  viewer.fitBox(viewer.sceneBox(), { keepDirection: viewer.models.length > list.length });
 }
 
 for (const input of [$('#file-input'), $('#file-input-2')]) {
   input.addEventListener('change', (e) => { openFiles(e.target.files); e.target.value = ''; });
 }
 
-// Træk-og-slip
+// Drag and drop
 const vp = $('#viewport');
 let dragDepth = 0;
 window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; vp.classList.add('dragging'); });
@@ -79,7 +120,13 @@ window.addEventListener('drop', (e) => {
   if (e.dataTransfer?.files?.length) openFiles(e.dataTransfer.files);
 });
 
-// ================================================================== markering
+function download(name, data, type = 'application/octet-stream') {
+  const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
+  h('a', { href: url, download: name }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
+// ==================================================================== selection
 function select(model, ids, { activeId = null, additive = false, toggle = false } = {}) {
   if (!additive) state.selection.clear();
   if (model) {
@@ -104,11 +151,8 @@ function clearSelection() {
 
 function applySelection() {
   for (const m of viewer.models) m.setSelection(state.selection.get(m) || [], viewer.highlightMaterial);
-  // marker rækker i træet
   for (const el of $$('.node.selected')) el.classList.remove('selected');
-  for (const [m, set] of state.selection) {
-    for (const id of set) treeRegistry.get(`${m.uid}:${id}`)?.row.classList.add('selected');
-  }
+  applyTreeSelection();
   if (state.active) treeRegistry.get(`${state.active.model.uid}:${state.active.id}`)?.row.classList.add('selected');
   renderProps();
   renderStatus();
@@ -123,7 +167,7 @@ function selectionCount() {
 viewer.addEventListener('pick', ({ hit, originalEvent: e }) => {
   if (state.pickPlaneMode) {
     if (hit?.normal) {
-      // Læg planet 2 cm inde bag fladen, så selve snittet bliver synligt.
+      // Put the plane 2 cm behind the face so the cut becomes visible.
       const n = hit.normal.clone().normalize();
       viewer.addPlane('custom', { normal: n, point: hit.point.clone().addScaledVector(n, -0.02) });
       renderPlanes();
@@ -137,25 +181,24 @@ viewer.addEventListener('pick', ({ hit, originalEvent: e }) => {
   revealInTree(hit.model, hit.id);
 });
 
-// ================================================================ værktøjslinje
+// ====================================================================== toolbar
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action],[data-view],[data-plane]');
   if (!btn) return;
   if (btn.dataset.view) return viewer.setView(btn.dataset.view);
   if (btn.dataset.plane) {
-    if (!viewer.models.length) return toast('Indlæs en model først.');
+    if (!viewer.models.length) return toast(t('msg.loadFirst'));
     viewer.addPlane(btn.dataset.plane);
     return renderPlanes();
   }
-  const a = btn.dataset.action;
   const actions = {
     fit: () => fitSelection(),
     'plane-face': () => {
-      if (!viewer.models.length) return toast('Indlæs en model først.');
+      if (!viewer.models.length) return toast(t('msg.loadFirst'));
       setPickPlaneMode(!state.pickPlaneMode);
     },
     'section-box': () => {
-      if (!viewer.models.length) return toast('Indlæs en model først.');
+      if (!viewer.models.length) return toast(t('msg.loadFirst'));
       viewer.clearPlanes();
       viewer.addSectionBox(selectionBox() || viewer.sceneBox());
       renderPlanes();
@@ -165,10 +208,12 @@ document.addEventListener('click', (e) => {
     isolate: () => isolateSelected(),
     'show-all': () => showAll(),
     'toggle-spaces': () => toggleSpaces(),
-    screenshot: () => {
-      const a = h('a', { href: viewer.screenshot(), download: `onlineifc-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png` });
-      a.click();
-    },
+    'toggle-edit': () => setEditMode(!state.editMode),
+    merge: () => openMergeDialog(),
+    'merge-cancel': () => $('#merge-dialog').close(),
+    'merge-run': () => runMerge(),
+    'toggle-python': () => python.toggle(),
+    screenshot: () => download(`onlineifc-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`, dataUrlToBlob(viewer.screenshot())),
     help: () => $('#help-dialog').showModal(),
     'color-by-model': () => {
       viewer.models.forEach((m, i) => m.setColor(PALETTE[i % PALETTE.length]));
@@ -176,8 +221,16 @@ document.addEventListener('click', (e) => {
     },
     'reset-colors': () => { for (const m of viewer.models) m.setColor(null); renderModels(); },
   };
-  actions[a]?.();
+  actions[btn.dataset.action]?.();
 });
+
+function dataUrlToBlob(url) {
+  const [head, b64] = url.split(',');
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: head.slice(5, head.indexOf(';')) });
+}
 
 function setPickPlaneMode(on) {
   state.pickPlaneMode = on;
@@ -185,7 +238,14 @@ function setPickPlaneMode(on) {
   vp.classList.toggle('picking', on);
   const hint = $('#mode-hint');
   hint.hidden = !on;
-  hint.textContent = 'Klik på en flade for at lægge et snit – Esc for at afbryde';
+  hint.textContent = t('planes.faceHint');
+}
+
+function setEditMode(on) {
+  state.editMode = on;
+  for (const b of $$('[data-action="toggle-edit"]')) b.classList.toggle('on', on);
+  document.body.classList.toggle('editing', on);
+  renderProps();
 }
 
 function selectionBox() {
@@ -206,14 +266,14 @@ function fitSelection() {
 }
 
 function hideSelected() {
-  if (!state.selection.size) return toast('Vælg først et eller flere elementer.');
+  if (!state.selection.size) return toast(t('msg.selectFirst'));
   for (const [m, set] of state.selection) m.hide(set);
   clearSelection();
   refreshVisibilityUi();
 }
 
 function isolateSelected() {
-  if (!state.selection.size) return toast('Vælg først et eller flere elementer.');
+  if (!state.selection.size) return toast(t('msg.selectFirst'));
   for (const m of viewer.models) m.isolate(state.selection.get(m) || []);
   refreshVisibilityUi();
 }
@@ -234,7 +294,7 @@ function toggleSpaces() {
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.target.matches('input, textarea, select')) return;
+  if (e.target.closest('input, textarea, select, .cm-editor')) return;
   if (e.key === 'Escape') {
     if (state.pickPlaneMode) setPickPlaneMode(false);
     else clearSelection();
@@ -242,13 +302,14 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'H' && e.shiftKey) showAll();
   else if (e.key === 'h') hideSelected();
   else if (e.key === 'i' || e.key === 'I') isolateSelected();
+  else if (e.key === 'e' || e.key === 'E') setEditMode(!state.editMode);
   else if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); $('#file-input').click(); }
 });
 
-// ========================================================================= faner
+// ========================================================================= tabs
 for (const tab of $$('.tab')) {
   tab.addEventListener('click', () => {
-    for (const t of $$('.tab')) t.classList.toggle('active', t === tab);
+    for (const x of $$('.tab')) x.classList.toggle('active', x === tab);
     for (const b of $$('.tab-body')) b.classList.toggle('active', b.id === `tab-${tab.dataset.tab}`);
   });
 }
@@ -267,7 +328,7 @@ function refreshVisibilityUi() {
   renderStatus();
 }
 
-// ===================================================================== modeller
+// ======================================================================= models
 function renderModels() {
   const list = $('#model-list');
   list.replaceChildren();
@@ -275,37 +336,45 @@ function renderModels() {
   $('#model-actions').hidden = viewer.models.length === 0;
 
   for (const m of viewer.models) {
-    const colorInput = h('input', { type: 'color', value: m.overrideColor ? `#${m.overrideColor.getHexString()}` : '#b0b0b0', title: 'Modelfarve' });
-    colorInput.addEventListener('input', () => { m.setColor(colorInput.value); dot.style.background = colorInput.value; });
+    const colorInput = h('input', { type: 'color', value: m.overrideColor ? `#${m.overrideColor.getHexString()}` : '#b0b0b0', title: t('models.color') });
     const dot = h('span', { class: 'swatch-dot' });
     dot.style.background = m.overrideColor ? `#${m.overrideColor.getHexString()}` : 'conic-gradient(#e15759, #edc948, #59a14f, #4e79a7, #e15759)';
+    colorInput.addEventListener('input', () => { m.setColor(colorInput.value); dot.style.background = colorInput.value; });
 
     const opacity = h('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: String(m.opacity) });
     const opVal = h('span', { class: 'muted', text: `${Math.round(m.opacity * 100)} %` });
     opacity.addEventListener('input', () => { m.setOpacity(+opacity.value); opVal.textContent = `${Math.round(+opacity.value * 100)} %`; });
 
-    const vis = h('input', { type: 'checkbox', title: 'Vis/skjul model', checked: m.visible });
+    const vis = h('input', { type: 'checkbox', title: t('models.visible'), checked: m.visible });
     vis.addEventListener('change', () => { m.setVisible(vis.checked); renderStatus(); });
+
+    const changes = m.changes.length
+      ? h('details', { class: 'changes' },
+        h('summary', {}, h('span', { class: 'badge-mod', text: t('models.modified', { n: m.changes.length }) })),
+        h('ol', {}, m.changes.slice(-50).reverse().map((c) => h('li', { text: c.description }))))
+      : null;
 
     const card = h('div', { class: 'card' },
       h('div', { class: 'card-head' }, vis, dot, h('span', { class: 'card-name', title: m.name, text: m.name })),
-      h('div', { class: 'card-meta', text: `${m.schema} · ${m.elementIds.size.toLocaleString('da-DK')} elementer · ${fmtBytes(m.fileSize)}` }),
-      h('div', { class: 'card-row' }, h('label', { text: 'Farve' }), colorInput,
-        h('button', { onclick: () => { m.setColor(null); renderModels(); }, text: 'Original' })),
-      h('div', { class: 'card-row' }, h('label', { text: 'Gennemsigtig' }), opacity, opVal),
+      h('div', { class: 'card-meta', text: `${m.schema} · ${t('models.elements', { n: fmtNum(m.elementIds.size) })} · ${fmtBytes(m.fileSize)}` }),
+      changes,
+      h('div', { class: 'card-row' }, h('label', { text: t('models.color') }), colorInput,
+        h('button', { onclick: () => { m.setColor(null); renderModels(); }, text: t('models.original') })),
+      h('div', { class: 'card-row' }, h('label', { text: t('models.transparency') }), opacity, opVal),
       h('div', { class: 'card-btns' },
-        h('button', { onclick: () => viewer.fitBox(m.getBox()), text: 'Zoom til' }),
-        h('button', { onclick: () => exportCsv(m), text: 'Eksportér egenskaber (CSV)' }),
+        h('button', { onclick: () => viewer.fitBox(m.getBox()), text: t('models.zoom') }),
+        h('button', { class: m.changes.length ? 'primary-outline' : null, onclick: () => saveIfc(m), text: t('models.downloadIfc') }),
+        h('button', { onclick: () => exportCsv(m), text: t('models.exportCsv') }),
         h('button', {
           onclick: () => {
-            if (!confirm(`Fjern ${m.name} fra visningen?`)) return;
+            const msg = m.changes.length ? t('models.removeUnsaved', { name: m.name }) : t('models.removeConfirm', { name: m.name });
+            if (!confirm(msg)) return;
             state.selection.delete(m);
             if (state.active?.model === m) state.active = null;
             viewer.removeModel(m);
-            $('#welcome').hidden = viewer.models.length > 0;
-            renderAll();
+            afterModelsChanged();
           },
-          text: 'Fjern',
+          text: t('models.remove'),
         }),
       ),
     );
@@ -313,29 +382,30 @@ function renderModels() {
   }
 }
 
+function saveIfc(model) {
+  const name = model.changes.length ? model.name.replace(/(\.ifc)?$/i, '_edited.ifc') : model.name;
+  download(name, model.getBytes(), 'application/x-step');
+}
+
 async function exportCsv(model) {
-  const loading = $('#loading');
-  loading.hidden = false;
-  $('#loading-text').textContent = `Samler egenskaber fra ${model.name}…`;
   try {
-    const { cols, rows } = await model.exportRows((f) => { $('#loading-bar').style.width = `${Math.round(f * 100)}%`; });
-    const esc = (v) => {
-      const s = v === undefined || v === null ? '' : String(v);
-      return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const csv = '﻿' + [cols.map(esc).join(';'), ...rows.map((r) => cols.map((c) => esc(r[c])).join(';'))].join('\r\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-    h('a', { href: url, download: model.name.replace(/\.ifc$/i, '') + '-egenskaber.csv' }).click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    await withLoading(async (progress) => {
+      progress(t('csv.collecting', { name: model.name }), 0);
+      const { cols, rows } = await model.exportRows((f) => progress(t('csv.collecting', { name: model.name }), f));
+      const esc = (v) => {
+        const s = v === undefined || v === null ? '' : String(v);
+        return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const csv = '﻿' + [cols.map(esc).join(';'), ...rows.map((r) => cols.map((c) => esc(r[c])).join(';'))].join('\r\n');
+      download(model.name.replace(/\.ifc$/i, '') + '-properties.csv', csv, 'text/csv;charset=utf-8');
+    });
   } catch (e) {
     console.error(e);
-    toast(`Eksport mislykkedes: ${e.message || e}`);
-  } finally {
-    loading.hidden = true;
+    toast(t('msg.exportFailed', { error: e.message || e }));
   }
 }
 
-// ======================================================================= træ
+// ========================================================================= tree
 const treeRegistry = new Map(); // key -> {row, expand, ids}
 
 function descendantIds(model, node, out = []) {
@@ -351,12 +421,12 @@ function renderTree() {
   const q = $('#tree-search').value.trim();
   if (q) return renderTreeSearch(q);
   if (!viewer.models.length) {
-    root.append(h('div', { class: 'empty-hint', text: 'Indlæs en model for at se dens struktur.' }));
+    root.append(h('div', { class: 'empty-hint', text: t('tree.empty') }));
     return;
   }
   const ul = h('ul');
   for (const m of viewer.models) {
-    const modelNode = { expressID: -1, children: [m.tree], __model: true };
+    const modelNode = { expressID: -1, children: [m.tree] };
     ul.append(treeNode(m, modelNode, { open: true, label: m.name, rootModel: true }));
   }
   root.append(h('div', { class: 'tree' }, ul));
@@ -369,7 +439,7 @@ function treeNode(model, node, { open = false, label = null, cls = null, rootMod
   const ids = groupChildren ? groupChildren.flatMap((c) => descendantIds(model, c)) : descendantIds(model, node);
 
   const caret = h('span', { class: 'caret', text: hasKids ? '▸' : '' });
-  const eye = h('button', { class: 'eye', title: 'Vis/skjul' });
+  const eye = h('button', { class: 'eye', title: t('tree.toggleVisibility') });
   const typeName = rootModel ? 'Model' : cls ?? model.typeName(id);
   const text = label ?? model.label(id);
   const row = h('div', { class: `node${rootModel ? ' model-root' : ''}` },
@@ -402,8 +472,7 @@ function treeNode(model, node, { open = false, label = null, cls = null, rootMod
   row.addEventListener('dblclick', (e) => { e.stopPropagation(); const b = model.getBox(ids); if (!b.isEmpty()) viewer.fitBox(b); });
   row.addEventListener('click', (e) => {
     const additive = e.ctrlKey || e.metaKey || e.shiftKey;
-    if (rootModel) { select(model, ids, { additive }); return; }
-    if (groupChildren) { select(model, ids, { additive }); return; }
+    if (rootModel || groupChildren) { select(model, ids, { additive }); return; }
     select(model, ids.length ? ids : [id], { activeId: id, additive });
   });
   eye.addEventListener('click', (e) => {
@@ -422,23 +491,22 @@ function treeNode(model, node, { open = false, label = null, cls = null, rootMod
 
 function renderChildren(model, node, children, ul, isGroup) {
   const parentSpatial = !isGroup && node.expressID !== -1 && isSpatialType(model.typeName(node.expressID));
-  if (!parentSpatial || isGroup || node.expressID === -1) {
+  if (!parentSpatial) {
     for (const c of children) ul.append(treeNode(model, c, { open: node.expressID === -1 }));
     return;
   }
-  // Under rumlige noder: rumlige børn først, derefter elementer grupperet efter klasse
+  // Under spatial nodes: spatial children first, then elements grouped by class
   const groups = new Map();
   for (const c of children) {
     const t0 = model.typeName(c.expressID);
     if (isSpatialType(t0)) ul.append(treeNode(model, c, { open: t0 === 'IfcSite' || t0 === 'IfcBuilding' }));
     else {
-      const t = model.typeName(c.expressID);
-      if (!groups.has(t)) groups.set(t, []);
-      groups.get(t).push(c);
+      if (!groups.has(t0)) groups.set(t0, []);
+      groups.get(t0).push(c);
     }
   }
-  for (const [t, list] of [...groups].sort((a, b) => a[0].localeCompare(b[0]))) {
-    ul.append(treeNode(model, node, { label: t, cls: t, groupChildren: list, groupKey: `${model.uid}:${node.expressID}:cls:${t}` }));
+  for (const [ty, list] of [...groups].sort((a, b) => a[0].localeCompare(b[0]))) {
+    ul.append(treeNode(model, node, { label: ty, cls: ty, groupChildren: list, groupKey: `${model.uid}:${node.expressID}:cls:${ty}` }));
   }
 }
 
@@ -476,10 +544,11 @@ function revealInTree(model, id) {
   }
 }
 
-// Søgning i struktur
-const searchIndex = new WeakMap();
+// Search in the tree
+const searchIndex = new Map(); // model -> {version, items}
 function buildIndex(model) {
-  if (searchIndex.has(model)) return searchIndex.get(model);
+  const cached = searchIndex.get(model);
+  if (cached && cached.version === model.version) return cached.items;
   const out = [];
   const walk = (n) => {
     const line = (() => { try { return model.api.GetLine(model.modelID, n.expressID, false); } catch { return null; } })();
@@ -491,7 +560,7 @@ function buildIndex(model) {
     for (const c of n.children || []) walk(c);
   };
   walk(model.tree);
-  searchIndex.set(model, out);
+  searchIndex.set(model, { version: model.version, items: out });
   return out;
 }
 
@@ -503,7 +572,7 @@ function renderTreeSearch(q) {
   const LIMIT = 500;
   for (const m of viewer.models) {
     for (const item of buildIndex(m)) {
-      if (!terms.every((t) => item.hay.includes(t))) continue;
+      if (!terms.every((x) => item.hay.includes(x))) continue;
       total++;
       if (total > LIMIT) continue;
       const row = h('div', { class: 'node' },
@@ -519,7 +588,7 @@ function renderTreeSearch(q) {
       ul.append(h('li', {}, row));
     }
   }
-  root.append(h('div', { class: 'muted', style: 'padding:0 4px 6px', text: total > LIMIT ? `${total} resultater – viser de første ${LIMIT}` : `${total} resultater` }));
+  root.append(h('div', { class: 'muted', style: 'padding:0 4px 6px', text: total > LIMIT ? t('tree.resultsLimited', { n: fmtNum(total), limit: LIMIT }) : t('tree.results', { n: fmtNum(total) }) }));
   root.append(h('div', { class: 'tree' }, ul));
   applyTreeSelection();
 }
@@ -530,19 +599,19 @@ $('#tree-search').addEventListener('input', () => {
   searchTimer = setTimeout(renderTree, 250);
 });
 
-// ===================================================================== klasser
+// ====================================================================== classes
 function renderClasses() {
   const root = $('#classes');
   root.replaceChildren();
   if (!viewer.models.length) {
-    root.append(h('div', { class: 'empty-hint', text: 'Indlæs en model for at se dens IFC-klasser.' }));
+    root.append(h('div', { class: 'empty-hint', text: t('classes.empty') }));
     return;
   }
   for (const m of viewer.models) {
     const ul = h('ul');
     for (const [cls, ids] of [...m.classes].sort((a, b) => a[0].localeCompare(b[0]))) {
       const allHidden = ids.every((x) => m.isHidden(x));
-      const eye = h('button', { class: `eye${allHidden ? ' off' : ''}`, title: 'Vis/skjul klasse' });
+      const eye = h('button', { class: `eye${allHidden ? ' off' : ''}`, title: t('classes.toggle') });
       eye.innerHTML = allHidden ? EYE_OFF : EYE;
       eye.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -552,7 +621,7 @@ function renderClasses() {
         } else m.hide(ids);
         refreshVisibilityUi();
       });
-      const row = h('div', { class: `node${allHidden ? ' dim' : ''}` }, eye, h('span', { class: 'lbl', text: cls }), h('span', { class: 'count', text: ids.length.toLocaleString('da-DK') }));
+      const row = h('div', { class: `node${allHidden ? ' dim' : ''}` }, eye, h('span', { class: 'lbl', text: cls }), h('span', { class: 'count', text: fmtNum(ids.length) }));
       row.addEventListener('click', (e) => select(m, ids, { additive: e.ctrlKey || e.metaKey || e.shiftKey }));
       row.addEventListener('dblclick', () => { const b = m.getBox(ids); if (!b.isEmpty()) viewer.fitBox(b); });
       ul.append(h('li', {}, row));
@@ -561,30 +630,35 @@ function renderClasses() {
   }
 }
 
-// ================================================================== egenskaber
+// =================================================================== properties
 let propsToken = 0;
-async function renderProps() {
+async function renderProps({ keepScroll = false } = {}) {
   const token = ++propsToken;
   const root = $('#props');
+  const scroll = root.scrollTop;
   const count = selectionCount();
   if (!state.active && !count) {
-    root.replaceChildren(h('div', { class: 'empty-hint', text: 'Klik på et element for at se dets metadata.' }));
+    root.replaceChildren(h('div', { class: 'empty-hint', text: t('props.empty') }));
     return;
   }
 
   const parts = [];
   if (count > 1 || !state.active) {
-    // Oversigt over flere valgte elementer
     const byClass = new Map();
     for (const [m, set] of state.selection) for (const id of set) {
-      const t = m.typeName(id);
-      byClass.set(t, (byClass.get(t) || 0) + 1);
+      const ty = m.typeName(id);
+      byClass.set(ty, (byClass.get(ty) || 0) + 1);
     }
     parts.push(h('div', { class: 'prop-head' },
-      h('div', { class: 'cls', text: 'Markering' }),
-      h('div', { class: 'name', text: `${count.toLocaleString('da-DK')} elementer valgt` }),
-      h('ul', { class: 'multi-list' }, [...byClass].sort((a, b) => b[1] - a[1]).map(([t, n]) => h('li', {}, h('span', { text: t }), h('span', { class: 'muted', text: n.toLocaleString('da-DK') })))),
+      h('div', { class: 'cls', text: t('props.selection') }),
+      h('div', { class: 'name', text: t('props.nSelected', { n: fmtNum(count) }) }),
+      h('ul', { class: 'multi-list' }, [...byClass].sort((a, b) => b[1] - a[1]).map(([ty, n]) => h('li', {}, h('span', { text: ty }), h('span', { class: 'muted', text: fmtNum(n) })))),
     ));
+  }
+
+  if (state.editMode && count > 0) parts.push(batchForm());
+  else if (!state.editMode && count > 1) {
+    parts.push(h('button', { class: 'btn sm hint-btn', onclick: () => setEditMode(true), text: t('props.editHint') }));
   }
 
   if (state.active) {
@@ -594,44 +668,144 @@ async function renderProps() {
       data = await model.getElementData(id);
     } catch (e) {
       console.error(e);
-      parts.push(h('div', { class: 'empty-hint', text: `Kunne ikke læse egenskaber: ${e.message}` }));
+      parts.push(h('div', { class: 'empty-hint', text: t('props.readFailed', { error: e.message }) }));
     }
     if (token !== propsToken) return;
     if (data) {
-      const guidBtn = h('button', { text: 'Kopiér', onclick: () => { navigator.clipboard?.writeText(data.guid); guidBtn.textContent = 'Kopieret'; } });
+      const guidBtn = h('button', { text: t('props.copy'), onclick: () => { navigator.clipboard?.writeText(data.guid); guidBtn.textContent = t('props.copied'); } });
       parts.push(h('div', { class: 'prop-head' },
         h('div', { class: 'cls', text: data.cls }),
         h('div', { class: 'name', text: data.name || `#${id}` }),
         data.guid ? h('div', { class: 'guid' }, h('span', { text: data.guid }), guidBtn) : null,
         viewer.models.length > 1 ? h('div', { class: 'muted', text: model.name }) : null,
       ));
-      for (const sec of data.sections) parts.push(renderSection(model, sec));
+      for (const sec of data.sections) parts.push(renderSection(model, id, sec));
     }
   }
   if (token !== propsToken) return;
   root.replaceChildren(...parts);
   filterProps();
+  if (keepScroll) root.scrollTop = scroll;
 }
 
-function renderSection(model, sec) {
+/** Runs an edit, reports errors and refreshes the UI. */
+async function commitEdit(model, fn, { refreshTree = false } = {}) {
+  try {
+    const result = await fn();
+    searchIndex.delete(model);
+    renderModels();
+    if (refreshTree) renderTree();
+    await renderProps({ keepScroll: true });
+    return result;
+  } catch (e) {
+    console.error(e);
+    toast(e.message || String(e));
+    await renderProps({ keepScroll: true });
+    return null;
+  }
+}
+
+function kindSelect(value = 'text') {
+  return h('select', { class: 'kind' }, Object.keys(KIND_TYPES).map((k) => h('option', { value: k, text: t(`kind.${k}`), selected: k === value })));
+}
+
+function valueInput(meta) {
+  const vt = String(meta.valueType || '').toUpperCase();
+  if (vt === 'IFCBOOLEAN' || vt === 'IFCLOGICAL') {
+    const sel = h('select', {},
+      h('option', { value: 'true', text: t('val.true'), selected: meta.raw === 'true' }),
+      h('option', { value: 'false', text: t('val.false'), selected: meta.raw === 'false' }),
+      meta.raw === '' ? h('option', { value: '', text: '—', selected: true }) : null);
+    return sel;
+  }
+  return h('input', { type: 'text', value: meta.raw ?? '' });
+}
+
+function renderSection(model, elementId, sec) {
   const tbody = h('tbody');
-  for (const [k, v, linkId] of sec.rows) {
+  const editing = state.editMode;
+  for (const [k, v, meta] of sec.rows) {
     const valueCell = h('td');
-    if (sec.links && linkId !== undefined) {
+    if (meta?.link !== undefined) {
       const a = h('a', { text: v });
       a.addEventListener('click', () => {
-        const node = findNode(model.tree, linkId);
+        const node = findNode(model.tree, meta.link);
         const ids = node ? descendantIds(model, node) : [];
-        select(model, ids.length ? ids : [linkId], { activeId: linkId });
-        revealInTree(model, linkId);
+        select(model, ids.length ? ids : [meta.link], { activeId: meta.link });
+        revealInTree(model, meta.link);
       });
       valueCell.append(a);
+    } else if (editing && meta?.attr) {
+      const input = h('input', { type: 'text', value: v });
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); if (e.key === 'Escape') { input.value = v; input.blur(); } });
+      input.addEventListener('change', () => commitEdit(model, () => model.setAttribute(elementId, meta.attr, input.value), { refreshTree: meta.attr === 'Name' }));
+      valueCell.append(input);
+    } else if (editing && meta?.propId) {
+      const input = valueInput(meta);
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') input.blur(); });
+      input.addEventListener('change', () => commitEdit(model, () => model.setPropertyValue(meta.propId, input.value)));
+      const del = h('button', { class: 'icon-btn', title: t('edit.removeProp'), text: '✕' });
+      del.addEventListener('click', () => {
+        if (!confirm(t('edit.removePropConfirm', { name: k }))) return;
+        commitEdit(model, () => model.removeProperty(sec.psetId, meta.propId));
+      });
+      valueCell.append(h('div', { class: 'edit-cell' }, input, del));
     } else valueCell.textContent = v;
     tbody.append(h('tr', { 'data-k': k.toLowerCase(), 'data-v': String(v).toLowerCase() }, h('td', { text: k }), valueCell));
   }
+
+  if (editing && sec.psetId) {
+    const name = h('input', { type: 'text', placeholder: t('edit.propName') });
+    const value = h('input', { type: 'text', placeholder: t('edit.value') });
+    const kind = kindSelect();
+    const add = h('button', { class: 'btn sm primary', text: t('edit.add') });
+    add.addEventListener('click', () => commitEdit(model, () => model.addProperty(sec.psetId, name.value.trim(), value.value, kind.value)));
+    tbody.append(h('tr', { class: 'add-row', 'data-k': '', 'data-v': '' }, h('td', {}, name), h('td', {}, h('div', { class: 'edit-cell' }, value, kind, add))));
+  }
+
+  let badge = String(sec.rows.length);
+  let warn = null;
+  if (sec.isType && editing && sec.psetId) warn = t('edit.typeShared');
+  else if (sec.shared > 1) {
+    badge = `${sec.rows.length} · ${t('props.sharedBy', { n: sec.shared })}`;
+    if (editing && sec.psetId) warn = t('edit.sharedWarn', { n: sec.shared });
+  }
   return h('details', { class: `sec${sec.kind === 'qto' ? ' qto' : ''}`, open: sec.open },
-    h('summary', {}, h('span', { text: sec.title }), h('span', { class: 'badge', text: String(sec.rows.length) })),
+    h('summary', {}, h('span', { text: sec.title }), h('span', { class: 'badge', text: badge })),
+    warn ? h('div', { class: 'warn', text: warn }) : null,
     h('table', { class: 'props' }, tbody),
+  );
+}
+
+/** Form for setting a property on all selected elements. */
+function batchForm() {
+  const count = selectionCount();
+  const pset = h('input', { type: 'text', placeholder: 'Pset_…', list: 'pset-names' });
+  const prop = h('input', { type: 'text', placeholder: t('edit.propName') });
+  const value = h('input', { type: 'text', placeholder: t('edit.value') });
+  const kind = kindSelect();
+  const apply = h('button', { class: 'btn primary sm', text: t('edit.applyTo', { n: fmtNum(count) }) });
+  const datalist = h('datalist', { id: 'pset-names' }, ['Pset_WallCommon', 'Pset_DoorCommon', 'Pset_WindowCommon', 'Pset_SlabCommon', 'Pset_BeamCommon', 'Pset_ColumnCommon', 'Pset_SpaceCommon'].map((n) => h('option', { value: n })));
+  apply.addEventListener('click', async () => {
+    const psetName = pset.value.trim();
+    const propName = prop.value.trim();
+    if (!psetName || !propName) return toast(t('err.nameRequired'));
+    let total = { edited: 0, added: 0, created: 0, others: 0 };
+    for (const [m, set] of state.selection) {
+      const r = await commitEdit(m, () => m.setPropertyOnElements([...set], psetName, propName, value.value, kind.value));
+      if (!r) return;
+      for (const k of Object.keys(total)) total[k] += r[k];
+    }
+    toast(t('edit.batchDone', total) + (total.others ? ` ${t('edit.batchOthers', { n: total.others })}` : ''), true);
+  });
+  return h('details', { class: 'batch', open: count > 1 || !state.active },
+    h('summary', { class: 'batch-title', text: t('edit.batchTitle', { n: fmtNum(count) }) }),
+    h('div', { class: 'batch-grid' },
+      h('label', { text: t('edit.pset') }), pset,
+      h('label', { text: t('edit.propName') }), prop,
+      h('label', { text: t('edit.value') }), h('div', { class: 'edit-cell' }, value, kind)),
+    datalist,
+    h('div', { class: 'batch-foot' }, h('span', { class: 'muted small', text: t('edit.batchHelp') }), apply),
   );
 }
 
@@ -657,35 +831,34 @@ function filterProps() {
 }
 $('#prop-search').addEventListener('input', filterProps);
 
-// ======================================================================= snit
-const AXIS_LABEL = { x: 'Snit X', y: 'Plan', z: 'Snit Y', custom: 'Flade' };
+// ====================================================================== sections
+const AXIS_LABEL = { x: 'planes.x', y: 'planes.plan', z: 'planes.y', custom: 'planes.face' };
 
 function renderPlanes() {
   const panel = $('#planes-panel');
   const list = $('#plane-list');
   list.replaceChildren();
   panel.hidden = viewer.planes.length === 0;
-  const hasPlanes = viewer.planes.length > 0;
   renderStatus();
-  if (!hasPlanes) return;
+  if (!viewer.planes.length) return;
 
   for (const p of viewer.planes) {
     const range = viewer.planeRange(p);
     const step = (range.max - range.min) / 1000;
-    const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: 'Aktiv' });
+    const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: t('planes.active') });
     enabled.addEventListener('change', () => viewer.togglePlane(p, enabled.checked));
     const slider = h('input', { type: 'range', min: String(range.min), max: String(range.max), step: String(step), value: String(viewer.getPlanePos(p)) });
     const val = h('div', { class: 'val' });
     const upd = () => { val.textContent = `${viewer.getPlanePos(p).toFixed(3)} m`; };
     slider.addEventListener('input', () => { viewer.setPlanePos(p, +slider.value); upd(); });
     upd();
-    const name = p.boxPart ? `Kasse ${p.axis === 'y' ? 'Z' : p.axis === 'z' ? 'Y' : 'X'} ${p.boxPart}` : AXIS_LABEL[p.axis];
+    const name = p.boxPart ? `${t('planes.boxPart')} ${p.axis === 'y' ? 'Z' : p.axis === 'z' ? 'Y' : 'X'} ${p.boxPart}` : t(AXIS_LABEL[p.axis]);
     list.append(h('div', { class: 'plane-row' },
       enabled,
       h('span', { class: 'pl-name', text: name }),
       slider,
-      h('button', { title: 'Vend snitretning', text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
-      h('button', { title: 'Fjern snit', text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
+      h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
+      h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
       val,
     ));
   }
@@ -693,36 +866,113 @@ function renderPlanes() {
 $('#plane-helpers').addEventListener('change', (e) => viewer.setHelpersVisible(e.target.checked));
 $('#plane-fill').addEventListener('change', (e) => viewer.setSectionFill(e.target.checked));
 
-// ===================================================================== status
+// ======================================================================== merge
+function openMergeDialog() {
+  if (viewer.models.length < 2) return toast(t('merge.needTwo'));
+  const list = $('#merge-models');
+  list.replaceChildren(...viewer.models.map((m) => h('label', { class: 'chk' },
+    h('input', { type: 'checkbox', value: String(m.uid), checked: true }),
+    h('span', { text: `${m.name} (${m.schema})` }))));
+  $('#merge-dialog').showModal();
+}
+
+async function runMerge() {
+  const uids = $$('#merge-models input:checked').map((i) => +i.value);
+  const models = viewer.models.filter((m) => uids.includes(m.uid));
+  if (models.length < 2) return toast(t('merge.needTwo'));
+  const name = ($('#merge-name').value.trim() || 'merged.ifc').replace(/(\.ifc)?$/i, '.ifc');
+  const replace = $('#merge-replace').checked;
+  const dl = $('#merge-download').checked;
+  $('#merge-dialog').close();
+  const keys = models.map((m) => String(m.uid));
+  const code = `_merged = merge_models([_files[k] for k in ${JSON.stringify(keys)}])
+print("${t('merge.done')}:", len(_merged.by_type("IfcProduct")), "IfcProduct")
+app.add_model(_merged, ${JSON.stringify(name)})
+${dl ? `app.download(_merged, ${JSON.stringify(name)})` : ''}
+del _merged`;
+  const ok = await python.runCode(code, { title: t('merge.running'), show: true });
+  if (ok && replace) {
+    for (const m of models) {
+      state.selection.delete(m);
+      if (state.active?.model === m) state.active = null;
+      viewer.removeModel(m);
+    }
+    afterModelsChanged();
+  }
+}
+
+// ======================================================================= python
+const python = new PythonPanel({
+  getContext: () => ({ models: viewer.models, active: state.active?.model || [...state.selection.keys()][0] || null, selection: state.selection }),
+  onActions: async (actions) => {
+    for (const a of actions) {
+      if (a.kind === 'update') {
+        const old = viewer.models.find((m) => String(m.uid) === a.key);
+        if (!old) continue;
+        const nm = await loadBytes(old.name, a.bytes, { replace: old });
+        python.engine.rekey(old, nm);
+        nm.changes = [...old.changes, { time: new Date(), description: t('chg.python') }];
+        nm.version = 1;
+        python.engine.sent.set(String(nm.uid), nm.version);
+        renderModels();
+      } else if (a.kind === 'add') {
+        await loadBytes(a.name, a.bytes);
+        viewer.fitAll();
+      } else if (a.kind === 'download') {
+        download(a.name, a.text, /\.csv$/i.test(a.name) ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8');
+      } else if (a.kind === 'select') {
+        state.selection.clear();
+        state.active = null;
+        for (const [key, ids] of Object.entries(a.ids)) {
+          const m = viewer.models.find((x) => String(x.uid) === key);
+          if (m) state.selection.set(m, new Set(ids));
+        }
+        applySelection();
+      }
+    }
+  },
+  onOpenChange: (open) => {
+    for (const b of $$('.toolbar [data-action="toggle-python"]')) b.classList.toggle('on', open);
+    document.body.classList.toggle('py-open', open);
+    viewer.resize();
+  },
+});
+
+// ======================================================================= status
 function renderStatus() {
   const models = viewer.models.length;
-  if (!models) { $('#statusbar').textContent = 'Klar – åbn eller træk IFC-filer ind'; return; }
+  if (!models) { $('#statusbar').textContent = t('status.ready'); return; }
   let elements = 0, hidden = 0;
   for (const m of viewer.models) { elements += m.elementIds.size; hidden += m.hidden.size; }
   const sel = selectionCount();
   $('#statusbar').textContent = [
-    `${models} ${models === 1 ? 'model' : 'modeller'}`,
-    `${elements.toLocaleString('da-DK')} elementer`,
-    hidden ? `${hidden.toLocaleString('da-DK')} skjult` : null,
-    sel ? `${sel.toLocaleString('da-DK')} valgt` : null,
-    viewer.planes.length ? `${viewer.planes.length} snit` : null,
+    t('status.models', { n: models }),
+    t('status.elements', { n: fmtNum(elements) }),
+    hidden ? t('status.hidden', { n: fmtNum(hidden) }) : null,
+    sel ? t('status.selected', { n: fmtNum(sel) }) : null,
+    viewer.planes.length ? t('status.sections', { n: viewer.planes.length }) : null,
+    state.editMode ? t('status.editMode') : null,
   ].filter(Boolean).join('  ·  ');
 }
 
-// ===================================================================== hjælpere
+// ====================================================================== helpers
 function fmtBytes(n) {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
 
-function toast(msg, ok = false) {
-  const t = h('div', { class: `toast${ok ? ' ok' : ''}`, text: msg });
-  document.body.append(t);
-  setTimeout(() => t.remove(), 5000);
+export function toast(msg, ok = false) {
+  const el = h('div', { class: `toast${ok ? ' ok' : ''}`, text: msg });
+  document.body.append(el);
+  setTimeout(() => el.remove(), 6000);
 }
+
+window.addEventListener('beforeunload', (e) => {
+  if (viewer.models.some((m) => m.changes.length)) { e.preventDefault(); e.returnValue = ''; }
+});
 
 renderAll();
 
-// Til fejlsøgning i konsollen
-window.onlineIfc = { viewer, state, openFiles };
+// For debugging in the console
+window.onlineIfc = { viewer, state, openFiles, python };

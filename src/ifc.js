@@ -1,8 +1,9 @@
-// Indlæsning af IFC-filer med web-ifc og opslag af metadata.
+// Loading IFC files with web-ifc and formatting of IFC values.
 import * as WebIFC from 'web-ifc';
 import wasmUrl from 'web-ifc/web-ifc.wasm?url';
 import * as THREE from 'three';
 import { IfcModel } from './model.js';
+import { t } from './i18n.js';
 
 let apiPromise = null;
 
@@ -41,25 +42,26 @@ export function prettyRawName(raw) {
 
 /**
  * Læser en IFC-fil og bygger et IfcModel med sammenflettet geometri.
- * @param {File} file
+ * @param {File|{name:string, data:Uint8Array}} file  a File or raw bytes with a name
  * @param {{ referenceMatrix?: THREE.Matrix4|null, onProgress?: (msg:string, frac:number)=>void }} opts
  */
 export async function loadIfcFile(file, opts = {}) {
   const { onProgress = () => {} } = opts;
   const api = await getApi();
 
-  onProgress(`Læser ${file.name}…`, 0.05);
-  const data = new Uint8Array(await file.arrayBuffer());
+  const name = file.name;
+  onProgress(t('load.reading', { name }), 0.05);
+  const data = file.data instanceof Uint8Array ? file.data : new Uint8Array(await file.arrayBuffer());
   await nextFrame();
 
-  onProgress(`Fortolker ${file.name}…`, 0.15);
+  onProgress(t('load.parsing', { name }), 0.15);
   await nextFrame();
   const modelID = api.OpenModel(data, { COORDINATE_TO_ORIGIN: true, CIRCLE_SEGMENTS: 16 });
-  if (modelID < 0) throw new Error('Filen kunne ikke åbnes som IFC.');
+  if (modelID < 0) throw new Error(t('err.notIfc'));
 
   const schema = api.GetModelSchema(modelID);
 
-  onProgress(`Genererer geometri for ${file.name}…`, 0.3);
+  onProgress(t('load.geometry', { name }), 0.3);
   await nextFrame();
 
   // Grupper alle trekanter efter farve, så hver model kun bliver få draw calls.
@@ -121,7 +123,7 @@ export async function loadIfcFile(file, opts = {}) {
     console.warn('Kunne ikke hente rumgeometri', e);
   }
 
-  onProgress(`Bygger 3D-visning for ${file.name}…`, 0.75);
+  onProgress(t('load.building', { name }), 0.75);
   await nextFrame();
 
   const merged = [];
@@ -138,13 +140,13 @@ export async function loadIfcFile(file, opts = {}) {
 
   const coordMatrix = new THREE.Matrix4().fromArray(api.GetCoordinationMatrix(modelID));
 
-  const model = new IfcModel({ name: file.name, api, modelID, buckets: merged, schema, fileSize: file.size, coordMatrix, spaceIds });
+  const model = new IfcModel({ name, api, modelID, buckets: merged, schema, fileSize: data.byteLength, coordMatrix, spaceIds, sourceBytes: data });
 
-  onProgress(`Læser rumlig struktur for ${file.name}…`, 0.9);
+  onProgress(t('load.structure', { name }), 0.9);
   await nextFrame();
   await model.loadStructure();
 
-  onProgress('Færdig', 1);
+  onProgress(t('load.done'), 1);
   return model;
 }
 
@@ -174,9 +176,9 @@ export function fmtValue(val) {
       if (typeof x === 'number') x = fmtNumber(x);
       if (val.type === 3 || x === 'T' || x === 'F') {
         // ENUM / BOOLEAN
-        if (x === 'T' || x === true) return 'Sand';
-        if (x === 'F' || x === false) return 'Falsk';
-        if (x === 'U') return 'Ukendt';
+        if (x === 'T' || x === true) return t('val.true');
+        if (x === 'F' || x === false) return t('val.false');
+        if (x === 'U') return t('val.unknown');
       }
       if (val.type === 5) return `#${x}`; // reference
       return String(x);

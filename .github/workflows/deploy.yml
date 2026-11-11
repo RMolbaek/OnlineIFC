@@ -1,4 +1,4 @@
-name: Udrul til GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:

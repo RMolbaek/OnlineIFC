@@ -1,7 +1,8 @@
-// Et indlæst IFC-model: geometri, synlighed, farver, markering og metadata.
+// A loaded IFC model: geometry, visibility, colours, selection, metadata and editing.
 import * as THREE from 'three';
 import * as WebIFC from 'web-ifc';
 import { fmtValue, prettyTypeName, prettyRawName, decodeIfcString } from './ifc.js';
+import { t } from './i18n.js';
 
 let nextUid = 1;
 
@@ -23,7 +24,7 @@ function installSectionFill(material) {
 }
 
 export class IfcModel {
-  constructor({ name, api, modelID, buckets, schema, fileSize, coordMatrix, spaceIds }) {
+  constructor({ name, api, modelID, buckets, schema, fileSize, coordMatrix, spaceIds, sourceBytes }) {
     this.uid = nextUid++;
     this.name = name;
     this.api = api;
@@ -32,6 +33,9 @@ export class IfcModel {
     this.fileSize = fileSize;
     this.coordMatrix = coordMatrix;
     this.spaceIds = spaceIds || new Set();
+    this.sourceBytes = sourceBytes || null; // original file, used while there are no edits
+    this.version = 0; // incremented on every metadata edit
+    this.changes = []; // human readable change log
 
     this.group = new THREE.Group();
     this.group.name = name;
@@ -48,7 +52,7 @@ export class IfcModel {
     this.elementIds = new Set();
     for (const b of this.buckets) for (const it of b.items) this.elementIds.add(it.id);
 
-    // Rum er skjult som standard.
+    // Spaces are hidden by default.
     for (const id of this.spaceIds) this.hidden.add(id);
     this.#rebuildAll();
   }
@@ -246,7 +250,7 @@ export class IfcModel {
     };
     walk(this.tree, null);
 
-    // Klasser for alle elementer med geometri
+    // Classes of all elements with geometry
     this.typeOf = new Map();
     this.classes = new Map(); // klassenavn -> [ids]
     for (const id of this.elementIds) {
@@ -282,12 +286,12 @@ export class IfcModel {
       const fn = this.api.GetHeaderLine(this.modelID, WebIFC.FILE_NAME);
       const args = fn?.arguments || [];
       const s = (x) => fmtValue(Array.isArray(x) ? x : x);
-      out.Filnavn = s(args[0]);
-      out.Tidsstempel = s(args[1]);
-      out.Forfatter = s(args[2]);
-      out.Organisation = s(args[3]);
-      out.Præprocessor = s(args[4]);
-      out['Oprindeligt system'] = s(args[5]);
+      out['hdr.fileName'] = s(args[0]);
+      out['hdr.timestamp'] = s(args[1]);
+      out['hdr.author'] = s(args[2]);
+      out['hdr.organization'] = s(args[3]);
+      out['hdr.preprocessor'] = s(args[4]);
+      out['hdr.originatingSystem'] = s(args[5]);
     } catch { /* valgfrit */ }
     return out;
   }
@@ -312,7 +316,10 @@ export class IfcModel {
   }
 
   // ------------------------------------------------------------------ metadata
-  /** Samler alle metadata for et element i sektioner til egenskabspanelet. */
+  /**
+   * Collects all metadata for an element as sections for the properties panel.
+   * Row format: [label, value, meta] where meta can describe a link or an editable value.
+   */
   async getElementData(id) {
     const api = this.api;
     const mid = this.modelID;
@@ -321,61 +328,62 @@ export class IfcModel {
     const line = api.GetLine(mid, id, false);
     const cls = this.typeName(id);
 
-    // Attributter
-    const attrs = [['Klasse', cls], ['Express ID', `#${id}`]];
+    // Attributes
+    const attrs = [[t('prop.class'), cls], [t('prop.expressId'), `#${id}`]];
     for (const [k, v] of Object.entries(line || {})) {
       if (k === 'expressID' || k === 'type') continue;
-      attrs.push([k, this.#fmtAttr(v)]);
+      const editable = isEditableAttr(k, v);
+      attrs.push([k, this.#fmtAttr(v), editable ? { attr: k } : null]);
     }
-    sections.push({ title: 'Attributter', rows: attrs, open: true });
+    sections.push({ title: t('sec.attributes'), rows: attrs, open: true, kind: 'attrs' });
 
-    // Placering i den rumlige struktur
+    // Location in the spatial structure
     const chain = [];
     let p = this.parent.get(id);
     while (p !== undefined) {
-      chain.unshift([this.typeName(p), this.label(p), p]);
+      chain.unshift([this.typeName(p), this.label(p), { link: p }]);
       p = this.parent.get(p);
     }
-    if (chain.length) sections.push({ title: 'Placering', rows: chain.map(([t, l, pid]) => [t, l, pid]), open: true, links: true });
+    if (chain.length) sections.push({ title: t('sec.location'), rows: chain, open: true });
 
-    // Egenskabssæt og mængder på instansen
+    // Instance property sets and quantities
     try {
       const psets = await api.properties.getPropertySets(mid, id, true, false);
       for (const ps of psets) sections.push(this.#psetSection(ps, ''));
     } catch (e) { console.warn(e); }
 
-    // Type og typeegenskaber
+    // Type and type properties
     try {
       const types = await api.properties.getTypeProperties(mid, id, true);
-      for (const t of types) {
-        const rows = [['Klasse', prettyTypeName(api, t.type)], ['Express ID', `#${t.expressID}`]];
+      for (const ty of types) {
+        const rows = [[t('prop.class'), prettyTypeName(api, ty.type)], [t('prop.expressId'), `#${ty.expressID}`]];
         for (const k of ['Name', 'Description', 'GlobalId', 'Tag', 'ElementType', 'PredefinedType', 'ApplicableOccurrence']) {
-          if (t[k]) rows.push([k, fmtValue(t[k])]);
+          if (ty[k]) rows.push([k, fmtValue(ty[k])]);
         }
-        sections.push({ title: `Type: ${fmtValue(t.Name) || prettyTypeName(api, t.type)}`, rows, open: true });
-        for (const ps of t.HasPropertySets || []) {
-          if (ps && typeof ps === 'object' && 'expressID' in ps) sections.push(this.#psetSection(ps, ' (type)'));
+        sections.push({ title: `${t('sec.type')}: ${fmtValue(ty.Name) || prettyTypeName(api, ty.type)}`, rows, open: true });
+        for (const ps of ty.HasPropertySets || []) {
+          if (ps && typeof ps === 'object' && 'expressID' in ps) sections.push(this.#psetSection(ps, ` (${t('sec.typeSuffix')})`, true));
         }
       }
     } catch (e) { console.warn(e); }
 
-    // Materialer
+    // Materials
     try {
       const mats = await api.properties.getMaterialsProperties(mid, id, true, true);
       const rows = [];
       for (const m of mats) collectMaterials(m, rows, api, 0);
-      if (rows.length) sections.push({ title: 'Materialer', rows, open: true });
+      if (rows.length) sections.push({ title: t('sec.materials'), rows, open: true });
     } catch (e) { console.warn(e); }
 
-    // Klassifikationer (fx BIM7AA, Uniclass) via IfcRelAssociatesClassification
+    // Classifications (e.g. CCS, Uniclass, OmniClass) via IfcRelAssociatesClassification
     try {
       const rows = this.#classifications(id);
-      if (rows.length) sections.push({ title: 'Klassifikation', rows, open: true });
+      if (rows.length) sections.push({ title: t('sec.classification'), rows, open: true });
     } catch (e) { console.warn(e); }
 
     sections.push({
-      title: 'Model',
-      rows: [['Fil', this.name], ['Skema', this.schema], ...Object.entries(this.header).filter(([, v]) => v)],
+      title: t('sec.model'),
+      rows: [[t('hdr.file'), this.name], [t('hdr.schema'), this.schema], ...Object.entries(this.header).filter(([, v]) => v).map(([k, v]) => [t(k), v])],
       open: false,
     });
 
@@ -392,32 +400,37 @@ export class IfcModel {
     return fmtValue(v);
   }
 
-  #psetSection(ps, suffix) {
+  #psetSection(ps, suffix, isType = false) {
     const rows = [];
     const isQto = Array.isArray(ps.Quantities);
+    const isPset = Array.isArray(ps.HasProperties);
     const list = ps.HasProperties || ps.Quantities || [];
-    for (const prop of list) this.#propRows(prop, rows, '');
+    for (const prop of list) this.#propRows(prop, rows, '', isPset);
     if (!list.length) {
-      // IfcPreDefinedPropertySet m.fl.: attributterne er selve egenskaberne
+      // IfcPreDefinedPropertySet etc.: the attributes are the properties
       for (const [k, v] of Object.entries(ps)) {
         if (['expressID', 'type', 'GlobalId', 'OwnerHistory', 'Name', 'Description'].includes(k)) continue;
         const s = fmtValue(v);
         if (s) rows.push([k, s]);
       }
     }
+    const shared = isType ? 0 : this.#relIndex().psetToElements.get(ps.expressID)?.length || 0;
     return {
       title: `${fmtValue(ps.Name) || prettyTypeName(this.api, ps.type)}${suffix}`,
       rows,
       open: true,
       kind: isQto ? 'qto' : 'pset',
+      psetId: isPset ? ps.expressID : null,
+      shared,
+      isType,
     };
   }
 
-  #propRows(prop, rows, prefix) {
+  #propRows(prop, rows, prefix, editableSet) {
     if (!prop || typeof prop !== 'object') return;
     const name = prefix + (fmtValue(prop.Name) || `#${prop.expressID}`);
     if (Array.isArray(prop.HasProperties)) {
-      for (const sub of prop.HasProperties) this.#propRows(sub, rows, `${name} › `);
+      for (const sub of prop.HasProperties) this.#propRows(sub, rows, `${name} › `, false);
       return;
     }
     let value = '';
@@ -432,8 +445,8 @@ export class IfcModel {
     } else if ('UsageName' in prop) {
       value = fmtValue(prop.PropertyReference) || fmtValue(prop.UsageName);
     } else {
-      for (const [k, t] of QTO_UNITS) {
-        if (k in prop) { value = fmtValue(prop[k]); unitType = t; break; }
+      for (const [k, ut] of QTO_UNITS) {
+        if (k in prop) { value = fmtValue(prop[k]); unitType = ut; break; }
       }
     }
     let unit = '';
@@ -441,17 +454,20 @@ export class IfcModel {
       if (prop.Unit.Name?.value) unit = siSymbol(prop.Unit.Prefix?.value, prop.Unit.Name.value);
     } else if (unitType && this.units[unitType]) unit = this.units[unitType];
     else if (!unitType && prop.NominalValue?.name) {
-      const t = MEASURE_UNITS[prop.NominalValue.name];
-      if (t && this.units[t]) unit = this.units[t];
+      const ut = MEASURE_UNITS[prop.NominalValue.name];
+      if (ut && this.units[ut]) unit = this.units[ut];
     }
-    rows.push([name, value + (unit && value !== '' ? ` ${unit}` : '')]);
+    const meta = editableSet && 'NominalValue' in prop
+      ? { propId: prop.expressID, raw: rawValue(prop.NominalValue), valueType: prop.NominalValue?.name || 'IFCLABEL' }
+      : null;
+    rows.push([name, value + (unit && value !== '' ? ` ${unit}` : ''), meta]);
   }
 
   #classifications(id) {
     const api = this.api;
     const rows = [];
-    const rels = api.GetLineIDsWithType(this.modelID, WebIFC.IFCRELASSOCIATESCLASSIFICATION);
     if (!this._clsIndex) {
+      const rels = api.GetLineIDsWithType(this.modelID, WebIFC.IFCRELASSOCIATESCLASSIFICATION);
       this._clsIndex = new Map();
       for (let i = 0; i < rels.size(); i++) {
         const rel = api.GetLine(this.modelID, rels.get(i), false);
@@ -469,38 +485,189 @@ export class IfcModel {
       const src = c.ReferencedSource?.value;
       if (src) system = fmtValue(api.GetLine(this.modelID, src, false)?.Name);
       const code = fmtValue(c.Identification) || fmtValue(c.ItemReference) || '';
-      rows.push([system || 'Klassifikation', [code, fmtValue(c.Name)].filter(Boolean).join(' – ')]);
+      rows.push([system || t('sec.classification'), [code, fmtValue(c.Name)].filter(Boolean).join(' – ')]);
     }
     return rows;
   }
 
-  /** Samler alle egenskaber for alle elementer (til CSV-eksport). */
+  /** Index over IfcRelDefinesByProperties: element -> psets and pset -> elements. */
+  #relIndex() {
+    if (this._relIndex) return this._relIndex;
+    const api = this.api;
+    const elementToPsets = new Map();
+    const psetToElements = new Map();
+    const rels = api.GetLineIDsWithType(this.modelID, WebIFC.IFCRELDEFINESBYPROPERTIES);
+    for (let i = 0; i < rels.size(); i++) {
+      const rel = api.GetLine(this.modelID, rels.get(i), false);
+      const def = rel.RelatingPropertyDefinition;
+      const defs = Array.isArray(def) ? def.map((d) => d.value) : [def?.value];
+      for (const r of rel.RelatedObjects || []) {
+        for (const d of defs) {
+          if (!d) continue;
+          if (!elementToPsets.has(r.value)) elementToPsets.set(r.value, []);
+          elementToPsets.get(r.value).push(d);
+          if (!psetToElements.has(d)) psetToElements.set(d, []);
+          psetToElements.get(d).push(r.value);
+        }
+      }
+    }
+    this._relIndex = { elementToPsets, psetToElements };
+    return this._relIndex;
+  }
+
+  // ------------------------------------------------------------------- editing
+  #touch(description) {
+    this.version++;
+    this.changes.push({ time: new Date(), description });
+    this._clsIndex = null;
+  }
+
+  /** Changes a string attribute (Name, Description, ObjectType, Tag, LongName …). */
+  setAttribute(id, key, text) {
+    const api = this.api;
+    const line = api.GetLine(this.modelID, id, false);
+    if (!line || !(key in line)) throw new Error(t('err.noAttribute', { key }));
+    const cur = line[key];
+    const typeName = cur?.name || STRING_ATTRS[key] || 'IFCLABEL';
+    const old = fmtValue(cur);
+    line[key] = text === '' ? null : api.CreateIfcType(this.modelID, api.GetTypeCodeFromName(typeName), text);
+    api.WriteLine(this.modelID, line);
+    this.#touch(t('chg.attr', { key, id, old, value: text }));
+  }
+
+  /** Changes the value of an IfcPropertySingleValue, keeping its value type. */
+  setPropertyValue(propId, text, kind = null) {
+    const api = this.api;
+    const prop = api.GetLine(this.modelID, propId, false);
+    const typeName = kind ? KIND_TYPES[kind] : prop.NominalValue?.name || 'IFCLABEL';
+    const old = fmtValue(prop.NominalValue);
+    prop.NominalValue = text === '' ? null : api.CreateIfcType(this.modelID, api.GetTypeCodeFromName(typeName), parseTyped(typeName, text));
+    api.WriteLine(this.modelID, prop);
+    this.#touch(t('chg.prop', { name: fmtValue(prop.Name), old, value: text }));
+  }
+
+  #newProperty(name, text, kind) {
+    const api = this.api;
+    const typeName = KIND_TYPES[kind] || 'IFCLABEL';
+    const value = text === '' ? null : api.CreateIfcType(this.modelID, api.GetTypeCodeFromName(typeName), parseTyped(typeName, text));
+    const prop = api.CreateIfcEntity(this.modelID, WebIFC.IFCPROPERTYSINGLEVALUE,
+      api.CreateIfcType(this.modelID, WebIFC.IFCIDENTIFIER, name), null, value, null);
+    api.WriteLine(this.modelID, prop);
+    return prop.expressID;
+  }
+
+  /** Adds a single-value property to an existing property set. */
+  addProperty(psetId, name, text, kind = 'text') {
+    if (!name) throw new Error(t('err.nameRequired'));
+    const api = this.api;
+    const pset = api.GetLine(this.modelID, psetId, false);
+    const existing = (pset.HasProperties || []).map((h) => api.GetLine(this.modelID, h.value, false));
+    if (existing.some((p) => fmtValue(p?.Name) === name)) throw new Error(t('err.propExists', { name }));
+    const pid = this.#newProperty(name, text, kind);
+    pset.HasProperties = [...(pset.HasProperties || []), new WebIFC.Handle(pid)];
+    api.WriteLine(this.modelID, pset);
+    this.#touch(t('chg.addProp', { name, pset: fmtValue(pset.Name), value: text }));
+  }
+
+  /** Removes a property from a property set. */
+  removeProperty(psetId, propId) {
+    const api = this.api;
+    const pset = api.GetLine(this.modelID, psetId, false);
+    const remaining = (pset.HasProperties || []).filter((h) => h.value !== propId);
+    if (!remaining.length) throw new Error(t('err.lastProperty'));
+    const prop = api.GetLine(this.modelID, propId, false);
+    pset.HasProperties = remaining;
+    api.WriteLine(this.modelID, pset);
+    this.#touch(t('chg.removeProp', { name: fmtValue(prop?.Name), pset: fmtValue(pset.Name) }));
+  }
+
+  /**
+   * Sets a property on many elements at once. Existing values are overwritten, missing
+   * properties are added, and elements without the property set get a new (shared) one.
+   */
+  async setPropertyOnElements(ids, psetName, propName, text, kind = 'text') {
+    if (!psetName || !propName) throw new Error(t('err.nameRequired'));
+    const api = this.api;
+    const mid = this.modelID;
+    const index = this.#relIndex();
+    const handled = new Set();
+    const missing = [];
+    let edited = 0, added = 0;
+    for (const id of ids) {
+      const psetId = (index.elementToPsets.get(id) || []).find((pid) => {
+        const ps = api.GetLine(mid, pid, false);
+        return ps && Array.isArray(ps.HasProperties) && fmtValue(ps.Name) === psetName;
+      });
+      if (!psetId) { missing.push(id); continue; }
+      if (handled.has(psetId)) continue;
+      handled.add(psetId);
+      const ps = api.GetLine(mid, psetId, false);
+      const propHandle = (ps.HasProperties || []).find((h) => fmtValue(api.GetLine(mid, h.value, false)?.Name) === propName);
+      const typeName = KIND_TYPES[kind] || 'IFCLABEL';
+      const value = text === '' ? null : api.CreateIfcType(mid, api.GetTypeCodeFromName(typeName), parseTyped(typeName, text));
+      if (propHandle) {
+        const prop = api.GetLine(mid, propHandle.value, false);
+        if ('NominalValue' in prop) { prop.NominalValue = value; api.WriteLine(mid, prop); edited++; }
+      } else {
+        const pid = this.#newProperty(propName, text, kind);
+        ps.HasProperties = [...ps.HasProperties, new WebIFC.Handle(pid)];
+        api.WriteLine(mid, ps);
+        added++;
+      }
+    }
+    if (missing.length) {
+      const pid = this.#newProperty(propName, text, kind);
+      const owner = api.GetLine(mid, missing[0], false)?.OwnerHistory ?? null;
+      const pset = api.CreateIfcEntity(mid, WebIFC.IFCPROPERTYSET, api.CreateIFCGloballyUniqueId(mid), owner,
+        api.CreateIfcType(mid, WebIFC.IFCLABEL, psetName), null, [new WebIFC.Handle(pid)]);
+      api.WriteLine(mid, pset);
+      const rel = api.CreateIfcEntity(mid, WebIFC.IFCRELDEFINESBYPROPERTIES, api.CreateIFCGloballyUniqueId(mid), owner,
+        null, null, missing.map((x) => new WebIFC.Handle(x)), new WebIFC.Handle(pset.expressID));
+      api.WriteLine(mid, rel);
+      this._relIndex = null;
+    }
+    // Count elements that share an edited pset but were not part of the request
+    const want = new Set(ids);
+    let others = 0;
+    for (const psid of handled) for (const e of index.psetToElements.get(psid) || []) if (!want.has(e)) others++;
+    this.#touch(t('chg.batch', { pset: psetName, name: propName, value: text, count: ids.length }));
+    return { edited, added, created: missing.length, others };
+  }
+
+  /** The current file content (including edits). */
+  getBytes() {
+    if (!this.changes.length && this.sourceBytes) return this.sourceBytes;
+    return this.api.SaveModel(this.modelID);
+  }
+
+  /** Collects all properties of all elements (for CSV export). */
   async exportRows(onProgress = () => {}) {
     const ids = [...this.elementIds];
     const rows = [];
-    const cols = new Set(['Model', 'ExpressID', 'GlobalId', 'Klasse', 'Navn', 'Etage']);
+    const c = { model: t('csv.model'), id: 'ExpressID', guid: 'GlobalId', cls: t('csv.class'), name: t('csv.name'), storey: t('csv.storey') };
+    const cols = new Set(Object.values(c));
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i];
       const line = this.api.GetLine(this.modelID, id, false);
       const row = {
-        Model: this.name,
-        ExpressID: id,
-        GlobalId: fmtValue(line?.GlobalId),
-        Klasse: this.typeName(id),
-        Navn: fmtValue(line?.Name),
-        Etage: this.#storeyOf(id),
+        [c.model]: this.name,
+        [c.id]: id,
+        [c.guid]: fmtValue(line?.GlobalId),
+        [c.cls]: this.typeName(id),
+        [c.name]: fmtValue(line?.Name),
+        [c.storey]: this.#storeyOf(id),
       };
       try {
         const psets = await this.api.properties.getPropertySets(this.modelID, id, true, true);
         for (const ps of psets) {
-          const sec = this.#psetSection(ps, '');
+          const sec = this.#psetSection(ps, '', true);
           for (const [k, v] of sec.rows) {
             const col = `${sec.title}.${k}`;
             cols.add(col);
             row[col] = v;
           }
         }
-      } catch { /* ignorer */ }
+      } catch { /* ignore */ }
       rows.push(row);
       if (i % 200 === 0) { onProgress(i / ids.length); await new Promise((r) => setTimeout(r, 0)); }
     }
@@ -523,8 +690,72 @@ export class IfcModel {
       if (b.highlight) b.highlight.geometry.dispose();
     }
     this.group.removeFromParent();
-    try { this.api.CloseModel(this.modelID); } catch { /* allerede lukket */ }
+    try { this.api.CloseModel(this.modelID); } catch { /* already closed */ }
   }
+}
+
+const STRING_ATTRS = {
+  Name: 'IFCLABEL',
+  Description: 'IFCTEXT',
+  ObjectType: 'IFCLABEL',
+  Tag: 'IFCIDENTIFIER',
+  LongName: 'IFCLABEL',
+  ElementType: 'IFCLABEL',
+  Identification: 'IFCIDENTIFIER',
+};
+
+function isEditableAttr(key, v) {
+  if (!(key in STRING_ATTRS)) return false;
+  return v === null || v === undefined || (typeof v === 'object' && v.type === 1);
+}
+
+/** Value kinds the user can choose when adding properties. */
+export const KIND_TYPES = {
+  text: 'IFCLABEL',
+  number: 'IFCREAL',
+  integer: 'IFCINTEGER',
+  bool: 'IFCBOOLEAN',
+};
+
+const INTEGER_TYPES = new Set(['IFCINTEGER', 'IFCCOUNTMEASURE', 'IFCDAYINMONTHNUMBER', 'IFCMONTHINYEARNUMBER', 'IFCYEARNUMBER', 'IFCNUMERICMEASURE_INT']);
+const STRING_TYPES = new Set(['IFCLABEL', 'IFCTEXT', 'IFCIDENTIFIER', 'IFCDESCRIPTIVEMEASURE', 'IFCDATE', 'IFCDATETIME', 'IFCTIME', 'IFCDURATION', 'IFCURIREFERENCE', 'IFCGLOBALLYUNIQUEID']);
+
+/** Converts user input into the JS value web-ifc expects for the given IFC value type. */
+export function parseTyped(typeName, text) {
+  const tn = String(typeName).toUpperCase();
+  if (tn === 'IFCBOOLEAN' || tn === 'IFCLOGICAL') {
+    const s = String(text).trim().toLowerCase();
+    if (['true', 't', 'yes', 'y', '1', 'ja', 'sand', 'wahr'].includes(s)) return true;
+    if (['false', 'f', 'no', 'n', '0', 'nej', 'falsk', 'nein', 'falsch'].includes(s)) return false;
+    if (tn === 'IFCLOGICAL') return 'U';
+    throw new Error(t('err.boolean', { value: text }));
+  }
+  if (STRING_TYPES.has(tn)) return String(text);
+  if (INTEGER_TYPES.has(tn)) {
+    const n = Number(String(text).replace(',', '.'));
+    if (!Number.isInteger(n)) throw new Error(t('err.integer', { value: text }));
+    return n;
+  }
+  if (/MEASURE|IFCREAL|IFCNUMBER|RATIO|IFCPOSITIVE/.test(tn)) {
+    const n = Number(String(text).replace(',', '.'));
+    if (!Number.isFinite(n)) throw new Error(t('err.number', { value: text }));
+    return n;
+  }
+  return String(text);
+}
+
+/** The raw value of an IFC value object, for prefilling edit fields. */
+function rawValue(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') {
+    if ('_representationValue' in v) return String(v._representationValue);
+    if ('value' in v) {
+      if (v.value === true || v.value === 'T') return 'true';
+      if (v.value === false || v.value === 'F') return 'false';
+      return typeof v.value === 'string' ? decodeIfcString(v.value) : String(v.value);
+    }
+  }
+  return String(v);
 }
 
 const QTO_UNITS = [
@@ -557,31 +788,30 @@ const SI_NAME = {
 function siSymbol(prefix, name) {
   const p = prefix ? SI_PREFIX[prefix] ?? '' : '';
   const n = SI_NAME[name] ?? name.toLowerCase();
-  if (p && (n === 'm²' || n === 'm³')) return `${p}${n}`; // fx mm² (præfiks på grundenheden)
   return p + n;
 }
 
-export function isSpatialType(t) {
-  const n = String(t).toUpperCase();
+export function isSpatialType(ty) {
+  const n = String(ty).toUpperCase();
   return ['IFCPROJECT', 'IFCSITE', 'IFCBUILDING', 'IFCBUILDINGSTOREY', 'IFCFACILITY', 'IFCFACILITYPART', 'IFCBRIDGE', 'IFCROAD', 'IFCRAILWAY', 'IFCMARINEFACILITY'].includes(n);
 }
 
 function collectMaterials(obj, rows, api, depth) {
   if (!obj || typeof obj !== 'object' || depth > 6) return;
-  const t = api.GetNameFromTypeCode(obj.type);
+  const tn = api.GetNameFromTypeCode(obj.type);
   const name = (o) => decodeIfcString(o?.Name?.value ?? '');
-  switch (t) {
+  switch (tn) {
     case 'IFCMATERIAL':
-      rows.push(['Materiale', name(obj)]);
+      rows.push([t('mat.material'), name(obj)]);
       return;
     case 'IFCMATERIALLAYERSETUSAGE':
       collectMaterials(obj.ForLayerSet, rows, api, depth + 1);
       return;
     case 'IFCMATERIALLAYERSET': {
-      if (obj.LayerSetName) rows.push(['Lagopbygning', fmtValue(obj.LayerSetName)]);
+      if (obj.LayerSetName) rows.push([t('mat.layerSet'), fmtValue(obj.LayerSetName)]);
       (obj.MaterialLayers || []).forEach((l, i) => {
         const th = fmtValue(l.LayerThickness);
-        rows.push([`Lag ${i + 1}`, `${name(l.Material) || fmtValue(l.Name) || '?'}${th ? ` (${th})` : ''}`]);
+        rows.push([`${t('mat.layer')} ${i + 1}`, `${name(l.Material) || fmtValue(l.Name) || '?'}${th ? ` (${th})` : ''}`]);
       });
       return;
     }
@@ -590,7 +820,7 @@ function collectMaterials(obj, rows, api, depth) {
       return;
     case 'IFCMATERIALCONSTITUENTSET':
       for (const c of obj.MaterialConstituents || []) {
-        rows.push([fmtValue(c.Name) || 'Bestanddel', name(c.Material) + (c.Fraction ? ` (${fmtValue(c.Fraction)})` : '')]);
+        rows.push([fmtValue(c.Name) || t('mat.constituent'), name(c.Material) + (c.Fraction ? ` (${fmtValue(c.Fraction)})` : '')]);
       }
       return;
     case 'IFCMATERIALPROFILESETUSAGE':
@@ -598,10 +828,10 @@ function collectMaterials(obj, rows, api, depth) {
       return;
     case 'IFCMATERIALPROFILESET':
       for (const p of obj.MaterialProfiles || []) {
-        rows.push([fmtValue(p.Name) || 'Profil', name(p.Material) + (p.Profile?.ProfileName ? ` – ${fmtValue(p.Profile.ProfileName)}` : '')]);
+        rows.push([fmtValue(p.Name) || t('mat.profile'), name(p.Material) + (p.Profile?.ProfileName ? ` – ${fmtValue(p.Profile.ProfileName)}` : '')]);
       }
       return;
     default:
-      if (obj.Name) rows.push([prettyRawName(t), fmtValue(obj.Name)]);
+      if (obj.Name) rows.push([prettyRawName(tn), fmtValue(obj.Name)]);
   }
 }

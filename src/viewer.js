@@ -98,6 +98,18 @@ export class Viewer extends EventTarget {
     model.setSelection([], this.highlightMaterial);
   }
 
+  /** Swaps a model for a new version of it (e.g. after a Python script), keeping its position in the list and its look. */
+  replaceModel(oldModel, newModel) {
+    const idx = this.models.indexOf(oldModel);
+    this.addModel(newModel);
+    this.models.pop();
+    this.models.splice(idx < 0 ? this.models.length : idx, 0, newModel);
+    if (oldModel.overrideColor) newModel.setColor(oldModel.overrideColor);
+    if (oldModel.opacity !== 1) newModel.setOpacity(oldModel.opacity);
+    newModel.setVisible(oldModel.visible);
+    if (idx >= 0) this.removeModel(oldModel);
+  }
+
   removeModel(model) {
     this.models = this.models.filter((m) => m !== model);
     model.dispose();
