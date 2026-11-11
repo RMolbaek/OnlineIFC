@@ -11,15 +11,17 @@ The interface is in **English**, **Danish** and **German** (language picker in t
 - **Federation:** several models are shown in one view. The first model defines the coordinate system and the following models are placed relative to it using their own coordinates.
 - **Sections:** horizontal plan section, vertical sections (X/Y), a section parallel to a clicked face, and a section box around the selection. Every plane can be moved with a slider, flipped, disabled or removed. Cut faces are coloured red.
 - **Colours:** colour and opacity per model, *Colour by model* gives every model its own colour, *Original* restores the colours from the IFC file.
+- **Toolbar menus:** *View*, *Section* and *Visibility* open menus where every tool has a short description.
 - **Metadata:** click an element to see attributes, its location in the spatial structure, property sets, quantities (with units), type and type properties, materials and layers, and classifications. The panel can be filtered.
-- **Structure and classes:** a tree from project to element and a list of IFC classes. Both can be used to select, hide and show elements, and the tree can be searched by name, class, GUID or tag.
+- **Calculated quantities:** for every element the volume, surface area, plan area (top faces), length, width and height are calculated from the 3D geometry, next to the quantities stored in the IFC file. With several elements selected, the totals are shown. The values are also included in the CSV export.
+- **Structure and classes:** a tree from project to element and a list of IFC classes, searchable by name, class, GUID or tag. Select several rows with Ctrl+click (toggle) and Shift+click (range), then hide, show or isolate them all at once with the bar above the list, or with the eye on any selected row.
 - Hide, isolate, show all, show/hide spaces, CSV export of all properties, screenshots.
 
 ### Measure
 **Measure** (toolbar or `M`) opens the measuring panel with three tools:
 - **Distance:** point to point. Shows the distance, the horizontal distance, the height difference (ΔZ), ΔX/ΔY and the slope. Dashed lines show the horizontal and vertical components.
 - **Length:** a polyline through several points with the length of each segment and the total. Finish with double-click or Enter; Backspace removes the last point.
-- **Spot:** coordinates and elevation of a point. It shows project X/Y/Z (metres, Z up) and the height above the element's storey. If the model is georeferenced with `IfcMapConversion`, it also shows easting/northing/height in the map coordinate system. Otherwise it shows Z plus the site reference elevation (`IfcSite.RefElevation`) when one is set.
+- **Spot:** coordinates and elevation of a point. Choose which coordinates (X, Y, Z) the label in the 3D view shows. It shows project X/Y/Z (metres, Z up) and the height above the element's storey. If the model is georeferenced with `IfcMapConversion`, it also shows easting/northing/height in the map coordinate system. Otherwise it shows Z plus the site reference elevation (`IfcSite.RefElevation`) when one is set.
 
 Points snap to corners, edge midpoints and edges (shown by the marker shape); snapping can be turned off. Values are shown in m or mm, every measurement can be zoomed to or removed, and *Copy all* copies the values to the clipboard. Points cut away by section planes cannot be picked. With several models, coordinates refer to the first model's coordinate system.
 
@@ -56,11 +58,11 @@ Run with **Ctrl+Enter**. The script is saved in the browser. The *Examples* menu
 
 | Action | Shortcut |
 | --- | --- |
-| Rotate / select | Left mouse / click |
-| Pan | Right mouse or Shift + left |
-| Zoom | Scroll (towards the cursor) |
+| Move (pan) / select | Left mouse drag / click |
+| Rotate | Hold the scroll wheel (middle button), right mouse, or Shift + left |
+| Zoom | Scroll – zooms towards the point under the cursor, all the way in |
 | Center on point | Double-click |
-| Add to / remove from selection | Ctrl/Shift + click |
+| Add to / remove from selection | Ctrl + click (Shift + click in lists: range) |
 | Zoom to selection | F |
 | Hide / isolate / show all | H / I / Shift+H |
 | Edit mode | E |

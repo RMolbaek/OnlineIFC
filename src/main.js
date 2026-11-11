@@ -34,6 +34,8 @@ const state = {
   pickPlaneMode: false,
   spacesVisible: false,
   editMode: false,
+  treeKeys: new Set(), // tree/class rows selected by the user (for highlighting group rows)
+  lastTreeKey: null, // anchor for Shift+click range selection
 };
 
 // ===================================================================== language
@@ -130,8 +132,12 @@ function download(name, data, type = 'application/octet-stream') {
 }
 
 // ==================================================================== selection
-function select(model, ids, { activeId = null, additive = false, toggle = false } = {}) {
-  if (!additive) state.selection.clear();
+function select(model, ids, { activeId = null, additive = false, toggle = false, treeKey = null } = {}) {
+  if (!additive) { state.selection.clear(); state.treeKeys.clear(); }
+  if (treeKey) {
+    if (toggle && state.treeKeys.has(treeKey)) state.treeKeys.delete(treeKey);
+    else state.treeKeys.add(treeKey);
+  }
   if (model) {
     let set = state.selection.get(model);
     if (!set) { set = new Set(); state.selection.set(model, set); }
@@ -148,6 +154,7 @@ function select(model, ids, { activeId = null, additive = false, toggle = false 
 
 function clearSelection() {
   state.selection.clear();
+  state.treeKeys.clear();
   state.active = null;
   applySelection();
 }
@@ -157,8 +164,55 @@ function applySelection() {
   for (const el of $$('.node.selected')) el.classList.remove('selected');
   applyTreeSelection();
   if (state.active) treeRegistry.get(`${state.active.model.uid}:${state.active.id}`)?.row.classList.add('selected');
+  renderSelBars();
   renderProps();
   renderStatus();
+}
+
+/** Selection from tree/class rows: Ctrl/Cmd+click toggles a row, Shift+click selects a range. */
+function rowClick(e, key, entry, activeId = null) {
+  const toggle = e.ctrlKey || e.metaKey;
+  if (e.shiftKey && state.lastTreeKey) {
+    const container = entry.row.closest('.tab-body');
+    const rows = $$('.node[data-key]', container);
+    const i0 = rows.findIndex((r) => r.dataset.key === state.lastTreeKey);
+    const i1 = rows.findIndex((r) => r.dataset.key === key);
+    if (i0 >= 0 && i1 >= 0) {
+      const [a, b] = i0 < i1 ? [i0, i1] : [i1, i0];
+      if (!toggle) { state.selection.clear(); state.treeKeys.clear(); }
+      for (const r of rows.slice(a, b + 1)) {
+        const en = rowRegistry.get(r.dataset.key);
+        if (!en) continue;
+        let set = state.selection.get(en.model);
+        if (!set) { set = new Set(); state.selection.set(en.model, set); }
+        for (const id of en.ids.length ? en.ids : en.selfId != null ? [en.selfId] : []) set.add(id);
+        state.treeKeys.add(r.dataset.key);
+      }
+      state.active = null;
+      applySelection();
+      return;
+    }
+  }
+  state.lastTreeKey = key;
+  const ids = entry.ids.length ? entry.ids : entry.selfId != null ? [entry.selfId] : [];
+  select(entry.model, ids, { activeId, additive: toggle, toggle, treeKey: key });
+}
+
+/** Rows that can take part in multi-selection (tree and class list). */
+const rowRegistry = new Map();
+
+/** Hides or shows everything selected; used by the eye of a selected row and by the selection bar. */
+function setSelectionVisible(visible) {
+  for (const [m, set] of state.selection) visible ? m.show(set) : m.hide(set);
+  refreshVisibilityUi();
+}
+
+function renderSelBars() {
+  const n = selectionCount();
+  for (const bar of $$('.sel-bar')) {
+    bar.querySelector('.sel-count').textContent = n ? t('sel.count', { n: fmtNum(n) }) : t('sel.hint');
+    for (const b of $$('button[data-needs-sel]', bar)) b.disabled = !n;
+  }
 }
 
 function selectionCount() {
@@ -190,8 +244,12 @@ viewer.addEventListener('pick', ({ hit, originalEvent: e }) => {
 
 // ====================================================================== toolbar
 document.addEventListener('click', (e) => {
+  const menuBtn = e.target.closest('.menu-btn');
+  if (menuBtn) { toggleMenu(menuBtn); return; }
+  if (!e.target.closest('.menu-pop')) closeMenus();
   const btn = e.target.closest('[data-action],[data-view],[data-plane]');
   if (!btn) return;
+  if (btn.closest('.menu-pop')) closeMenus();
   if (btn.dataset.view) return viewer.setView(btn.dataset.view);
   if (btn.dataset.plane) {
     if (!viewer.models.length) return toast(t('msg.loadFirst'));
@@ -200,6 +258,11 @@ document.addEventListener('click', (e) => {
   }
   const actions = {
     fit: () => fitSelection(),
+    'fit-all': () => viewer.fitAll(),
+    'sel-hide': () => hideSelected({ keepSelection: true }),
+    'sel-show': () => setSelectionVisible(true),
+    'sel-isolate': () => isolateSelected(),
+    'sel-clear': () => clearSelection(),
     'plane-face': () => {
       if (!viewer.models.length) return toast(t('msg.loadFirst'));
       setPickPlaneMode(!state.pickPlaneMode);
@@ -234,6 +297,26 @@ document.addEventListener('click', (e) => {
   };
   actions[btn.dataset.action]?.();
 });
+
+// Drop-down menus in the toolbar. The pop-ups are positioned 'fixed' because the toolbar scrolls sideways.
+function toggleMenu(btn) {
+  const pop = btn.parentElement.querySelector('.menu-pop');
+  const open = pop.hidden;
+  closeMenus();
+  if (!open) return;
+  const r = btn.getBoundingClientRect();
+  pop.hidden = false;
+  pop.style.top = `${r.bottom + 4}px`;
+  pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8))}px`;
+  btn.classList.add('open');
+}
+
+function closeMenus() {
+  for (const p of $$('.menu-pop')) p.hidden = true;
+  for (const b of $$('.menu-btn.open')) b.classList.remove('open');
+}
+window.addEventListener('resize', closeMenus);
+$('.toolbar').addEventListener('scroll', closeMenus);
 
 function dataUrlToBlob(url) {
   const [head, b64] = url.split(',');
@@ -276,10 +359,10 @@ function fitSelection() {
   else viewer.fitAll();
 }
 
-function hideSelected() {
+function hideSelected({ keepSelection = false } = {}) {
   if (!state.selection.size) return toast(t('msg.selectFirst'));
   for (const [m, set] of state.selection) m.hide(set);
-  clearSelection();
+  if (!keepSelection) clearSelection();
   refreshVisibilityUi();
 }
 
@@ -300,14 +383,19 @@ function toggleSpaces() {
     if (state.spacesVisible) m.show(m.spaceIds);
     else m.hide(m.spaceIds);
   }
-  $('[data-action="toggle-spaces"]').classList.toggle('on', state.spacesVisible);
+  updateSpacesUi();
   refreshVisibilityUi();
+}
+
+function updateSpacesUi() {
+  $('#spaces-check').textContent = state.spacesVisible ? '☑' : '☐';
 }
 
 document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select, .cm-editor')) return;
   if (e.key === 'Escape') {
-    if (state.pickPlaneMode) setPickPlaneMode(false);
+    if ($$('.menu-pop').some((p) => !p.hidden)) closeMenus();
+    else if (state.pickPlaneMode) setPickPlaneMode(false);
     else if (measure.cancel()) { /* handled by the measure tool */ }
     else clearSelection();
   } else if (e.key === 'f' || e.key === 'F') fitSelection();
@@ -429,6 +517,7 @@ function descendantIds(model, node, out = []) {
 
 function renderTree() {
   treeRegistry.clear();
+  for (const k of [...rowRegistry.keys()]) if (k.startsWith('tree:')) rowRegistry.delete(k);
   const root = $('#tree');
   root.replaceChildren();
   const q = $('#tree-search').value.trim();
@@ -483,20 +572,17 @@ function treeNode(model, node, { open = false, label = null, cls = null, rootMod
   };
   caret.addEventListener('click', (e) => { e.stopPropagation(); expanded ? collapse() : expand(); });
   row.addEventListener('dblclick', (e) => { e.stopPropagation(); const b = model.getBox(ids); if (!b.isEmpty()) viewer.fitBox(b); });
-  row.addEventListener('click', (e) => {
-    const additive = e.ctrlKey || e.metaKey || e.shiftKey;
-    if (rootModel || groupChildren) { select(model, ids, { additive }); return; }
-    select(model, ids.length ? ids : [id], { activeId: id, additive });
-  });
+  const key = groupKey ?? (rootModel ? `${model.uid}:model` : `${model.uid}:${id}`);
+  const rowKey = `tree:${key}`;
+  row.dataset.key = rowKey;
+  const entry = { row, expand, ids, eye, model, selfId: rootModel || groupChildren ? null : id };
+  row.addEventListener('click', (e) => rowClick(e, rowKey, entry, rootModel || groupChildren ? null : id));
   eye.addEventListener('click', (e) => {
     e.stopPropagation();
-    const allHidden = ids.every((x) => model.isHidden(x));
-    if (allHidden) model.show(ids); else model.hide(ids);
-    refreshVisibilityUi();
+    eyeClick(model, ids, rowKey);
   });
-
-  const key = groupKey ?? (rootModel ? `${model.uid}:model` : `${model.uid}:${id}`);
-  treeRegistry.set(key, { row, expand, ids, eye, model });
+  treeRegistry.set(key, entry);
+  rowRegistry.set(rowKey, entry);
   updateEye(treeRegistry.get(key));
   if (open) expand();
   return li;
@@ -535,6 +621,21 @@ function refreshTreeEyes() { for (const e of treeRegistry.values()) updateEye(e)
 
 function applyTreeSelection() {
   for (const [m, set] of state.selection) for (const id of set) treeRegistry.get(`${m.uid}:${id}`)?.row.classList.add('selected');
+  for (const k of state.treeKeys) rowRegistry.get(k)?.row.classList.add('selected');
+}
+
+/** Eye button: on a selected row it applies to the whole selection, otherwise just to that row. */
+function eyeClick(model, ids, rowKey) {
+  const rowSelected = state.treeKeys.has(rowKey) && selectionCount() > 0;
+  if (rowSelected) {
+    let allHidden = true;
+    for (const [m, set] of state.selection) for (const x of set) if (!m.isHidden(x)) { allHidden = false; break; }
+    setSelectionVisible(allHidden);
+    return;
+  }
+  const allHidden = ids.every((x) => model.isHidden(x));
+  if (allHidden) model.show(ids); else model.hide(ids);
+  refreshVisibilityUi();
 }
 
 function revealInTree(model, id) {
@@ -595,9 +696,13 @@ function renderTreeSearch(q) {
         viewer.models.length > 1 ? h('span', { class: 'count', text: m.name }) : null,
       );
       const ids = m.elementIds.has(item.id) ? [item.id] : [];
-      row.addEventListener('click', (e) => select(m, ids.length ? ids : [item.id], { activeId: item.id, additive: e.ctrlKey || e.metaKey || e.shiftKey }));
+      const rowKey = `tree:${m.uid}:${item.id}`;
+      row.dataset.key = rowKey;
+      const entry = { row, expand: () => {}, ids, model: m, selfId: item.id };
+      row.addEventListener('click', (e) => rowClick(e, rowKey, entry, item.id));
       row.addEventListener('dblclick', () => { const b = m.getBox([item.id]); if (!b.isEmpty()) viewer.fitBox(b); });
-      treeRegistry.set(`${m.uid}:${item.id}`, { row, expand: () => {}, ids, model: m });
+      treeRegistry.set(`${m.uid}:${item.id}`, entry);
+      rowRegistry.set(rowKey, entry);
       ul.append(h('li', {}, row));
     }
   }
@@ -620,22 +725,24 @@ function renderClasses() {
     root.append(h('div', { class: 'empty-hint', text: t('classes.empty') }));
     return;
   }
+  for (const k of [...rowRegistry.keys()]) if (k.startsWith('cls:')) rowRegistry.delete(k);
   for (const m of viewer.models) {
     const ul = h('ul');
     for (const [cls, ids] of [...m.classes].sort((a, b) => a[0].localeCompare(b[0]))) {
+      const rowKey = `cls:${m.uid}:${cls}`;
       const allHidden = ids.every((x) => m.isHidden(x));
       const eye = h('button', { class: `eye${allHidden ? ' off' : ''}`, title: t('classes.toggle') });
       eye.innerHTML = allHidden ? EYE_OFF : EYE;
       eye.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (ids.every((x) => m.isHidden(x))) {
-          m.show(ids);
-          if (cls === 'IfcSpace' && !state.spacesVisible) { state.spacesVisible = true; $('[data-action="toggle-spaces"]').classList.add('on'); }
-        } else m.hide(ids);
-        refreshVisibilityUi();
+        if (cls === 'IfcSpace' && !state.spacesVisible && ids.every((x) => m.isHidden(x))) { state.spacesVisible = true; updateSpacesUi(); }
+        eyeClick(m, ids, rowKey);
       });
-      const row = h('div', { class: `node${allHidden ? ' dim' : ''}` }, eye, h('span', { class: 'lbl', text: cls }), h('span', { class: 'count', text: fmtNum(ids.length) }));
-      row.addEventListener('click', (e) => select(m, ids, { additive: e.ctrlKey || e.metaKey || e.shiftKey }));
+      const row = h('div', { class: `node${allHidden ? ' dim' : ''}`, 'data-key': rowKey }, eye, h('span', { class: 'lbl', text: cls }), h('span', { class: 'count', text: fmtNum(ids.length) }));
+      const entry = { row, ids, model: m, selfId: null };
+      rowRegistry.set(rowKey, entry);
+      if (state.treeKeys.has(rowKey)) row.classList.add('selected');
+      row.addEventListener('click', (e) => rowClick(e, rowKey, entry));
       row.addEventListener('dblclick', () => { const b = m.getBox(ids); if (!b.isEmpty()) viewer.fitBox(b); });
       ul.append(h('li', {}, row));
     }
@@ -667,6 +774,7 @@ async function renderProps({ keepScroll = false } = {}) {
       h('div', { class: 'name', text: t('props.nSelected', { n: fmtNum(count) }) }),
       h('ul', { class: 'multi-list' }, [...byClass].sort((a, b) => b[1] - a[1]).map(([ty, n]) => h('li', {}, h('span', { text: ty }), h('span', { class: 'muted', text: fmtNum(n) })))),
     ));
+    parts.push(selectionTotals());
   }
 
   if (state.editMode && count > 0) parts.push(batchForm());
@@ -696,7 +804,7 @@ async function renderProps({ keepScroll = false } = {}) {
     }
   }
   if (token !== propsToken) return;
-  root.replaceChildren(...parts);
+  root.replaceChildren(...parts.filter(Boolean));
   filterProps();
   if (keepScroll) root.scrollTop = scroll;
 }
@@ -783,11 +891,33 @@ function renderSection(model, elementId, sec) {
     badge = `${sec.rows.length} · ${t('props.sharedBy', { n: sec.shared })}`;
     if (editing && sec.psetId) warn = t('edit.sharedWarn', { n: sec.shared });
   }
-  return h('details', { class: `sec${sec.kind === 'qto' ? ' qto' : ''}`, open: sec.open },
+  return h('details', { class: `sec${sec.kind === 'qto' ? ' qto' : ''}${sec.kind === 'calc' ? ' calc' : ''}`, open: sec.open },
     h('summary', {}, h('span', { text: sec.title }), h('span', { class: 'badge', text: badge })),
     warn ? h('div', { class: 'warn', text: warn }) : null,
+    sec.note ? h('div', { class: 'sec-note', text: sec.note }) : null,
     h('table', { class: 'props' }, tbody),
   );
+}
+
+/** Sums of the calculated quantities of the selected elements. */
+function selectionTotals() {
+  const tot = { count: 0, volume: 0, area: 0, planArea: 0, length: 0 };
+  for (const [m, set] of state.selection) {
+    const r = m.sumQuantities(set);
+    for (const k of Object.keys(tot)) tot[k] += r[k];
+  }
+  if (!tot.count) return null;
+  const f = (v, d = 3) => v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+  const tbody = h('tbody', {}, [
+    [t('q.volume'), `${f(tot.volume)} m³`],
+    [t('q.area'), `${f(tot.area, 2)} m²`],
+    [t('q.planArea'), `${f(tot.planArea, 2)} m²`],
+    [t('q.lengthSum'), `${f(tot.length)} m`],
+  ].map(([k, v]) => h('tr', { 'data-k': k.toLowerCase(), 'data-v': v.toLowerCase() }, h('td', { text: k }), h('td', { text: v }))));
+  return h('details', { class: 'sec calc', open: true },
+    h('summary', {}, h('span', { text: t('q.totals') }), h('span', { class: 'badge', text: t('q.count', { n: fmtNum(tot.count) }) })),
+    h('div', { class: 'sec-note', text: t('q.note') }),
+    h('table', { class: 'props' }, tbody));
 }
 
 /** Form for setting a property on all selected elements. */
@@ -852,6 +982,9 @@ function renderPlanes() {
   const list = $('#plane-list');
   list.replaceChildren();
   panel.hidden = viewer.planes.length === 0;
+  const badge = $('#section-badge');
+  badge.hidden = !viewer.planes.length;
+  badge.textContent = String(viewer.planes.length);
   renderStatus();
   if (!viewer.planes.length) return;
 
@@ -913,6 +1046,10 @@ measure.addEventListener('change', renderMeasure);
 for (const b of $$('#measure-modes [data-measure]')) b.addEventListener('click', () => setMeasureMode(measure.mode === b.dataset.measure ? null : b.dataset.measure));
 $('#measure-snap').addEventListener('change', (e) => { measure.snapOn = e.target.checked; });
 $('#measure-unit').addEventListener('change', (e) => { measure.unit = e.target.value; measure.refresh(); });
+for (const cb of $$('[data-spot-show]')) {
+  cb.checked = !!measure.spotShow[cb.dataset.spotShow];
+  cb.addEventListener('change', () => measure.setSpotShow(cb.dataset.spotShow, cb.checked));
+}
 
 // ======================================================================== merge
 function openMergeDialog() {
