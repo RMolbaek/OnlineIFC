@@ -52,6 +52,9 @@
 
       <div class="group">
         <span class="group-label" data-i18n="tb.tools"></span>
+        <button data-action="toggle-measure" data-i18n-title="tb.measureTitle">
+          <svg viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg><span data-i18n="tb.measure"></span>
+        </button>
         <button data-action="toggle-edit" data-i18n-title="tb.editTitle">
           <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg><span data-i18n="tb.edit"></span>
         </button>
@@ -120,6 +123,28 @@
               <button class="link" data-action="clear-planes" data-i18n="planes.clear"></button>
             </div>
             <div id="plane-list"></div>
+          </div>
+          <div class="measure-panel" id="measure-panel" hidden>
+            <div class="measure-head">
+              <b data-i18n="measure.title"></b>
+              <span class="spacer"></span>
+              <button class="icon-btn" data-action="measure-close" data-i18n-title="common.close">✕</button>
+            </div>
+            <div class="seg" id="measure-modes">
+              <button data-measure="distance" data-i18n="measure.distance" data-i18n-title="measure.distanceTitle"></button>
+              <button data-measure="chain" data-i18n="measure.chain" data-i18n-title="measure.chainTitle"></button>
+              <button data-measure="spot" data-i18n="measure.spot" data-i18n-title="measure.spotTitle"></button>
+            </div>
+            <div class="measure-opts">
+              <label class="chk"><input type="checkbox" id="measure-snap" checked /> <span data-i18n="measure.snapLabel"></span></label>
+              <select id="measure-unit" class="sm"><option value="m">m</option><option value="mm">mm</option></select>
+            </div>
+            <div class="measure-hint muted small" id="measure-hint"></div>
+            <div id="measure-list"></div>
+            <div class="measure-foot" id="measure-foot" hidden>
+              <button class="link" data-action="measure-copy" data-i18n="measure.copy"></button>
+              <button class="link" data-action="measure-clear" data-i18n="measure.clear"></button>
+            </div>
           </div>
           <div class="mode-hint" id="mode-hint" hidden></div>
           <div class="statusbar" id="statusbar"></div>
@@ -192,6 +217,8 @@
         <tr><td>I</td><td data-i18n="help.i"></td></tr>
         <tr><td>Shift+H</td><td data-i18n="help.shiftH"></td></tr>
         <tr><td>E</td><td data-i18n="help.e"></td></tr>
+        <tr><td>M</td><td data-i18n="help.m"></td></tr>
+        <tr><td>Enter / Backspace</td><td data-i18n="help.measureKeys"></td></tr>
         <tr><td>Ctrl+Enter</td><td data-i18n="help.ctrlEnter"></td></tr>
       </table>
       <p class="muted" data-i18n="help.note"></p>

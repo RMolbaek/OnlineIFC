@@ -65,9 +65,12 @@ export class Viewer extends EventTarget {
     this.resizeObserver.observe(container);
     this.resize();
 
+    this.renderHooks = []; // functions called every frame after rendering (e.g. measurement labels)
+    this.dblclickCenters = true;
     const loop = () => {
       this.controls.update();
       renderer.render(this.scene, this.camera);
+      for (const fn of this.renderHooks) fn();
       requestAnimationFrame(loop);
     };
     loop();
@@ -192,6 +195,7 @@ export class Viewer extends EventTarget {
       this.dispatchEvent(Object.assign(new Event('pick'), { hit, originalEvent: e }));
     });
     el.addEventListener('dblclick', (e) => {
+      if (!this.dblclickCenters) return;
       const hit = this.pick(e.clientX, e.clientY);
       if (hit) this.#animateTo(
         this.camera.position.clone().sub(this.controls.target).multiplyScalar(0.6).add(hit.point),
@@ -213,7 +217,7 @@ export class Viewer extends EventTarget {
       const { model, bucket } = h.object.userData;
       const id = model.idFromFace(bucket, h.faceIndex);
       const normal = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : null;
-      return { model, id, point: h.point.clone(), normal };
+      return { model, id, point: h.point.clone(), normal, object: h.object, face: h.face };
     }
     return null;
   }
@@ -326,6 +330,22 @@ export class Viewer extends EventTarget {
     h.position.copy(pt);
     h.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), entry.plane.normal);
     h.scale.set(size, size, 1);
+  }
+
+  /** Viewer (three.js) coordinates -> IFC coordinates of the first model (metres, Z up). */
+  toIfc(p) {
+    const q = p.clone();
+    if (this.referenceMatrix) q.applyMatrix4(this.referenceMatrix.clone().invert());
+    return new THREE.Vector3(q.x, -q.z, q.y);
+  }
+
+  /** World point -> pixel position in the viewport (null when behind the camera). */
+  toScreen(p) {
+    const v = p.clone().project(this.camera);
+    if (v.z > 1 || v.z < -1) return null;
+    const w = this.renderer.domElement.clientWidth;
+    const hgt = this.renderer.domElement.clientHeight;
+    return { x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * hgt };
   }
 
   screenshot() {

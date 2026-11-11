@@ -260,6 +260,8 @@ export class IfcModel {
       this.classes.get(t).push(id);
     }
     this.units = this.#readUnits();
+    this.lengthScale = this.#readLengthScale();
+    this.georef = this.#readGeoref();
     this.header = this.#readHeader();
   }
 
@@ -313,6 +315,90 @@ export class IfcModel {
       }
     } catch { /* valgfrit */ }
     return units;
+  }
+
+  /** Metres per project length unit (1 for m, 0.001 for mm …). */
+  #readLengthScale() {
+    try {
+      const ids = this.api.GetLineIDsWithType(this.modelID, WebIFC.IFCUNITASSIGNMENT);
+      if (!ids.size()) return 1;
+      const ua = this.api.GetLine(this.modelID, ids.get(0), true);
+      for (const u of ua.Units || []) {
+        if (u?.UnitType?.value !== 'LENGTHUNIT') continue;
+        return unitScale(u);
+      }
+    } catch { /* optional */ }
+    return 1;
+  }
+
+  /**
+   * Georeferencing: IfcMapConversion (IFC4+) and IfcSite.RefElevation.
+   * Returns null when the model is not georeferenced.
+   */
+  #readGeoref() {
+    const api = this.api;
+    const out = { refElevation: null, map: null };
+    try {
+      const sites = api.GetLineIDsWithType(this.modelID, WebIFC.IFCSITE);
+      if (sites.size()) {
+        const site = api.GetLine(this.modelID, sites.get(0), false);
+        const re = site?.RefElevation;
+        const v = re && typeof re === 'object' ? Number(re._representationValue ?? re.value) : null;
+        if (Number.isFinite(v)) out.refElevation = v * this.lengthScale;
+      }
+    } catch { /* optional */ }
+    try {
+      if (WebIFC.IFCMAPCONVERSION) {
+        const ids = api.GetLineIDsWithType(this.modelID, WebIFC.IFCMAPCONVERSION);
+        if (ids.size()) {
+          const mc = api.GetLine(this.modelID, ids.get(0), true);
+          const num = (x, d = 0) => {
+            if (x === null || x === undefined) return d;
+            const n = Number(typeof x === 'object' ? x._representationValue ?? x.value : x);
+            return Number.isFinite(n) ? n : d;
+          };
+          const crs = mc.TargetCRS || {};
+          const mapScale = crs.MapUnit && typeof crs.MapUnit === 'object' ? unitScale(crs.MapUnit) : this.lengthScale;
+          let a = num(mc.XAxisAbscissa, 1), b = num(mc.XAxisOrdinate, 0);
+          const len = Math.hypot(a, b) || 1;
+          a /= len; b /= len;
+          out.map = {
+            eastings: num(mc.Eastings), northings: num(mc.Northings), height: num(mc.OrthogonalHeight),
+            a, b, scale: num(mc.Scale, 1), mapScale, crs: fmtValue(crs.Name) || '',
+          };
+        }
+      }
+    } catch (e) { console.warn('IfcMapConversion', e); }
+    return out.map || out.refElevation !== null ? out : null;
+  }
+
+  /**
+   * Converts IFC project coordinates (metres) to map coordinates (metres) with IfcMapConversion.
+   * Returns {e, n, h, crs} or null.
+   */
+  toMap(p) {
+    const m = this.georef?.map;
+    if (!m) return null;
+    const x = p.x / this.lengthScale, y = p.y / this.lengthScale, z = p.z / this.lengthScale; // project units
+    const e = m.eastings + m.scale * (m.a * x - m.b * y);
+    const n = m.northings + m.scale * (m.b * x + m.a * y);
+    const hh = m.height + z * m.scale;
+    return { e: e * m.mapScale, n: n * m.mapScale, h: hh * m.mapScale, crs: m.crs };
+  }
+
+  /** The storey an element belongs to: {id, name, elevation (m)} or null. */
+  storeyInfo(id) {
+    let p = this.parent.get(id);
+    while (p !== undefined) {
+      if (this.typeName(p) === 'IfcBuildingStorey') {
+        const line = this.api.GetLine(this.modelID, p, false);
+        const ev = line?.Elevation;
+        const v = ev && typeof ev === 'object' ? Number(ev._representationValue ?? ev.value) : NaN;
+        return { id: p, name: this.label(p), elevation: Number.isFinite(v) ? v * this.lengthScale : null };
+      }
+      p = this.parent.get(p);
+    }
+    return null;
   }
 
   // ------------------------------------------------------------------ metadata
@@ -784,6 +870,21 @@ const SI_NAME = {
   METRE: 'm', SQUARE_METRE: 'm²', CUBIC_METRE: 'm³', GRAM: 'g', SECOND: 's', RADIAN: 'rad', DEGREE_CELSIUS: '°C',
   KELVIN: 'K', NEWTON: 'N', PASCAL: 'Pa', WATT: 'W', JOULE: 'J', VOLT: 'V', AMPERE: 'A', HERTZ: 'Hz', LUMEN: 'lm', LUX: 'lx',
 };
+
+const SI_FACTOR = { EXA: 1e18, PETA: 1e15, TERA: 1e12, GIGA: 1e9, MEGA: 1e6, KILO: 1e3, HECTO: 1e2, DECA: 10, DECI: 0.1, CENTI: 0.01, MILLI: 1e-3, MICRO: 1e-6, NANO: 1e-9 };
+
+/** Metres per unit for an IfcSIUnit or IfcConversionBasedUnit (length). */
+function unitScale(u) {
+  if (!u || typeof u !== 'object') return 1;
+  if (u.ConversionFactor) {
+    const vc = u.ConversionFactor.ValueComponent;
+    const f = Number(vc && typeof vc === 'object' ? vc._representationValue ?? vc.value : vc);
+    const base = unitScale(u.ConversionFactor.UnitComponent);
+    return Number.isFinite(f) ? f * base : 1;
+  }
+  const prefix = u.Prefix?.value;
+  return prefix ? SI_FACTOR[prefix] ?? 1 : 1;
+}
 
 function siSymbol(prefix, name) {
   const p = prefix ? SI_PREFIX[prefix] ?? '' : '';

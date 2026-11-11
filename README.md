@@ -15,6 +15,14 @@ The interface is in **English**, **Danish** and **German** (language picker in t
 - **Structure and classes:** a tree from project to element and a list of IFC classes. Both can be used to select, hide and show elements, and the tree can be searched by name, class, GUID or tag.
 - Hide, isolate, show all, show/hide spaces, CSV export of all properties, screenshots.
 
+### Measure
+**Measure** (toolbar or `M`) opens the measuring panel with three tools:
+- **Distance:** point to point. Shows the distance, the horizontal distance, the height difference (ΔZ), ΔX/ΔY and the slope. Dashed lines show the horizontal and vertical components.
+- **Length:** a polyline through several points with the length of each segment and the total. Finish with double-click or Enter; Backspace removes the last point.
+- **Spot:** coordinates and elevation of a point. It shows project X/Y/Z (metres, Z up) and the height above the element's storey. If the model is georeferenced with `IfcMapConversion`, it also shows easting/northing/height in the map coordinate system. Otherwise it shows Z plus the site reference elevation (`IfcSite.RefElevation`) when one is set.
+
+Points snap to corners, edge midpoints and edges (shown by the marker shape); snapping can be turned off. Values are shown in m or mm, every measurement can be zoomed to or removed, and *Copy all* copies the values to the clipboard. Points cut away by section planes cannot be picked. With several models, coordinates refer to the first model's coordinate system.
+
 ### Edit metadata
 Turn on **Edit** (toolbar, properties panel or the `E` key):
 - Edit string attributes (`Name`, `Description`, `ObjectType`, `Tag`, `LongName` …) directly in the properties panel.
@@ -56,6 +64,8 @@ Run with **Ctrl+Enter**. The script is saved in the browser. The *Examples* menu
 | Zoom to selection | F |
 | Hide / isolate / show all | H / I / Shift+H |
 | Edit mode | E |
+| Measure on/off | M |
+| Finish / undo last point while measuring | Enter / Backspace |
 | Run Python script | Ctrl+Enter |
 | Clear selection | Esc |
 
@@ -74,6 +84,7 @@ Built with [three.js](https://threejs.org), [web-ifc](https://github.com/ThatOpe
 | --- | --- |
 | `src/main.js` | user interface |
 | `src/viewer.js` | three.js scene, picking, sections |
+| `src/measure.js` | measuring tools and snapping |
 | `src/ifc.js`, `src/model.js` | loading IFC, metadata and metadata editing (web-ifc) |
 | `src/python.js`, `src/python-worker.js` | Pyodide/IfcOpenShell worker and merge logic |
 | `src/scripting.js`, `src/examples.js` | Python panel and example scripts |

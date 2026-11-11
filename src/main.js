@@ -4,6 +4,7 @@ import { loadIfcFile } from './ifc.js';
 import { isSpatialType, KIND_TYPES } from './model.js';
 import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js';
 import { PythonPanel } from './scripting.js';
+import { MeasureTool } from './measure.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -26,6 +27,7 @@ const EYE_OFF = '<svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0
 const PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#59a14f', '#b07aa1', '#edc948', '#76b7b2', '#ff9da7', '#9c755f', '#bab0ac'];
 
 const viewer = new Viewer($('#viewport'));
+const measure = new MeasureTool(viewer, $('#viewport'));
 const state = {
   selection: new Map(), // model -> Set(expressID)
   active: null, // {model, id}
@@ -40,6 +42,7 @@ $('#lang-select').addEventListener('change', (e) => {
   setLang(e.target.value);
   applyStaticTranslations();
   python.translate();
+  measure.refresh();
   renderAll();
 });
 applyStaticTranslations();
@@ -165,6 +168,10 @@ function selectionCount() {
 }
 
 viewer.addEventListener('pick', ({ hit, originalEvent: e }) => {
+  if (measure.mode && !state.pickPlaneMode) {
+    measure.handleClick(e.clientX, e.clientY);
+    return;
+  }
   if (state.pickPlaneMode) {
     if (hit?.normal) {
       // Put the plane 2 cm behind the face so the cut becomes visible.
@@ -213,6 +220,10 @@ document.addEventListener('click', (e) => {
     'merge-cancel': () => $('#merge-dialog').close(),
     'merge-run': () => runMerge(),
     'toggle-python': () => python.toggle(),
+    'toggle-measure': () => setMeasureMode(measure.mode ? null : lastMeasureMode),
+    'measure-close': () => { setMeasureMode(null); measurePanelClosed = true; renderMeasure(); },
+    'measure-clear': () => measure.clear(),
+    'measure-copy': () => { navigator.clipboard?.writeText(measure.toText()); toast(t('measure.copied'), true); },
     screenshot: () => download(`onlineifc-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`, dataUrlToBlob(viewer.screenshot())),
     help: () => $('#help-dialog').showModal(),
     'color-by-model': () => {
@@ -297,12 +308,14 @@ document.addEventListener('keydown', (e) => {
   if (e.target.closest('input, textarea, select, .cm-editor')) return;
   if (e.key === 'Escape') {
     if (state.pickPlaneMode) setPickPlaneMode(false);
+    else if (measure.cancel()) { /* handled by the measure tool */ }
     else clearSelection();
   } else if (e.key === 'f' || e.key === 'F') fitSelection();
   else if (e.key === 'H' && e.shiftKey) showAll();
   else if (e.key === 'h') hideSelected();
   else if (e.key === 'i' || e.key === 'I') isolateSelected();
   else if (e.key === 'e' || e.key === 'E') setEditMode(!state.editMode);
+  else if (e.key === 'm' || e.key === 'M') setMeasureMode(measure.mode ? null : lastMeasureMode);
   else if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); $('#file-input').click(); }
 });
 
@@ -866,6 +879,41 @@ function renderPlanes() {
 $('#plane-helpers').addEventListener('change', (e) => viewer.setHelpersVisible(e.target.checked));
 $('#plane-fill').addEventListener('change', (e) => viewer.setSectionFill(e.target.checked));
 
+// ====================================================================== measure
+let lastMeasureMode = 'distance';
+let measurePanelClosed = false;
+
+function setMeasureMode(mode) {
+  if (mode && !viewer.models.length) return toast(t('msg.loadFirst'));
+  if (mode) { lastMeasureMode = mode; measurePanelClosed = false; }
+  if (mode && state.pickPlaneMode) setPickPlaneMode(false);
+  measure.setMode(mode);
+}
+
+function renderMeasure() {
+  const panel = $('#measure-panel');
+  const rows = measure.rows();
+  panel.hidden = measurePanelClosed || (!measure.mode && !rows.length);
+  for (const b of $$('.toolbar [data-action="toggle-measure"]')) b.classList.toggle('on', !!measure.mode);
+  for (const b of $$('#measure-modes [data-measure]')) b.classList.toggle('on', b.dataset.measure === measure.mode);
+  $('#measure-hint').textContent = measure.mode ? t(`measure.hint.${measure.mode}`) : t('measure.hint.off');
+  $('#measure-foot').hidden = !rows.length;
+  const list = $('#measure-list');
+  list.replaceChildren(...rows.map((r) => h('div', { class: `m-item ${r.m.type}` },
+    h('div', { class: 'm-item-head' },
+      h('span', { class: 'm-swatch' }),
+      h('a', { class: 'm-title', text: r.title, title: t('measure.zoomTo'), onclick: () => measure.focus(r.m.id) }),
+      h('b', { class: 'm-value', text: r.value }),
+      h('button', { class: 'icon-btn', title: t('measure.remove'), text: '✕', onclick: () => measure.remove(r.m.id) })),
+    r.lines.length ? h('table', { class: 'm-lines' }, r.lines.map(([k, v]) => h('tr', {}, h('td', { text: k }), h('td', { text: v })))) : null,
+  )));
+  renderStatus();
+}
+measure.addEventListener('change', renderMeasure);
+for (const b of $$('#measure-modes [data-measure]')) b.addEventListener('click', () => setMeasureMode(measure.mode === b.dataset.measure ? null : b.dataset.measure));
+$('#measure-snap').addEventListener('change', (e) => { measure.snapOn = e.target.checked; });
+$('#measure-unit').addEventListener('change', (e) => { measure.unit = e.target.value; measure.refresh(); });
+
 // ======================================================================== merge
 function openMergeDialog() {
   if (viewer.models.length < 2) return toast(t('merge.needTwo'));
@@ -952,6 +1000,7 @@ function renderStatus() {
     sel ? t('status.selected', { n: fmtNum(sel) }) : null,
     viewer.planes.length ? t('status.sections', { n: viewer.planes.length }) : null,
     state.editMode ? t('status.editMode') : null,
+    measure.mode ? t(`measure.${measure.mode}`) : null,
   ].filter(Boolean).join('  ·  ');
 }
 
@@ -975,4 +1024,4 @@ window.addEventListener('beforeunload', (e) => {
 renderAll();
 
 // For debugging in the console
-window.onlineIfc = { viewer, state, openFiles, python };
+window.onlineIfc = { viewer, state, openFiles, python, measure };
