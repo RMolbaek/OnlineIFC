@@ -211,6 +211,61 @@ export class IfcModel {
     }
   }
 
+  /**
+   * Quantities calculated from the triangulated 3D geometry (metres):
+   * volume, surface area, plan area of upward faces and a plan-aligned bounding box
+   * (length = longest side in plan, width = shortest side, height = vertical extent).
+   * Returns null for elements without geometry. Results are cached per element.
+   */
+  computeQuantities(id) {
+    if (!this._qto) this._qto = new Map();
+    if (this._qto.has(id)) return this._qto.get(id);
+    let vol = 0, area = 0, planArea = 0, zmin = Infinity, zmax = -Infinity;
+    const xy = [];
+    const ax = new THREE.Vector3(), bx = new THREE.Vector3(), cx = new THREE.Vector3();
+    const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), cr = new THREE.Vector3();
+    // three.js (x, y up, z) -> IFC (x, -z, y)
+    const load = (v, P, i) => v.set(P[i * 3], -P[i * 3 + 2], P[i * 3 + 1]);
+    let found = false;
+    for (const b of this.buckets) {
+      const P = b.positions, I = b.index;
+      for (const it of b.items) {
+        if (it.id !== id) continue;
+        found = true;
+        for (let k = it.start; k + 2 < it.start + it.count; k += 3) {
+          load(ax, P, I[k]); load(bx, P, I[k + 1]); load(cx, P, I[k + 2]);
+          vol += ax.dot(cr.crossVectors(bx, cx)) / 6;
+          e1.subVectors(bx, ax); e2.subVectors(cx, ax); cr.crossVectors(e1, e2);
+          const len = cr.length();
+          area += len / 2;
+          if (len > 0 && cr.z / len > 0.7) planArea += cr.z / 2;
+          for (const v of [ax, bx, cx]) {
+            xy.push(v.x, v.y);
+            if (v.z < zmin) zmin = v.z;
+            if (v.z > zmax) zmax = v.z;
+          }
+        }
+      }
+    }
+    if (!found || !area) { this._qto.set(id, null); return null; }
+    const rect = minAreaRect(xy);
+    const q = { volume: Math.abs(vol), area, planArea, length: rect.length, width: rect.width, height: zmax - zmin };
+    this._qto.set(id, q);
+    return q;
+  }
+
+  /** Sums of calculated quantities over several elements. */
+  sumQuantities(ids) {
+    const total = { count: 0, volume: 0, area: 0, planArea: 0, length: 0 };
+    for (const id of ids) {
+      const q = this.computeQuantities(id);
+      if (!q) continue;
+      total.count++;
+      total.volume += q.volume; total.area += q.area; total.planArea += q.planArea; total.length += q.length;
+    }
+    return total;
+  }
+
   /** Bounding box (i verdenskoordinater) for nogle elementer eller hele modellen. */
   getBox(ids = null) {
     this.group.updateMatrixWorld(true);
@@ -422,6 +477,26 @@ export class IfcModel {
       attrs.push([k, this.#fmtAttr(v), editable ? { attr: k } : null]);
     }
     sections.push({ title: t('sec.attributes'), rows: attrs, open: true, kind: 'attrs' });
+
+    // Quantities calculated from the geometry
+    const q = this.computeQuantities(id);
+    if (q) {
+      const f = (v, d = 3) => v.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
+      sections.push({
+        title: t('sec.calcQuantities'),
+        rows: [
+          [t('q.volume'), `${f(q.volume)} m³`],
+          [t('q.area'), `${f(q.area, 2)} m²`],
+          [t('q.planArea'), `${f(q.planArea, 2)} m²`],
+          [t('q.length'), `${f(q.length)} m`],
+          [t('q.width'), `${f(q.width)} m`],
+          [t('q.height'), `${f(q.height)} m`],
+        ],
+        open: true,
+        kind: 'calc',
+        note: t('q.note'),
+      });
+    }
 
     // Location in the spatial structure
     const chain = [];
@@ -743,6 +818,16 @@ export class IfcModel {
         [c.name]: fmtValue(line?.Name),
         [c.storey]: this.#storeyOf(id),
       };
+      const q = this.computeQuantities(id);
+      if (q) {
+        const r3 = (v) => Math.round(v * 1000) / 1000;
+        for (const [k, v, u] of [['q.volume', q.volume, 'm³'], ['q.area', q.area, 'm²'], ['q.planArea', q.planArea, 'm²'],
+          ['q.length', q.length, 'm'], ['q.width', q.width, 'm'], ['q.height', q.height, 'm']]) {
+          const col = `${t('sec.calcQuantities')}.${t(k)} (${u})`;
+          cols.add(col);
+          row[col] = r3(v);
+        }
+      }
       try {
         const psets = await this.api.properties.getPropertySets(this.modelID, id, true, true);
         for (const ps of psets) {
@@ -935,4 +1020,49 @@ function collectMaterials(obj, rows, api, depth) {
     default:
       if (obj.Name) rows.push([prettyRawName(tn), fmtValue(obj.Name)]);
   }
+}
+
+/**
+ * Minimum-area enclosing rectangle of 2D points (rotating calipers over the convex hull).
+ * Returns {length, width} with length >= width.
+ */
+function minAreaRect(flat) {
+  const pts = [];
+  for (let i = 0; i < flat.length; i += 2) pts.push([flat[i], flat[i + 1]]);
+  pts.sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lower = [], upper = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 1e-12) lower.pop();
+    lower.push(p);
+  }
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 1e-12) upper.pop();
+    upper.push(p);
+  }
+  const hull = lower.slice(0, -1).concat(upper.slice(0, -1));
+  if (hull.length < 3) {
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (const [x, y] of pts) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    const a = Math.hypot(maxX - minX, maxY - minY);
+    return { length: a, width: 0 };
+  }
+  let best = null;
+  for (let i = 0; i < hull.length; i++) {
+    const p = hull[i], q = hull[(i + 1) % hull.length];
+    const ex = q[0] - p[0], ey = q[1] - p[1];
+    const el = Math.hypot(ex, ey);
+    if (el < 1e-12) continue;
+    const ux = ex / el, uy = ey / el;
+    let minU = Infinity, maxU = -Infinity, minV = Infinity, maxV = -Infinity;
+    for (const [x, y] of hull) {
+      const u = x * ux + y * uy, v = -x * uy + y * ux;
+      if (u < minU) minU = u; if (u > maxU) maxU = u;
+      if (v < minV) minV = v; if (v > maxV) maxV = v;
+    }
+    const a = maxU - minU, b = maxV - minV;
+    if (!best || a * b < best.area - 1e-12) best = { area: a * b, length: Math.max(a, b), width: Math.min(a, b) };
+  }
+  return best || { length: 0, width: 0 };
 }

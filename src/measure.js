@@ -19,6 +19,9 @@ export class MeasureTool extends EventTarget {
     this.mode = null; // 'distance' | 'chain' | 'spot' | null
     this.snapOn = true;
     this.unit = 'm'; // 'm' | 'mm'
+    // Which coordinates the spot label shows in the 3D view
+    this.spotShow = { x: false, y: false, z: true };
+    try { Object.assign(this.spotShow, JSON.parse(localStorage.getItem('onlineifc.spotLabel') || '{}')); } catch { /* ignore */ }
     this.items = []; // finished measurements
     this.current = null; // measurement in progress {type, points: []}
     this.hover = null; // {point, kind, hit}
@@ -396,8 +399,22 @@ export class MeasureTool extends EventTarget {
   }
 
   #spotLabel(info) {
-    const z = info.map ? info.map.h : info.ifc.z;
-    return `${info.map ? 'H' : 'Z'} ${this.fmtLen(z, true)}`;
+    const geo = !!info.map;
+    const c = geo ? { x: info.map.e, y: info.map.n, z: info.map.h } : info.ifc;
+    const names = geo ? { x: 'E', y: 'N', z: 'H' } : { x: 'X', y: 'Y', z: 'Z' };
+    const parts = [];
+    for (const k of ['x', 'y', 'z']) {
+      if (!this.spotShow[k]) continue;
+      parts.push(`${names[k]} ${k === 'z' ? this.fmtLen(c[k], true) : this.fmtLen(c[k])}`);
+    }
+    return parts.length ? parts.join('\n') : '•';
+  }
+
+  /** Chooses which coordinates the spot labels show (x, y, z). */
+  setSpotShow(key, on) {
+    this.spotShow[key] = on;
+    try { localStorage.setItem('onlineifc.spotLabel', JSON.stringify(this.spotShow)); } catch { /* ignore */ }
+    this.refresh();
   }
 
   fmtLen(v, signed = false) {
@@ -432,7 +449,7 @@ export class MeasureTool extends EventTarget {
           lines.push([t('measure.aboveStorey', { name: info.storey.name }), this.fmtLen(info.ifc.z - info.storey.elevation, true)]);
         }
         if (info.element) lines.push([t('measure.element'), info.element]);
-        return { m, n, title: `${t('measure.spot')} ${n}`, value: this.#spotLabel(info), lines };
+        return { m, n, title: `${t('measure.spot')} ${n}`, value: this.#spotLabel(info).replace(/\n/g, ' · '), lines };
       }
       const len = this.length(m);
       const lines = [];

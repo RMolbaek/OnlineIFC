@@ -352,3 +352,45 @@ details.batch[open] > summary { margin-bottom: 6px; }
 .m-lines td:last-child { text-align: right; font-variant-numeric: tabular-nums; padding-left: 8px; word-break: break-word; }
 .measure-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 6px; }
 @media (max-width: 900px) { .measure-panel { width: calc(100% - 24px); max-height: 45%; } }
+
+/* ---------- toolbar menus ---------- */
+.menu { position: relative; flex-shrink: 0; }
+.toolbar .menu-btn { font-weight: 500; }
+.toolbar .menu-btn.open { background: var(--accent-soft); border-color: var(--accent); }
+.caret-down { font-size: 10px; color: var(--muted); margin-left: -2px; }
+.menu-badge { background: var(--accent); color: #fff; border-radius: 9px; font-size: 11px; padding: 0 6px; line-height: 16px; font-weight: 600; }
+.menu-pop {
+  position: fixed; z-index: 50; min-width: 290px; max-width: 360px; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow); padding: 6px;
+}
+.menu-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: none;
+  padding: 7px 8px; border-radius: 7px; cursor: pointer;
+}
+.menu-item:hover { background: var(--accent-soft); }
+.mi-icon { width: 26px; height: 26px; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--panel-2); border: 1px solid var(--border); font-size: 11px; font-weight: 700; color: var(--accent); }
+.mi-icon svg { width: 16px; height: 16px; }
+.mi-check { font-size: 15px; }
+.mi-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.mi-text b { font-weight: 600; }
+.mi-text small { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+.menu-item kbd { font: 11px ui-monospace, Menlo, Consolas, monospace; color: var(--muted); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; background: var(--panel-2); }
+.menu-sep { height: 1px; background: var(--border); margin: 5px 4px; }
+.toolbar > button, .toolbar > .menu { flex-shrink: 0; }
+
+/* ---------- multi-selection bar in structure/classes ---------- */
+.sel-bar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; padding: 5px 6px; margin-bottom: 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); position: sticky; top: -8px; z-index: 1; }
+.sel-bar .sel-count { flex: 1 1 100%; font-size: 11.5px; color: var(--muted); }
+.sel-bar button { border: 1px solid var(--border); background: var(--panel); border-radius: 5px; padding: 2px 8px; cursor: pointer; font-size: 12px; }
+.sel-bar button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.sel-bar button:disabled { opacity: 0.45; cursor: default; }
+.node { user-select: none; }
+
+/* ---------- calculated quantities ---------- */
+details.sec.calc > summary { color: #b0640c; }
+@media (prefers-color-scheme: dark) { details.sec.calc > summary { color: #f2b25c; } }
+.sec-note { font-size: 11px; color: var(--muted); padding: 5px 9px; border-top: 1px solid var(--border); }
+.m-label.spot { white-space: pre; text-align: left; line-height: 1.35; }
+.spot-opts { justify-content: flex-start; gap: 10px; }
+.toolbar .menu-item { height: auto; padding: 7px 8px; white-space: normal; border: 0; border-radius: 7px; gap: 10px; }
+.toolbar .menu-item:hover { border: 0; background: var(--accent-soft); }

@@ -20,38 +20,54 @@
 
       <div class="sep"></div>
 
-      <div class="group">
-        <button data-action="fit" data-i18n-title="tb.fitTitle"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
-        <button data-view="iso" data-i18n-title="tb.isoTitle">3D</button>
-        <button data-view="top" data-i18n="tb.top" data-i18n-title="tb.topTitle"></button>
-        <button data-view="front" data-i18n="tb.front" data-i18n-title="tb.frontTitle"></button>
-        <button data-view="right" data-i18n="tb.side" data-i18n-title="tb.sideTitle"></button>
+      <button data-action="fit" data-i18n-title="tb.fitTitle"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+
+      <div class="menu">
+        <button class="menu-btn" data-menu="view" data-i18n-title="tb.viewTitle">
+          <svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8"/></svg><span data-i18n="tb.view"></span><span class="caret-down">▾</span>
+        </button>
+        <div class="menu-pop" data-pop="view" hidden>
+          <button class="menu-item" data-view="iso"><span class="mi-icon">3D</span><span class="mi-text"><b data-i18n="mi.iso"></b><small data-i18n="mi.isoDesc"></small></span></button>
+          <button class="menu-item" data-view="top"><span class="mi-icon"><svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/><path d="M12 2v3"/></svg></span><span class="mi-text"><b data-i18n="mi.top"></b><small data-i18n="mi.topDesc"></small></span></button>
+          <button class="menu-item" data-view="front"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M5 20V9l7-5 7 5v11z"/></svg></span><span class="mi-text"><b data-i18n="mi.front"></b><small data-i18n="mi.frontDesc"></small></span></button>
+          <button class="menu-item" data-view="right"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 20V10l8-6v16zM12 4l8 6v10h-8"/></svg></span><span class="mi-text"><b data-i18n="mi.side"></b><small data-i18n="mi.sideDesc"></small></span></button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="fit-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></span><span class="mi-text"><b data-i18n="mi.fitAll"></b><small data-i18n="mi.fitAllDesc"></small></span></button>
+          <button class="menu-item" data-action="fit"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg></span><span class="mi-text"><b data-i18n="mi.fitSel"></b><small data-i18n="mi.fitSelDesc"></small></span><kbd>F</kbd></button>
+        </div>
+      </div>
+
+      <div class="menu">
+        <button class="menu-btn" data-menu="section" data-i18n-title="tb.sectionTitle">
+          <svg viewBox="0 0 24 24"><path d="M3 14h18M6 14V6h12v8M6 18h12"/></svg><span data-i18n="tb.section"></span><span class="menu-badge" id="section-badge" hidden></span><span class="caret-down">▾</span>
+        </button>
+        <div class="menu-pop" data-pop="section" hidden>
+          <button class="menu-item" data-plane="y"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12h20M6 12V5h12v7"/></svg></span><span class="mi-text"><b data-i18n="mi.plan"></b><small data-i18n="mi.planDesc"></small></span></button>
+          <button class="menu-item" data-plane="x"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M5 7h14v12H5"/></svg></span><span class="mi-text"><b data-i18n="mi.secX"></b><small data-i18n="mi.secXDesc"></small></span></button>
+          <button class="menu-item" data-plane="z"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M7 9h10v10H7"/></svg></span><span class="mi-text"><b data-i18n="mi.secY"></b><small data-i18n="mi.secYDesc"></small></span></button>
+          <button class="menu-item" data-action="plane-face"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 18 10 6h10l-6 12zM12 12l-4 8"/></svg></span><span class="mi-text"><b data-i18n="mi.face"></b><small data-i18n="mi.faceDesc"></small></span></button>
+          <button class="menu-item" data-action="section-box"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8"/></svg></span><span class="mi-text"><b data-i18n="mi.box"></b><small data-i18n="mi.boxDesc"></small></span></button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="clear-planes"><span class="mi-icon">✕</span><span class="mi-text"><b data-i18n="mi.clearSections"></b></span></button>
+        </div>
+      </div>
+
+      <div class="menu">
+        <button class="menu-btn" data-menu="visibility" data-i18n-title="tb.visibilityTitle">
+          <svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><span data-i18n="tb.visibility"></span><span class="caret-down">▾</span>
+        </button>
+        <div class="menu-pop" data-pop="visibility" hidden>
+          <button class="menu-item" data-action="hide"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7c1.6 0 3-.4 4.3-1"/></svg></span><span class="mi-text"><b data-i18n="mi.hide"></b><small data-i18n="mi.hideDesc"></small></span><kbd>H</kbd></button>
+          <button class="menu-item" data-action="isolate"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M3 3h4M17 3h4M3 21h4M17 21h4"/></svg></span><span class="mi-text"><b data-i18n="mi.isolate"></b><small data-i18n="mi.isolateDesc"></small></span><kbd>I</kbd></button>
+          <button class="menu-item" data-action="show-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="mi-text"><b data-i18n="mi.showAll"></b><small data-i18n="mi.showAllDesc"></small></span><kbd>⇧H</kbd></button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="toggle-spaces"><span class="mi-icon mi-check" id="spaces-check">☐</span><span class="mi-text"><b data-i18n="mi.spaces"></b><small data-i18n="mi.spacesDesc"></small></span></button>
+        </div>
       </div>
 
       <div class="sep"></div>
 
       <div class="group">
-        <span class="group-label" data-i18n="tb.section"></span>
-        <button data-plane="y" data-i18n="tb.plan" data-i18n-title="tb.planTitle"></button>
-        <button data-plane="x" data-i18n-title="tb.xTitle">X</button>
-        <button data-plane="z" data-i18n-title="tb.yTitle">Y</button>
-        <button data-action="plane-face" data-i18n="tb.face" data-i18n-title="tb.faceTitle"></button>
-        <button data-action="section-box" data-i18n="tb.box" data-i18n-title="tb.boxTitle"></button>
-      </div>
-
-      <div class="sep"></div>
-
-      <div class="group">
-        <button data-action="hide" data-i18n="tb.hide" data-i18n-title="tb.hideTitle"></button>
-        <button data-action="isolate" data-i18n="tb.isolate" data-i18n-title="tb.isolateTitle"></button>
-        <button data-action="show-all" data-i18n="tb.showAll" data-i18n-title="tb.showAllTitle"></button>
-        <button data-action="toggle-spaces" data-i18n="tb.spaces" data-i18n-title="tb.spacesTitle"></button>
-      </div>
-
-      <div class="sep"></div>
-
-      <div class="group">
-        <span class="group-label" data-i18n="tb.tools"></span>
         <button data-action="toggle-measure" data-i18n-title="tb.measureTitle">
           <svg viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg><span data-i18n="tb.measure"></span>
         </button>
@@ -96,9 +112,25 @@
         </section>
         <section class="tab-body" id="tab-tree">
           <input class="search" id="tree-search" type="search" data-i18n-placeholder="tree.search" />
+          <div class="sel-bar">
+            <span class="sel-count"></span>
+            <button data-action="sel-hide" data-needs-sel data-i18n="sel.hide" data-i18n-title="sel.hideTitle"></button>
+            <button data-action="sel-show" data-needs-sel data-i18n="sel.show" data-i18n-title="sel.showTitle"></button>
+            <button data-action="sel-isolate" data-needs-sel data-i18n="sel.isolate" data-i18n-title="sel.isolateTitle"></button>
+            <button data-action="show-all" data-i18n="sel.showAll" data-i18n-title="tb.showAllTitle"></button>
+            <button data-action="sel-clear" data-needs-sel class="icon-only" data-i18n-title="sel.clear">✕</button>
+          </div>
           <div id="tree"></div>
         </section>
         <section class="tab-body" id="tab-classes">
+          <div class="sel-bar">
+            <span class="sel-count"></span>
+            <button data-action="sel-hide" data-needs-sel data-i18n="sel.hide" data-i18n-title="sel.hideTitle"></button>
+            <button data-action="sel-show" data-needs-sel data-i18n="sel.show" data-i18n-title="sel.showTitle"></button>
+            <button data-action="sel-isolate" data-needs-sel data-i18n="sel.isolate" data-i18n-title="sel.isolateTitle"></button>
+            <button data-action="show-all" data-i18n="sel.showAll" data-i18n-title="tb.showAllTitle"></button>
+            <button data-action="sel-clear" data-needs-sel class="icon-only" data-i18n-title="sel.clear">✕</button>
+          </div>
           <div id="classes"></div>
         </section>
       </aside>
@@ -138,6 +170,12 @@
             <div class="measure-opts">
               <label class="chk"><input type="checkbox" id="measure-snap" checked /> <span data-i18n="measure.snapLabel"></span></label>
               <select id="measure-unit" class="sm"><option value="m">m</option><option value="mm">mm</option></select>
+            </div>
+            <div class="measure-opts spot-opts">
+              <span class="muted small" data-i18n="measure.spotLabelShows"></span>
+              <label class="chk"><input type="checkbox" data-spot-show="x" /> X</label>
+              <label class="chk"><input type="checkbox" data-spot-show="y" /> Y</label>
+              <label class="chk"><input type="checkbox" data-spot-show="z" /> Z</label>
             </div>
             <div class="measure-hint muted small" id="measure-hint"></div>
             <div id="measure-list"></div>

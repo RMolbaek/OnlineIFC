@@ -25,8 +25,14 @@ export class Viewer extends EventTarget {
     this.controls = new OrbitControls(this.camera, renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.15;
-    this.controls.zoomToCursor = true;
     this.controls.screenSpacePanning = true;
+    this.controls.minDistance = 0.001;
+    this.controls.maxDistance = Infinity;
+    // Navigation: left = pan (Shift/Ctrl+left = rotate), middle/wheel button = rotate,
+    // right = rotate, wheel = zoom towards the surface under the cursor (handled below).
+    this.controls.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.ROTATE, RIGHT: THREE.MOUSE.ROTATE };
+    this.controls.touches = { ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN };
+    this.sceneRadius = 10;
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 2.2));
     const sun = new THREE.DirectionalLight(0xffffff, 1.6);
@@ -69,6 +75,7 @@ export class Viewer extends EventTarget {
     this.dblclickCenters = true;
     const loop = () => {
       this.controls.update();
+      this.#updateClip();
       renderer.render(this.scene, this.camera);
       for (const fn of this.renderHooks) fn();
       requestAnimationFrame(loop);
@@ -99,6 +106,12 @@ export class Viewer extends EventTarget {
     this.models.push(model);
     this.modelRoot.add(model.group);
     model.setSelection([], this.highlightMaterial);
+    this.#updateSceneRadius();
+  }
+
+  #updateSceneRadius() {
+    const box = this.sceneBox({ visibleOnly: false });
+    this.sceneRadius = box.isEmpty() ? 10 : Math.max(box.getSize(new THREE.Vector3()).length() / 2, 1);
   }
 
   /** Swaps a model for a new version of it (e.g. after a Python script), keeping its position in the list and its look. */
@@ -117,6 +130,7 @@ export class Viewer extends EventTarget {
     this.models = this.models.filter((m) => m !== model);
     model.dispose();
     if (!this.models.length) this.referenceMatrix = null;
+    this.#updateSceneRadius();
   }
 
   sceneBox({ visibleOnly = true } = {}) {
@@ -141,9 +155,6 @@ export class Viewer extends EventTarget {
       dir.normalize();
     }
     this.#animateTo(center.clone().add(dir.multiplyScalar(dist)), center);
-    this.camera.near = Math.max(size / 5000, 0.01);
-    this.camera.far = Math.max(size * 50, 1000);
-    this.camera.updateProjectionMatrix();
   }
 
   fitAll() { this.fitBox(this.sceneBox()); }
@@ -182,9 +193,76 @@ export class Viewer extends EventTarget {
   }
 
   // ------------------------------------------------------------ picking
+  /** Keeps near/far planes suited to how close the camera is to the model. */
+  #updateClip() {
+    const d = this.camera.position.distanceTo(this.controls.target);
+    const near = Math.min(Math.max(d / 200, 0.002), 5);
+    const far = Math.max(this.sceneRadius * 6 + this.camera.position.length() * 2, 1000);
+    if (Math.abs(near - this.camera.near) / this.camera.near > 0.15 || Math.abs(far - this.camera.far) / this.camera.far > 0.15) {
+      this.camera.near = near;
+      this.camera.far = far;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  /**
+   * Moves the orbit pivot to the depth of a point, without turning the view.
+   * Rotation and panning then feel anchored to what is under the cursor.
+   */
+  #pivotAtDepthOf(point) {
+    const dir = new THREE.Vector3();
+    this.camera.getWorldDirection(dir);
+    const depth = point.clone().sub(this.camera.position).dot(dir);
+    if (depth > 1e-4) this.controls.target.copy(this.camera.position).addScaledVector(dir, depth);
+  }
+
+  /** Wheel zoom: moves towards the point under the cursor, so you can zoom all the way in. */
+  #onWheel(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!this.controls.enabled) return;
+    let dy = e.deltaY;
+    if (e.deltaMode === 1) dy *= 16;
+    else if (e.deltaMode === 2) dy *= 400;
+    dy = Math.max(-300, Math.min(300, dy));
+    const hit = this.pick(e.clientX, e.clientY); // also aims this.raycaster at the cursor
+    const cam = this.camera.position;
+    const ray = this.raycaster.ray;
+    let P;
+    if (hit) P = hit.point;
+    else {
+      const d = Math.max(cam.distanceTo(this.controls.target), this.sceneRadius * 0.05, 0.5);
+      P = ray.at(d, new THREE.Vector3());
+    }
+    const s = Math.pow(0.85, -dy / 100); // < 1 zooms in
+    const toCam = cam.clone().sub(P);
+    let dist = toCam.length() * s;
+    if (dist < 0.02 && s < 1) {
+      // Right at the surface: keep going forward at a small fixed step (lets you pass through)
+      const step = Math.max(this.sceneRadius * 0.002, 0.05);
+      cam.addScaledVector(ray.direction, step);
+      this.controls.target.addScaledVector(ray.direction, step);
+      return;
+    }
+    dist = Math.max(dist, 0.02);
+    const newPos = P.clone().add(toCam.setLength(dist));
+    const delta = newPos.clone().sub(cam);
+    cam.copy(newPos);
+    this.controls.target.add(delta);
+    this.#pivotAtDepthOf(P);
+  }
+
   #bindPointer() {
     const el = this.renderer.domElement;
     let down = null;
+    // Capture-phase listeners on the container run before OrbitControls' own listeners.
+    this.container.addEventListener('wheel', (e) => this.#onWheel(e), { capture: true, passive: false });
+    this.container.addEventListener('pointerdown', (e) => {
+      if (e.target !== el || e.pointerType === 'touch') return;
+      const hit = this.pick(e.clientX, e.clientY);
+      if (hit) this.#pivotAtDepthOf(hit.point);
+    }, { capture: true });
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
     el.addEventListener('pointerup', (e) => {
       if (!down || e.button !== 0) return;
