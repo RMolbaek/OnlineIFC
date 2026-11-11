@@ -344,6 +344,7 @@ export class IfcModel {
     if (!this._qto) this._qto = new Map();
     if (this._qto.has(id)) return this._qto.get(id);
     let vol = 0, area = 0, planArea = 0, zmin = Infinity, zmax = -Infinity;
+    let sx = 0, sy = 0, sz = 0, nv = 0;
     const xy = [];
     const ax = new THREE.Vector3(), bx = new THREE.Vector3(), cx = new THREE.Vector3();
     const e1 = new THREE.Vector3(), e2 = new THREE.Vector3(), cr = new THREE.Vector3();
@@ -363,6 +364,7 @@ export class IfcModel {
           if (len > 0 && cr.z / len > 0.7) planArea += cr.z / 2;
           for (const v of [ax, bx, cx]) {
             xy.push(v.x, v.y);
+            sx += v.x; sy += v.y; sz += v.z; nv++;
             if (v.z < zmin) zmin = v.z;
             if (v.z > zmax) zmax = v.z;
           }
@@ -371,7 +373,8 @@ export class IfcModel {
     }
     if (!found || !area) { this._qto.set(id, null); return null; }
     const rect = minAreaRect(xy);
-    const q = { volume: Math.abs(vol), area, planArea, length: rect.length, width: rect.width, height: zmax - zmin };
+    // centroid: average vertex position, in the model's own IFC-oriented coordinates (metres)
+    const q = { volume: Math.abs(vol), area, planArea, length: rect.length, width: rect.width, height: zmax - zmin, cx: sx / nv, cy: sy / nv, cz: sz / nv };
     this._qto.set(id, q);
     return q;
   }

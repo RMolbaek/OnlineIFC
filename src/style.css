@@ -451,3 +451,30 @@ dialog a { color: var(--accent); }
 .flt-count { font-weight: 600; font-size: 12px; }
 .color-action { display: inline-flex; gap: 4px; align-items: center; }
 .color-action input[type='color'] { width: 26px; height: 22px; }
+
+/* ---------- comparison ---------- */
+.cmp-panel {
+  position: absolute; left: 12px; top: 112px; width: 330px; max-height: calc(100% - 170px); overflow: auto; z-index: 3;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); padding: 8px 10px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.cmp-head { display: flex; align-items: center; }
+.cmp-head .spacer { flex: 1; }
+.cmp-summary { font-size: 12px; font-weight: 600; }
+.cmp-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.cmp-group { border-top: 1px solid var(--border); }
+.cmp-group-head { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; background: none; cursor: pointer; padding: 6px 2px; text-align: left; }
+.cmp-group-head span:nth-child(2) { flex: 1; }
+.cmp-group-head .caret { color: var(--muted); font-size: 10px; }
+.cmp-row { padding: 4px 6px; border-radius: 5px; cursor: pointer; border-left: 3px solid transparent; }
+.cmp-row:hover { background: var(--panel-2); }
+.cmp-row.added { border-left-color: #2fb344; }
+.cmp-row.removed { border-left-color: #e03131; }
+.cmp-row.changed { border-left-color: #f59f00; }
+.cmp-row-head { display: flex; gap: 6px; align-items: baseline; }
+.cmp-row-head .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmp-row-head .cls { color: var(--muted); font-size: 11px; margin-left: auto; flex-shrink: 0; }
+.cmp-diffs { width: 100%; font-size: 11px; border-collapse: collapse; margin-top: 2px; }
+.cmp-diffs td { padding: 1px 0; vertical-align: top; word-break: break-word; }
+.cmp-diffs td:first-child { color: var(--muted); width: 45%; padding-right: 6px; }
+.cmp-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 6px; }

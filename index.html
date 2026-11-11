@@ -87,6 +87,9 @@
         <button data-action="toggle-python" data-i18n-title="tb.pythonTitle">
           <svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16"/></svg><span>Python</span>
         </button>
+        <button data-action="compare" data-i18n-title="tb.compareTitle">
+          <svg viewBox="0 0 24 24"><path d="M8 3v18M16 3v18M3 8h5M16 16h5M3 16h5M16 8h5"/></svg><span data-i18n="tb.compare"></span>
+        </button>
         <button data-action="map" data-i18n-title="tb.mapTitle">
           <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg><span data-i18n="tb.map"></span>
         </button>
@@ -215,6 +218,7 @@
               <button class="link" data-action="measure-clear" data-i18n="measure.clear"></button>
             </div>
           </div>
+          <div class="cmp-panel" id="cmp-panel" hidden></div>
           <div class="mode-hint" id="mode-hint" hidden></div>
           <div class="map-attribution" id="map-attribution" hidden></div>
           <div class="statusbar" id="statusbar"></div>
@@ -321,6 +325,18 @@
         <button class="btn" data-action="map-remove" data-i18n="map.remove"></button>
         <button class="btn" data-action="map-close" data-i18n="common.close"></button>
         <button class="btn primary" data-action="map-show" data-i18n="map.show"></button>
+      </div>
+    </dialog>
+
+    <dialog id="compare-dialog">
+      <h2 data-i18n="cmp.title"></h2>
+      <p class="muted small" data-i18n="cmp.intro"></p>
+      <label class="field"><span data-i18n="cmp.oldModel"></span><select id="cmp-old"></select></label>
+      <label class="field"><span data-i18n="cmp.newModel"></span><select id="cmp-new"></select></label>
+      <label class="chk"><input type="checkbox" id="cmp-unchanged" checked /> <span data-i18n="cmp.showUnchanged"></span></label>
+      <div class="dialog-btns">
+        <button class="btn" data-action="compare-cancel" data-i18n="common.cancel"></button>
+        <button class="btn primary" data-action="compare-run" data-i18n="cmp.run"></button>
       </div>
     </dialog>
 

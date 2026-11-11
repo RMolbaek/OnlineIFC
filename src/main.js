@@ -6,7 +6,8 @@ import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js'
 import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
-import { FilterPanel } from './filters.js';
+import { FilterPanel, keyLabel } from './filters.js';
+import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS } from './compare.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -133,6 +134,7 @@ async function loadBytes(name, data, { replace = null } = {}) {
 }
 
 function afterModelsChanged() {
+  if (comparison && (!viewer.models.includes(comparison.oldM) || !viewer.models.includes(comparison.newM))) { comparison = null; renderComparison(); }
   $('#welcome').hidden = viewer.models.length > 0;
   if (!viewer.models.length && mapLayer.visible) { mapLayer.remove(); updateMapUi(); }
   renderAll();
@@ -306,6 +308,9 @@ document.addEventListener('click', (e) => {
     'toggle-left': () => setPanelHidden('left', !document.body.classList.contains('hide-left')),
     'toggle-right': () => setPanelHidden('right', !document.body.classList.contains('hide-right')),
     map: () => openMapDialog(),
+    compare: () => openCompareDialog(),
+    'compare-cancel': () => $('#compare-dialog').close(),
+    'compare-run': () => runCompare(),
     'map-close': () => $('#map-dialog').close(),
     'map-show': () => showMap(),
     'map-remove': () => { mapLayer.remove(); updateMapUi(); $('#map-dialog').close(); },
@@ -1114,6 +1119,110 @@ const filters = new FilterPanel({
   },
   refreshVisibility: () => refreshVisibilityUi(),
 });
+
+// ====================================================================== compare
+let comparison = null;
+const cmpOpen = { added: true, removed: true, changed: true };
+
+function openCompareDialog() {
+  if (viewer.models.length < 2) return toast(t('cmp.needTwo'));
+  const opts = viewer.models.map((m, i) => [String(m.uid), `${i + 1}. ${m.name}`]);
+  $('#cmp-old').replaceChildren(...opts.map(([v, l], i) => h('option', { value: v, text: l, selected: i === 0 })));
+  $('#cmp-new').replaceChildren(...opts.map(([v, l], i) => h('option', { value: v, text: l, selected: i === opts.length - 1 })));
+  $('#compare-dialog').showModal();
+}
+
+async function runCompare() {
+  const oldM = viewer.models.find((m) => String(m.uid) === $('#cmp-old').value);
+  const newM = viewer.models.find((m) => String(m.uid) === $('#cmp-new').value);
+  if (!oldM || !newM || oldM === newM) return toast(t('cmp.pickTwo'));
+  $('#compare-dialog').close();
+  if (comparison) clearComparison(comparison);
+  try {
+    comparison = await withLoading(async (progress) => {
+      for (const m of [oldM, newM]) {
+        if (!m._pindex || m._pindex.version !== m.version) await m.buildPropertyIndex((f) => progress(t('flt.building', { name: m.name }), f * 0.6));
+      }
+      progress(t('cmp.running'), 0.6);
+      return compareModels(oldM, newM, (f) => progress(t('cmp.running'), 0.6 + 0.4 * f));
+    });
+  } catch (e) {
+    console.error(e);
+    return toast(t('cmp.failed', { error: e.message || e }));
+  }
+  comparison.showUnchanged = $('#cmp-unchanged').checked;
+  for (const m of viewer.models) if (m !== oldM && m !== newM) m.setVisible(false);
+  showComparison(comparison, { showUnchanged: comparison.showUnchanged });
+  renderComparison();
+  refreshVisibilityUi();
+  renderModels();
+}
+
+function endComparison() {
+  if (!comparison) return;
+  clearComparison(comparison);
+  comparison = null;
+  renderComparison();
+  refreshVisibilityUi();
+}
+
+function renderComparison() {
+  const panel = $('#cmp-panel');
+  panel.hidden = !comparison;
+  if (!comparison) { panel.replaceChildren(); return; }
+  const c = comparison;
+  const dot = (k) => h('span', { class: 'cmp-dot', style: `background:#${CMP_COLORS[k].toString(16).padStart(6, '0')}` });
+  const row = (model, id, extra = null, kind = '') => {
+    const r = h('div', { class: `cmp-row ${kind}` },
+      h('div', { class: 'cmp-row-head' }, h('span', { class: 'lbl', text: model.label(id) }), h('span', { class: 'cls', text: model.typeName(id) })),
+      extra);
+    r.addEventListener('click', () => {
+      select(model, [id], { activeId: id });
+      const b = model.getBox([id]);
+      if (!b.isEmpty()) viewer.fitBox(b);
+    });
+    return r;
+  };
+  const LIMIT = 300;
+  const group = (key, items, make) => {
+    const head = h('button', { class: 'cmp-group-head' }, dot(key), h('span', { text: t(`cmp.${key}`) }), h('b', { text: fmtNum(items.length) }), h('span', { class: 'caret', text: cmpOpen[key] ? '▾' : '▸' }));
+    head.addEventListener('click', () => { cmpOpen[key] = !cmpOpen[key]; renderComparison(); });
+    const body = cmpOpen[key] ? h('div', { class: 'cmp-group-body' }, items.slice(0, LIMIT).map(make),
+      items.length > LIMIT ? h('div', { class: 'muted small', text: t('cmp.more', { n: fmtNum(items.length - LIMIT) }) }) : null) : null;
+    return h('div', { class: 'cmp-group' }, head, body);
+  };
+  const diffTable = (ch) => {
+    const lines = [...ch.diffs.slice(0, 12).map((d) => [keyLabel(d.key), `${fmtCmp(d.a)} → ${fmtCmp(d.b)}`]), ...geomText(ch.geom)];
+    if (ch.diffs.length > 12) lines.push(['…', t('cmp.moreDiffs', { n: ch.diffs.length - 12 })]);
+    return h('table', { class: 'cmp-diffs' }, lines.map(([k, v]) => h('tr', {}, h('td', { text: k }), h('td', { text: v }))));
+  };
+  const unchangedToggle = h('input', { type: 'checkbox', checked: c.showUnchanged });
+  unchangedToggle.addEventListener('change', () => {
+    c.showUnchanged = unchangedToggle.checked;
+    clearComparison(c);
+    showComparison(c, { showUnchanged: c.showUnchanged });
+    refreshVisibilityUi();
+  });
+  panel.replaceChildren(
+    h('div', { class: 'cmp-head' },
+      h('b', { text: t('cmp.title') }), h('span', { class: 'spacer' }),
+      h('button', { class: 'icon-btn', title: t('cmp.end'), text: '✕', onclick: endComparison })),
+    h('div', { class: 'muted small', text: `${c.oldM.name} → ${c.newM.name}` }),
+    h('div', { class: 'cmp-summary', text: summaryText(c) }),
+    h('label', { class: 'chk' }, unchangedToggle, h('span', { text: t('cmp.showUnchanged') })),
+    group('added', c.added, (id) => row(c.newM, id, null, 'added')),
+    group('removed', c.removed, (id) => row(c.oldM, id, null, 'removed')),
+    group('changed', c.changed, (ch) => row(c.newM, ch.b, diffTable(ch), 'changed')),
+    h('div', { class: 'cmp-foot' },
+      h('button', { class: 'link', text: t('cmp.exportCsv'), onclick: () => download(`comparison-${c.newM.name.replace(/\.ifc$/i, '')}.csv`, comparisonCsv(c), 'text/csv;charset=utf-8') }),
+      h('button', { class: 'link', text: t('cmp.end'), onclick: endComparison })),
+  );
+}
+
+function fmtCmp(v) {
+  if (v === undefined) return '—';
+  return typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: 6 }) : String(v);
+}
 
 // ===================================================================== opacity
 for (const r of $$('[data-sel-opacity]')) {
