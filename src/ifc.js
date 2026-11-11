@@ -66,45 +66,66 @@ export async function loadIfcFile(file, opts = {}) {
 
   // Grupper alle trekanter efter farve, så hver model kun bliver få draw calls.
   const buckets = new Map();
-  const mat = new THREE.Matrix4();
-  const nrm = new THREE.Matrix3();
-  const v = new THREE.Vector3();
-
   const spaceIds = new Set();
+  // Many elements share the same geometry (type geometry / mapped items): read it once.
+  const geomCache = new Map();
+  const readGeometry = (gid) => {
+    let g = geomCache.get(gid);
+    if (!g) {
+      const geom = api.GetGeometry(modelID, gid);
+      g = {
+        verts: api.GetVertexArray(geom.GetVertexData(), geom.GetVertexDataSize()).slice(),
+        idx: api.GetIndexArray(geom.GetIndexData(), geom.GetIndexDataSize()).slice(),
+      };
+      geom.delete();
+      geomCache.set(gid, g);
+    }
+    return g;
+  };
+
   const onMesh = (flatMesh, prefix) => {
     const expressID = flatMesh.expressID;
     if (prefix) spaceIds.add(expressID);
     const n = flatMesh.geometries.size();
     for (let i = 0; i < n; i++) {
       const pg = flatMesh.geometries.get(i);
-      const geom = api.GetGeometry(modelID, pg.geometryExpressID);
-      const verts = api.GetVertexArray(geom.GetVertexData(), geom.GetVertexDataSize());
-      const idx = api.GetIndexArray(geom.GetIndexData(), geom.GetIndexDataSize());
-      if (verts.length === 0 || idx.length === 0) { geom.delete(); continue; }
+      const { verts, idx } = readGeometry(pg.geometryExpressID);
+      if (verts.length === 0 || idx.length === 0) continue;
 
       const c = pg.color;
       const key = `${prefix}${c.x.toFixed(3)}_${c.y.toFixed(3)}_${c.z.toFixed(3)}_${c.w.toFixed(3)}`;
       let b = buckets.get(key);
       if (!b) {
-        // Rum (IfcSpace) vises halvgennemsigtige, så de ikke skjuler bygningen.
+        // Spaces (IfcSpace) are semi-transparent so they don't hide the building.
         const opacity = prefix ? Math.min(c.w, 0.25) : c.w;
         b = { color: new THREE.Color(c.x, c.y, c.z), opacity, pos: [], nor: [], idx: [], items: [], vCount: 0, iCount: 0 };
         buckets.set(key, b);
       }
 
-      mat.fromArray(pg.flatTransformation);
-      nrm.getNormalMatrix(mat);
+      // Transform positions and normals (column-major 4×4 matrix; normals with the inverse transpose)
+      const m = pg.flatTransformation;
+      const m0 = m[0], m1 = m[1], m2 = m[2], m4 = m[4], m5 = m[5], m6 = m[6], m8 = m[8], m9 = m[9], m10 = m[10], m12 = m[12], m13 = m[13], m14 = m[14];
+      // inverse transpose of the 3×3 part
+      const det = m0 * (m5 * m10 - m9 * m6) - m4 * (m1 * m10 - m9 * m2) + m8 * (m1 * m6 - m5 * m2) || 1;
+      const n0 = (m5 * m10 - m9 * m6) / det, n1 = (m9 * m2 - m1 * m10) / det, n2 = (m1 * m6 - m5 * m2) / det;
+      const n3 = (m8 * m6 - m4 * m10) / det, n4 = (m0 * m10 - m8 * m2) / det, n5 = (m4 * m2 - m0 * m6) / det;
+      const n6 = (m4 * m9 - m8 * m5) / det, n7 = (m8 * m1 - m0 * m9) / det, n8 = (m0 * m5 - m4 * m1) / det;
       const vc = verts.length / 6;
       const pos = new Float32Array(vc * 3);
       const nor = new Float32Array(vc * 3);
-      for (let k = 0; k < vc; k++) {
-        v.set(verts[k * 6], verts[k * 6 + 1], verts[k * 6 + 2]).applyMatrix4(mat);
-        pos[k * 3] = v.x; pos[k * 3 + 1] = v.y; pos[k * 3 + 2] = v.z;
-        v.set(verts[k * 6 + 3], verts[k * 6 + 4], verts[k * 6 + 5]).applyMatrix3(nrm).normalize();
-        nor[k * 3] = v.x; nor[k * 3 + 1] = v.y; nor[k * 3 + 2] = v.z;
+      for (let k = 0, o = 0, q = 0; k < vc; k++, o += 6, q += 3) {
+        const x = verts[o], y = verts[o + 1], z = verts[o + 2];
+        pos[q] = m0 * x + m4 * y + m8 * z + m12;
+        pos[q + 1] = m1 * x + m5 * y + m9 * z + m13;
+        pos[q + 2] = m2 * x + m6 * y + m10 * z + m14;
+        const a = verts[o + 3], bb = verts[o + 4], cc = verts[o + 5];
+        let nx = n0 * a + n1 * bb + n2 * cc, ny = n3 * a + n4 * bb + n5 * cc, nz = n6 * a + n7 * bb + n8 * cc;
+        const l = Math.hypot(nx, ny, nz) || 1;
+        nor[q] = nx / l; nor[q + 1] = ny / l; nor[q + 2] = nz / l;
       }
       const ind = new Uint32Array(idx.length);
-      for (let k = 0; k < idx.length; k++) ind[k] = idx[k] + b.vCount;
+      const off = b.vCount;
+      for (let k = 0; k < idx.length; k++) ind[k] = idx[k] + off;
 
       const last = b.items[b.items.length - 1];
       if (last && last.id === expressID && last.start + last.count === b.iCount) last.count += ind.length;
@@ -112,16 +133,25 @@ export async function loadIfcFile(file, opts = {}) {
 
       b.pos.push(pos); b.nor.push(nor); b.idx.push(ind);
       b.vCount += vc; b.iCount += ind.length;
-      geom.delete();
     }
   };
-  api.StreamAllMeshes(modelID, (m) => onMesh(m, ''));
-  // StreamAllMeshes udelader rum; hent dem separat (skjult som standard).
-  try {
-    api.StreamAllMeshesWithTypes(modelID, [WebIFC.IFCSPACE], (m) => onMesh(m, 'space_'));
-  } catch (e) {
-    console.warn('Kunne ikke hente rumgeometri', e);
+
+  // Stream geometry in batches so the progress bar can update during large models.
+  const productIds = listProductIds(api, modelID);
+  const BATCH = 1500;
+  for (let s0 = 0; s0 < productIds.length; s0 += BATCH) {
+    streamMeshes(api, modelID, productIds.slice(s0, s0 + BATCH), (fm) => onMesh(fm, ''));
+    onProgress(t('load.geometryN', { name, done: Math.min(s0 + BATCH, productIds.length).toLocaleString(), total: productIds.length.toLocaleString() }),
+      0.3 + 0.45 * Math.min(1, (s0 + BATCH) / productIds.length));
+    await nextFrame();
   }
+  // Spaces are streamed separately (hidden by default).
+  try {
+    api.StreamAllMeshesWithTypes(modelID, [WebIFC.IFCSPACE], (fm) => onMesh(fm, 'space_'));
+  } catch (e) {
+    console.warn('Could not read space geometry', e);
+  }
+  geomCache.clear();
 
   onProgress(t('load.building', { name }), 0.75);
   await nextFrame();
@@ -148,6 +178,37 @@ export async function loadIfcFile(file, opts = {}) {
 
   onProgress(t('load.done'), 1);
   return model;
+}
+
+/** expressIDs of all objects that can have geometry (same set as StreamAllMeshes, without spaces). */
+const GEOMETRY_TYPES = ['IFCSITE', 'IFCBUILDING', 'IFCBUILDINGSTOREY', 'IFCFACILITY', 'IFCFACILITYPART', 'IFCBRIDGE', 'IFCROAD', 'IFCRAILWAY',
+  'IFCMARINEFACILITY', 'IFCANNOTATION', 'IFCGRID', 'IFCPROXY', 'IFCSPATIALZONE', 'IFCGEOGRAPHICELEMENT', 'IFCALIGNMENT',
+  'IFCLINEARPOSITIONINGELEMENT', 'IFCREFERENT', 'IFCEXTERNALSPATIALELEMENT'];
+function listProductIds(api, modelID) {
+  const skip = new Set([WebIFC.IFCOPENINGELEMENT, WebIFC.IFCOPENINGSTANDARDCASE, WebIFC.IFCSPACE].filter(Boolean));
+  const ids = [];
+  for (const ty of api.GetIfcEntityList(modelID)) {
+    if (skip.has(ty)) continue;
+    if (!api.IsIfcElement(ty) && !GEOMETRY_TYPES.includes(api.GetNameFromTypeCode(ty))) continue;
+    const v = api.GetLineIDsWithType(modelID, ty, false);
+    for (let i = 0; i < v.size(); i++) ids.push(v.get(i));
+  }
+  return ids;
+}
+
+/**
+ * StreamMeshes for a list of expressIDs. The browser build of web-ifc 0.0.78 binds the
+ * function with 3 arguments while the JS wrapper passes 4, so fall back to the direct call.
+ */
+let streamArgs = 4;
+function streamMeshes(api, modelID, ids, cb) {
+  if (streamArgs === 4) {
+    try { api.StreamMeshes(modelID, ids, cb); return; } catch (e) {
+      if (!/arguments/i.test(String(e?.message || e))) throw e;
+      streamArgs = 3;
+    }
+  }
+  api.wasmModule.StreamMeshes(modelID, ids, cb);
 }
 
 function concat(Type, chunks, total) {

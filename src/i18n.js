@@ -286,6 +286,8 @@ const en = {
   'cmp.old': 'Old',
   'cmp.new': 'New',
   'cmp.summary': '{added} added · {removed} removed · {changed} changed · {unchanged} unchanged',
+  'load.geometryN': 'Generating geometry for {name}… ({done} / {total})',
+  'tree.showMore': 'Show {n} more ({rest} left)',
 };
 
 const da = {
@@ -564,6 +566,8 @@ const da = {
   'cmp.old': 'Gammel',
   'cmp.new': 'Ny',
   'cmp.summary': '{added} tilføjet · {removed} fjernet · {changed} ændret · {unchanged} uændret',
+  'load.geometryN': 'Genererer geometri for {name}… ({done} / {total})',
+  'tree.showMore': 'Vis {n} mere ({rest} tilbage)',
 };
 
 const de = {
@@ -842,6 +846,8 @@ const de = {
   'cmp.old': 'Alt',
   'cmp.new': 'Neu',
   'cmp.summary': '{added} hinzugefügt · {removed} entfernt · {changed} geändert · {unchanged} unverändert',
+  'load.geometryN': 'Geometrie für {name} wird erzeugt… ({done} / {total})',
+  'tree.showMore': '{n} weitere zeigen ({rest} übrig)',
 };
 
 const hi = {
@@ -1054,6 +1060,8 @@ const hi = {
   'cmp.old': 'पुराना',
   'cmp.new': 'नया',
   'cmp.summary': '{added} जोड़े · {removed} हटाए · {changed} बदले · {unchanged} अपरिवर्तित',
+  'load.geometryN': '{name} की ज्यामिति बन रही है… ({done} / {total})',
+  'tree.showMore': '{n} और दिखाएँ ({rest} बाकी)',
 };
 
 const DICTS = { en, da, de, hi };

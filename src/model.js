@@ -1,10 +1,12 @@
 // A loaded IFC model: geometry, visibility, colours, selection, metadata and editing.
 import * as THREE from 'three';
 import * as WebIFC from 'web-ifc';
+import { MeshBVH, acceleratedRaycast } from 'three-mesh-bvh';
 import { fmtValue, prettyTypeName, prettyRawName, decodeIfcString } from './ifc.js';
 import { t } from './i18n.js';
 
 let nextUid = 1;
+const PICK_MATERIAL = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 
 /** Delte uniforms: når et snit er aktivt, farves bagsider (= indersiden af snitflader). */
 export const sectionFill = {
@@ -269,8 +271,46 @@ export class IfcModel {
 
   // ------------------------------------------------------------------ picking
   /** expressID for en ramt trekant. */
+  /**
+   * Invisible meshes with a bounding volume hierarchy (BVH) over all triangles, used for fast
+   * picking and snapping. They use the original index ('indirect' BVH), so hidden elements
+   * are skipped by checking the hit, and nothing has to be rebuilt when visibility changes.
+   */
+  pickTargets() {
+    const out = [];
+    for (const b of this.buckets) {
+      if (!b.pickMesh) {
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', b.geometry.getAttribute('position'));
+        g.setIndex(new THREE.BufferAttribute(b.index, 1));
+        g.boundsTree = new MeshBVH(g, { indirect: true, maxLeafSize: 12 });
+        const mesh = new THREE.Mesh(g, PICK_MATERIAL);
+        mesh.raycast = acceleratedRaycast;
+        mesh.visible = false;
+        mesh.matrixAutoUpdate = false;
+        mesh.userData = { model: this, bucket: b, pick: true };
+        b.itemStarts = Int32Array.from(b.items.map((it) => it.start));
+        b.pickMesh = mesh;
+        this.group.add(mesh);
+      }
+      out.push(b.pickMesh);
+    }
+    return out;
+  }
+
   /** expressID for a raycast hit on one of this model's meshes. */
   idFromHit(object, faceIndex) {
+    if (object.userData.pick) {
+      const b = object.userData.bucket;
+      const pos = faceIndex * 3;
+      const s = b.itemStarts;
+      let lo = 0, hi = s.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (s[mid] <= pos) lo = mid; else hi = mid - 1;
+      }
+      return b.items[lo].id;
+    }
     if (object.userData.fade) {
       const pos = faceIndex * 3;
       const s = object.userData.starts;
@@ -1117,6 +1157,7 @@ export class IfcModel {
       b.material.dispose();
       if (b.highlight) b.highlight.geometry.dispose();
       for (const f of b.fades || []) { f.geometry.dispose(); f.material.dispose(); }
+      if (b.pickMesh) b.pickMesh.geometry.boundsTree = null;
     }
     this.group.removeFromParent();
     try { this.api.CloseModel(this.modelID); } catch { /* already closed */ }

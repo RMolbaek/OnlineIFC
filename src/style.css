@@ -478,3 +478,4 @@ dialog a { color: var(--accent); }
 .cmp-diffs td { padding: 1px 0; vertical-align: top; word-break: break-word; }
 .cmp-diffs td:first-child { color: var(--muted); width: 45%; padding-right: 6px; }
 .cmp-foot { display: flex; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 6px; }
+.tree-more { padding: 4px 8px; font-size: 12px; }

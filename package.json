@@ -23,6 +23,7 @@
     "codemirror": "6.0.2",
     "proj4": "2.22.0",
     "three": "0.186.1",
+    "three-mesh-bvh": "0.9.16",
     "web-ifc": "0.0.78"
   },
   "devDependencies": {

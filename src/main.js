@@ -100,6 +100,8 @@ async function openFiles(files) {
       try {
         const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length) });
         viewer.addModel(model);
+        // Build the picking index (BVH) in the background so the first click is instant
+        setTimeout(() => { try { model.pickTargets(); } catch { /* built on first pick instead */ } }, 300);
         if (state.spacesVisible) model.show(model.spaceIds);
       } catch (err) {
         console.error(err);
@@ -644,7 +646,21 @@ function treeNode(model, node, { open = false, label = null, cls = null, rootMod
 function renderChildren(model, node, children, ul, isGroup) {
   const parentSpatial = !isGroup && node.expressID !== -1 && isSpatialType(model.typeName(node.expressID));
   if (!parentSpatial) {
-    for (const c of children) ul.append(treeNode(model, c, { open: node.expressID === -1 }));
+    // Long lists (e.g. thousands of walls) are rendered 500 rows at a time
+    const CHUNK = 500;
+    let shown = 0;
+    const more = () => {
+      const end = Math.min(children.length, shown + CHUNK);
+      const frag = document.createDocumentFragment();
+      for (; shown < end; shown++) frag.append(treeNode(model, children[shown], { open: node.expressID === -1 }));
+      ul.append(frag);
+      if (shown < children.length) {
+        const btn = h('li', {}, h('button', { class: 'link tree-more', text: t('tree.showMore', { n: fmtNum(Math.min(CHUNK, children.length - shown)), rest: fmtNum(children.length - shown) }) }));
+        btn.firstChild.addEventListener('click', (e) => { e.stopPropagation(); btn.remove(); more(); applyTreeSelection(); refreshTreeEyes(); });
+        ul.append(btn);
+      }
+    };
+    more();
     return;
   }
   // Under spatial nodes: spatial children first, then elements grouped by class
