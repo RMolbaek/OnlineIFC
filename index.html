@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OnlineIFC – IFC-viewer</title>
+    <meta name="description" content="Gennemse IFC-modeller i browseren: federering, snit, farver og metadata. Filerne forlader aldrig din computer." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 29 9v14l-13 7-13-7V9z' fill='%233aa0ff'/%3E%3Cpath d='M16 2v28M3 9l13 7 13-7' stroke='%23fff' stroke-width='1.5' fill='none'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <header class="toolbar">
+      <div class="brand"><span class="logo"></span>OnlineIFC</div>
+
+      <label class="btn primary" title="Åbn en eller flere IFC-filer (Ctrl+O)">
+        <input id="file-input" type="file" accept=".ifc,.IFC" multiple hidden />
+        <svg viewBox="0 0 24 24"><path d="M4 20h16M12 4v12m0 0-5-5m5 5 5-5"/></svg>
+        <span>Åbn IFC</span>
+      </label>
+
+      <div class="sep"></div>
+
+      <div class="group" aria-label="Visning">
+        <button data-action="fit" title="Zoom til alt (F)"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button data-view="iso" title="Isometrisk">3D</button>
+        <button data-view="top" title="Ovenfra">Top</button>
+        <button data-view="front" title="Forfra">Front</button>
+        <button data-view="right" title="Fra siden">Side</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="group" aria-label="Snit">
+        <span class="group-label">Snit</span>
+        <button data-plane="y" title="Vandret plansnit">Plan</button>
+        <button data-plane="x" title="Lodret snit langs X">X</button>
+        <button data-plane="z" title="Lodret snit langs Y">Y</button>
+        <button data-action="plane-face" title="Klik på en flade for at lave et snit parallelt med den">Fra flade</button>
+        <button data-action="section-box" title="Snitkasse om valgte elementer (eller hele modellen)">Kasse</button>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="group" aria-label="Synlighed">
+        <button data-action="hide" title="Skjul valgte (H)">Skjul</button>
+        <button data-action="isolate" title="Vis kun valgte (I)">Isolér</button>
+        <button data-action="show-all" title="Vis alt (Shift+H)">Vis alt</button>
+        <button data-action="toggle-spaces" title="Vis/skjul rum (IfcSpace)">Rum</button>
+      </div>
+
+      <div class="spacer"></div>
+
+      <button data-action="screenshot" title="Gem skærmbillede">
+        <svg viewBox="0 0 24 24"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      </button>
+      <button data-action="help" title="Genveje og hjælp">?</button>
+    </header>
+
+    <main class="layout">
+      <aside class="panel left" id="left-panel">
+        <nav class="tabs">
+          <button class="tab active" data-tab="models">Modeller</button>
+          <button class="tab" data-tab="tree">Struktur</button>
+          <button class="tab" data-tab="classes">Klasser</button>
+        </nav>
+        <section class="tab-body active" id="tab-models">
+          <div class="empty-hint" id="models-empty">Ingen modeller indlæst endnu.<br />Træk IFC-filer ind i vinduet eller brug <b>Åbn IFC</b>.</div>
+          <div id="model-list"></div>
+          <div class="panel-actions" id="model-actions" hidden>
+            <button data-action="color-by-model">Farv pr. model</button>
+            <button data-action="reset-colors">Originale farver</button>
+          </div>
+        </section>
+        <section class="tab-body" id="tab-tree">
+          <input class="search" id="tree-search" type="search" placeholder="Søg i struktur (navn, klasse, GUID)…" />
+          <div id="tree"></div>
+        </section>
+        <section class="tab-body" id="tab-classes">
+          <div id="classes"></div>
+        </section>
+      </aside>
+
+      <div class="viewport" id="viewport">
+        <div class="drop-overlay" id="drop-overlay"><div>Slip IFC-filer for at indlæse dem</div></div>
+        <div class="welcome" id="welcome">
+          <h1>Gennemse IFC-modeller i browseren</h1>
+          <p>Indlæs én eller flere modeller – de lægges sammen i samme visning ud fra deres koordinater.</p>
+          <label class="btn primary big">
+            <input id="file-input-2" type="file" accept=".ifc,.IFC" multiple hidden />
+            Vælg IFC-filer
+          </label>
+          <p class="muted">Filerne behandles lokalt i din browser og uploades ikke.</p>
+        </div>
+        <div class="planes-panel" id="planes-panel" hidden>
+          <div class="planes-head">
+            <b>Snit</b>
+            <label class="chk"><input type="checkbox" id="plane-fill" checked /> Farv snitflader</label>
+            <label class="chk"><input type="checkbox" id="plane-helpers" checked /> Vis planer</label>
+            <button class="link" data-action="clear-planes">Fjern alle</button>
+          </div>
+          <div id="plane-list"></div>
+        </div>
+        <div class="mode-hint" id="mode-hint" hidden></div>
+        <div class="statusbar" id="statusbar"></div>
+      </div>
+
+      <aside class="panel right" id="right-panel">
+        <div class="panel-title">Egenskaber</div>
+        <input class="search" id="prop-search" type="search" placeholder="Filtrér egenskaber…" />
+        <div id="props"><div class="empty-hint">Klik på et element for at se dets metadata.</div></div>
+      </aside>
+    </main>
+
+    <div class="loading" id="loading" hidden>
+      <div class="loading-box">
+        <div id="loading-text">Indlæser…</div>
+        <div class="bar"><div id="loading-bar"></div></div>
+      </div>
+    </div>
+
+    <dialog id="help-dialog">
+      <h2>Genveje</h2>
+      <table>
+        <tr><td>Venstre mus</td><td>Rotér / klik for at vælge</td></tr>
+        <tr><td>Højre mus / Shift+venstre</td><td>Panorér</td></tr>
+        <tr><td>Scroll</td><td>Zoom mod markøren</td></tr>
+        <tr><td>Dobbeltklik</td><td>Centrér på punkt</td></tr>
+        <tr><td>Ctrl/Shift + klik</td><td>Tilføj/fjern fra markering</td></tr>
+        <tr><td>Esc</td><td>Ryd markering / afbryd</td></tr>
+        <tr><td>F</td><td>Zoom til markering (eller alt)</td></tr>
+        <tr><td>H</td><td>Skjul valgte</td></tr>
+        <tr><td>I</td><td>Isolér valgte</td></tr>
+        <tr><td>Shift+H</td><td>Vis alt</td></tr>
+      </table>
+      <p class="muted">Modeller lægges sammen ud fra den første models koordinatsystem. Rum (IfcSpace) er skjult som standard.</p>
+      <form method="dialog"><button class="btn primary">Luk</button></form>
+    </dialog>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
