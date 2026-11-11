@@ -1,0 +1,265 @@
+// Web Worker running Pyodide + IfcOpenShell. Keeps the UI responsive while Python runs.
+/* eslint-disable no-restricted-globals */
+
+let pyodide = null;
+let loading = null;
+
+const post = (msg, transfer) => self.postMessage(msg, transfer || []);
+
+const BOOTSTRAP = String.raw`
+import json
+import ifcopenshell
+import ifcopenshell.guid
+import ifcopenshell.util.element
+import ifcopenshell.util.unit
+try:
+    import ifcopenshell.api
+except Exception as _e:  # api needs numpy; keep working without it
+    print("ifcopenshell.api not available:", _e)
+
+_files = {}     # key -> ifcopenshell.file
+_names = {}     # key -> file name
+_actions = []
+
+
+def _key_of(f):
+    for k, v in _files.items():
+        if v is f:
+            return k
+    return None
+
+
+def _load(key, name, path):
+    _files[key] = ifcopenshell.open(path)
+    _names[key] = name
+
+
+def _forget(keep):
+    for k in list(_files):
+        if k not in keep:
+            del _files[k]
+            _names.pop(k, None)
+
+
+def _rekey(old, new, name):
+    if old in _files:
+        _files[new] = _files.pop(old)
+        _names.pop(old, None)
+        _names[new] = name
+
+
+def merge_models(files, name=None):
+    """Merge several IFC files into one new file (same approach as ifcpatch MergeProjects).
+
+    The first file's project, units and coordinate system are kept. All other files are
+    added to it and their spatial structures are attached to the first project."""
+    files = list(files)
+    if len(files) < 2:
+        raise ValueError("Select at least two models to merge")
+    schemas = sorted({f.schema for f in files})
+    if len(schemas) > 1:
+        raise ValueError("Cannot merge models with different schemas: " + ", ".join(schemas))
+    result = ifcopenshell.file.from_string(files[0].to_string())
+    base_project = result.by_type("IfcProject")[0]
+    base_scale = ifcopenshell.util.unit.calculate_unit_scale(result)
+    guids = {e.GlobalId for e in result.by_type("IfcRoot")}
+    for f in files[1:]:
+        scale = ifcopenshell.util.unit.calculate_unit_scale(f)
+        if abs(scale - base_scale) > 1e-9:
+            print(f"Warning: length units differ ({scale} vs {base_scale} m per unit). Geometry is not converted.")
+        dup = sum(1 for e in f.by_type("IfcRoot") if e.GlobalId in guids)
+        if dup:
+            print(f"Warning: {dup} GlobalIds already exist in the merged file (same elements merged twice?).")
+        guids.update(e.GlobalId for e in f.by_type("IfcRoot"))
+        projects = f.by_type("IfcProject")
+        merged_project = result.add(projects[0]) if projects else None
+        for element in f:
+            result.add(element)
+        if merged_project is not None:
+            for inverse in result.get_inverse(merged_project):
+                ifcopenshell.util.element.replace_attribute(inverse, merged_project, base_project)
+            result.remove(merged_project)
+    return result
+
+
+class App:
+    """Bridge between your script and the OnlineIFC viewer.
+
+    app.update(model)               reload a loaded model in the viewer with your changes
+    app.add_model(file, "x.ifc")    open a new ifcopenshell.file in the viewer
+    app.download(file_or_text, "name.ifc")  download an IFC file or any text (CSV, JSON ...)
+    app.select(elements)            select elements in the viewer
+    app.merge(files)                merge ifcopenshell files into a new file
+    """
+
+    def update(self, f):
+        k = _key_of(f)
+        if k is None:
+            raise ValueError("This file is not a loaded model. Use app.add_model() for new files.")
+        _actions.append({"kind": "update", "key": k, "text": f.to_string()})
+
+    def add_model(self, f, name="new.ifc"):
+        _actions.append({"kind": "add", "name": name, "text": f.to_string()})
+
+    def download(self, data, name="output.ifc"):
+        if isinstance(data, ifcopenshell.file):
+            data = data.to_string()
+        elif isinstance(data, (bytes, bytearray)):
+            data = data.decode("utf-8", "replace")
+        _actions.append({"kind": "download", "name": name, "text": str(data)})
+
+    def select(self, elements):
+        out = {}
+        for e in elements:
+            for k, f in _files.items():
+                try:
+                    if f.by_id(e.id()) == e:
+                        out.setdefault(k, []).append(e.id())
+                        break
+                except Exception:
+                    pass
+        _actions.append({"kind": "select", "ids": out})
+
+    def merge(self, files, name=None):
+        return merge_models(files, name)
+
+    def __repr__(self):
+        return "<OnlineIFC app: update(), add_model(), download(), select(), merge()>"
+
+
+app = App()
+_ns = {"__name__": "__main__", "ifcopenshell": ifcopenshell, "app": app, "merge_models": merge_models}
+
+
+def _prepare(active, selection):
+    models = {}
+    for k, f in _files.items():
+        n = _names.get(k, k)
+        base, i = n, 2
+        while n in models:
+            n = f"{base} ({i})"
+            i += 1
+        models[n] = f
+    _ns["models"] = models
+    _ns["_files"] = _files
+    _ns["model"] = _files.get(active) or (next(iter(_files.values())) if _files else None)
+    sel = []
+    for k, ids in selection.items():
+        f = _files.get(k)
+        if f is None:
+            continue
+        for i in ids:
+            try:
+                sel.append(f.by_id(i))
+            except Exception:
+                pass
+    _ns["selection"] = sel
+    _actions.clear()
+
+
+def _take_actions():
+    out = json.dumps(_actions)
+    _actions.clear()
+    return out
+`;
+
+async function ensureLoaded(config) {
+  if (pyodide) return pyodide;
+  if (loading) return loading;
+  loading = (async () => {
+    post({ type: 'status', key: 'py.loadingRuntime' });
+    const base = config.pyodideBase.endsWith('/') ? config.pyodideBase : `${config.pyodideBase}/`;
+    const { loadPyodide } = await import(/* @vite-ignore */ `${base}pyodide.mjs`);
+    const py = await loadPyodide({ indexURL: base });
+    py.setStdout({ batched: (s) => post({ type: 'stdout', text: s }) });
+    py.setStderr({ batched: (s) => post({ type: 'stderr', text: s }) });
+
+    post({ type: 'status', key: 'py.loadingPackages' });
+    for (const p of config.packages) {
+      try { await py.loadPackage(p, { messageCallback: () => {} }); } catch (e) { console.warn('Package not loaded:', p, e); }
+    }
+    post({ type: 'status', key: 'py.loadingIfcOpenShell' });
+    const micropip = py.pyimport('micropip');
+    await micropip.install(config.wheels);
+    micropip.destroy?.();
+
+    await py.runPythonAsync(BOOTSTRAP);
+    const version = py.runPython('import importlib.metadata as _md; _md.version("ifcopenshell")');
+    pyodide = py;
+    post({ type: 'ready', version, python: py.runPython('import sys; sys.version.split()[0]') });
+    return py;
+  })();
+  try {
+    return await loading;
+  } catch (e) {
+    loading = null;
+    throw e;
+  }
+}
+
+async function run({ id, code, models, active, selection }) {
+  const py = pyodide;
+  const keep = [];
+  for (const m of models) {
+    keep.push(m.key);
+    if (m.bytes) {
+      post({ type: 'status', key: 'py.readingModel', vars: { name: m.name } });
+      const path = `/tmp/model_${m.key}.ifc`;
+      py.FS.writeFile(path, new Uint8Array(m.bytes));
+      py.globals.get('_load')(String(m.key), m.name, path);
+      py.FS.unlink(path);
+    }
+  }
+  py.globals.get('_forget')(py.toPy(keep.map(String)));
+  py.globals.get('_prepare')(active == null ? null : String(active), py.toPy(selection || {}));
+  post({ type: 'status', key: 'py.running' });
+
+  try { await py.loadPackagesFromImports(code); } catch { /* the import error will surface when running */ }
+  const ns = py.globals.get('_ns');
+  let result;
+  try {
+    result = await py.runPythonAsync(code, { globals: ns });
+    if (result !== undefined && result !== null) {
+      const r = py.globals.get('repr')(result);
+      post({ type: 'stdout', text: String(r) });
+      result.destroy?.();
+    }
+  } finally {
+    ns.destroy?.();
+  }
+  const actions = JSON.parse(py.globals.get('_take_actions')());
+  // Convert texts to bytes so the main thread can load them directly
+  const enc = new TextEncoder();
+  const transfer = [];
+  for (const a of actions) {
+    if (a.text !== undefined && (a.kind === 'update' || a.kind === 'add')) {
+      a.bytes = enc.encode(a.text);
+      delete a.text;
+      transfer.push(a.bytes.buffer);
+    }
+  }
+  post({ type: 'done', id, ok: true, actions }, transfer);
+}
+
+self.onmessage = async ({ data }) => {
+  try {
+    if (data.type === 'init') {
+      await ensureLoaded(data.config);
+    } else if (data.type === 'run') {
+      await ensureLoaded(data.config);
+      try {
+        await run(data);
+      } catch (e) {
+        try { pyodide.globals.get('_take_actions')(); } catch { /* ignore */ }
+        post({ type: 'done', id: data.id, ok: false, error: String(e?.message || e) });
+      }
+    } else if (data.type === 'rekey') {
+      pyodide?.globals.get('_rekey')(String(data.from), String(data.to), data.name);
+    } else if (data.type === 'reset') {
+      pyodide?.runPython('_files.clear(); _names.clear(); [_ns.pop(k) for k in list(_ns) if k not in ("__name__", "ifcopenshell", "app", "merge_models", "_files")]');
+      post({ type: 'reset-done' });
+    }
+  } catch (e) {
+    post({ type: 'error', error: String(e?.message || e), id: data.id });
+  }
+};
