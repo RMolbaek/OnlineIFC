@@ -54,6 +54,7 @@
           <button class="menu-item" data-plane="z"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M7 9h10v10H7"/></svg></span><span class="mi-text"><b data-i18n="mi.secY"></b><small data-i18n="mi.secYDesc"></small></span></button>
           <button class="menu-item" data-action="plane-face"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 18 10 6h10l-6 12zM12 12l-4 8"/></svg></span><span class="mi-text"><b data-i18n="mi.face"></b><small data-i18n="mi.faceDesc"></small></span></button>
           <button class="menu-item" data-action="section-box"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8"/></svg></span><span class="mi-text"><b data-i18n="mi.box"></b><small data-i18n="mi.boxDesc"></small></span></button>
+          <button class="menu-item" data-action="drawing"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 15h16M9 15v5"/></svg></span><span class="mi-text"><b data-i18n="mi.drawing"></b><small data-i18n="mi.drawingDesc"></small></span></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="clear-planes"><span class="mi-icon">✕</span><span class="mi-text"><b data-i18n="mi.clearSections"></b></span></button>
         </div>
@@ -333,6 +334,28 @@
         <button class="btn" data-action="map-remove" data-i18n="map.remove"></button>
         <button class="btn" data-action="map-close" data-i18n="common.close"></button>
         <button class="btn primary" data-action="map-show" data-i18n="map.show"></button>
+      </div>
+    </dialog>
+
+    <dialog id="drawing-dialog">
+      <h2 data-i18n="drw.title"></h2>
+      <p class="muted small" data-i18n="drw.intro"></p>
+      <label class="field"><span data-i18n="drw.plane"></span><select id="drw-plane"></select></label>
+      <label class="field"><span data-i18n="drw.name"></span><input id="drw-name" type="text" /></label>
+      <div class="grid3">
+        <label class="field"><span data-i18n="drw.format"></span>
+          <select id="drw-format"><option value="pdf">PDF</option><option value="svg">SVG</option><option value="dxf">DXF</option></select></label>
+        <label class="field"><span data-i18n="drw.paper"></span>
+          <select id="drw-paper"><option value="A4">A4</option><option value="A3" selected>A3</option><option value="A2">A2</option><option value="A1">A1</option><option value="A0">A0</option><option value="auto" data-i18n="drw.paperAuto"></option></select></label>
+        <label class="field"><span data-i18n="drw.scale"></span><select id="drw-scale"></select></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="drw-fill" checked /> <span data-i18n="drw.fill"></span></label>
+      <label class="chk"><input type="checkbox" id="drw-bg" checked /> <span data-i18n="drw.background"></span></label>
+      <label class="chk"><input type="checkbox" id="drw-mono" /> <span data-i18n="drw.mono"></span></label>
+      <p class="muted small" data-i18n="drw.note"></p>
+      <div class="dialog-btns">
+        <button class="btn" data-action="drawing-cancel" data-i18n="common.cancel"></button>
+        <button class="btn primary" data-action="drawing-run" data-i18n="drw.export"></button>
       </div>
     </dialog>
 

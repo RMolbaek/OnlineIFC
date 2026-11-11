@@ -8,6 +8,7 @@ import { MeasureTool } from './measure.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
+import { computeSection, layout, toSvg, toPdf, toDxf, renderBackground, SCALES } from './drawing.js';
 import { runIdsCheck, colorIdsResult, idsCsv, specSummary } from './ids.js';
 import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS } from './compare.js';
 
@@ -315,6 +316,9 @@ document.addEventListener('click', (e) => {
     map: () => openMapDialog(),
     compare: () => openCompareDialog(),
     ids: () => openIdsDialog(),
+    drawing: () => openDrawingDialog(),
+    'drawing-cancel': () => $('#drawing-dialog').close(),
+    'drawing-run': () => exportDrawing(),
     'ids-cancel': () => $('#ids-dialog').close(),
     'ids-run': () => runIds(),
     'compare-cancel': () => $('#compare-dialog').close(),
@@ -1081,6 +1085,7 @@ function renderPlanes() {
       h('span', { class: 'pl-name', text: name }),
       slider,
       h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
+      p.boxPart ? null : h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
       h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
       val,
     ));
@@ -1158,6 +1163,63 @@ const issues = new IssuesPanel({
   setSpacesVisible: (v) => { state.spacesVisible = v; updateSpacesUi(); },
   afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); },
 });
+
+// ====================================================================== drawing
+function planeLabel(p, i) {
+  return p.boxPart ? `${t('planes.boxPart')} ${p.axis.toUpperCase()} ${p.boxPart}` : `${i + 1}. ${t(AXIS_LABEL[p.axis])} (${viewer.getPlanePos(p).toFixed(2)} m)`;
+}
+
+function openDrawingDialog(plane = null) {
+  const planes = viewer.planes.filter((p) => p.enabled);
+  if (!planes.length) return toast(t('drw.noPlane'));
+  $('#drw-plane').replaceChildren(...planes.map((p, i) => h('option', { value: String(p.id), text: planeLabel(p, i), selected: plane ? p === plane : i === 0 })));
+  $('#drw-scale').replaceChildren(h('option', { value: 'fit', text: t('drw.fit') }), ...SCALES.map((sc) => h('option', { value: String(sc), text: `1:${sc}` })));
+  const m = viewer.models[0];
+  const pSel = plane || planes[0];
+  $('#drw-name').value = `${m ? m.name.replace(/\.ifc$/i, '') : 'Model'} – ${t(AXIS_LABEL[pSel.axis] || 'planes.face')}`;
+  $('#drawing-dialog').showModal();
+}
+
+async function exportDrawing() {
+  const entry = viewer.planes.find((p) => String(p.id) === $('#drw-plane').value);
+  if (!entry) return;
+  const format = $('#drw-format').value;
+  const scaleVal = $('#drw-scale').value;
+  const opts = { paper: $('#drw-paper').value, scale: scaleVal === 'fit' ? 'fit' : +scaleVal, fill: $('#drw-fill').checked, mono: $('#drw-mono').checked };
+  $('#drawing-dialog').close();
+  let section;
+  try {
+    section = await withLoading(async (progress) => { progress(t('drw.cutting'), 0.3); await new Promise((r) => setTimeout(r, 30)); return computeSection(viewer, entry); });
+  } catch (e) { console.error(e); return toast(t('drw.failed', { error: e.message || e })); }
+  if (!section.layers.size) return toast(t('drw.empty'));
+  const name = $('#drw-name').value.trim() || 'Section';
+  const info = {
+    title: name,
+    subtitle: `${viewer.models.filter((m) => m.visible).map((m) => m.name).join(', ')} · ${planeLabel(entry, viewer.planes.indexOf(entry))}`,
+    date: new Date().toISOString().slice(0, 10),
+  };
+  const file = name.replace(/[^\w\-æøåÆØÅäöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || 'section';
+  if (format === 'dxf') {
+    download(`${file}.dxf`, toDxf(section, info), 'application/dxf');
+  } else {
+    const lay = layout(section, opts);
+    if (!lay.fits) toast(t('drw.tooBig', { scale: lay.scale }));
+    if ($('#drw-bg').checked) {
+      const helpersWere = viewer.showPlaneHelpers;
+      const fillWas = viewer.sectionFillOn !== false;
+      viewer.setHelpersVisible(false);
+      viewer.setSectionFill(false); // no red cut faces in the background image
+      try { opts.background = renderBackground(viewer, section, lay); } catch (e) { console.warn('background', e); }
+      viewer.setSectionFill(fillWas);
+      viewer.setHelpersVisible(helpersWere);
+    }
+    if (format === 'svg') download(`${file}.svg`, toSvg(section, lay, info, opts), 'image/svg+xml');
+    else download(`${file}.pdf`, toPdf(section, lay, info, opts), 'application/pdf');
+  }
+  let n = 0;
+  for (const L of section.layers.values()) n += L.elements;
+  toast(t('drw.done', { n: fmtNum(n), layers: section.layers.size }), true);
+}
 
 // ========================================================================== IDS
 let idsResults = null; // [{model, report}]

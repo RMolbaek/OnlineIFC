@@ -283,7 +283,7 @@ export class IfcModel {
         const g = new THREE.BufferGeometry();
         g.setAttribute('position', b.geometry.getAttribute('position'));
         g.setIndex(new THREE.BufferAttribute(b.index, 1));
-        g.boundsTree = new MeshBVH(g, { indirect: true, maxLeafSize: 12 });
+        g.boundsTree = new MeshBVH(g, { indirect: true, targetLeafSize: 12 });
         const mesh = new THREE.Mesh(g, PICK_MATERIAL);
         mesh.raycast = acceleratedRaycast;
         mesh.visible = false;

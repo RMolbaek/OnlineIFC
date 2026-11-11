@@ -172,11 +172,11 @@ table.props mark { background: #ffe58a; color: inherit; border-radius: 2px; }
 .planes-head { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
 .planes-head .link { margin-left: auto; }
 .chk { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; cursor: pointer; }
-.plane-row { display: grid; grid-template-columns: auto 88px 1fr auto auto; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid var(--border); }
+.plane-row { display: grid; grid-template-columns: auto 88px 1fr auto auto auto; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid var(--border); }
 .plane-row .pl-name { font-size: 12px; }
 .plane-row input[type='range'] { width: 100%; }
 .plane-row button { border: 1px solid var(--border); background: var(--panel-2); border-radius: 5px; cursor: pointer; padding: 1px 6px; }
-.plane-row .val { grid-column: 2 / 6; font-size: 11px; color: var(--muted); margin-top: -4px; }
+.plane-row .val { grid-column: 2 / 7; font-size: 11px; color: var(--muted); margin-top: -4px; }
 .mode-hint {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
   background: var(--accent); color: #fff; padding: 6px 14px; border-radius: 16px; box-shadow: var(--shadow); z-index: 3;
