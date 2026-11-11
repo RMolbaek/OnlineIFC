@@ -528,3 +528,4 @@ dialog a { color: var(--accent); }
 .bcf-actions { border-top: 1px solid var(--border); padding-top: 6px; }
 .btn.danger { color: var(--danger); }
 .bcf-body .flt-btns .chk { flex: 1; color: var(--text); font-size: 12px; }
+.m-label.align { --m-color: #e8590c; font-size: 11px; padding: 2px 6px; } .m-label.align.name { font-size: 12px; }

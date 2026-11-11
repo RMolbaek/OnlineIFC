@@ -32,7 +32,7 @@ for (const ns of [WebIFC.IFC2X3, WebIFC.IFC4, WebIFC.IFC4X3]) {
 
 export function prettyTypeName(api, typeCode) {
   const raw = api.GetNameFromTypeCode(typeCode) || String(typeCode);
-  return prettyNames.get(raw) || raw;
+  return prettyNames.get(String(raw).toUpperCase()) || raw;
 }
 
 export function prettyRawName(raw) {
@@ -189,7 +189,7 @@ function listProductIds(api, modelID) {
   const ids = [];
   for (const ty of api.GetIfcEntityList(modelID)) {
     if (skip.has(ty)) continue;
-    if (!api.IsIfcElement(ty) && !GEOMETRY_TYPES.includes(api.GetNameFromTypeCode(ty))) continue;
+    if (!api.IsIfcElement(ty) && !GEOMETRY_TYPES.includes(String(api.GetNameFromTypeCode(ty)).toUpperCase())) continue;
     const v = api.GetLineIDsWithType(modelID, ty, false);
     for (let i = 0; i < v.size(); i++) ids.push(v.get(i));
   }

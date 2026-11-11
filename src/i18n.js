@@ -382,6 +382,16 @@ const en = {
   'drw.empty': 'The section plane does not cut any visible element.',
   'drw.tooBig': 'The drawing is larger than the paper at 1:{scale} – choose a smaller scale or a larger paper.',
   'drw.done': 'Drawing exported: {n} elements in {layers} layers.',
+  'mi.alignments': 'Show alignments',
+  'mi.alignmentsDesc': 'IFC4x3 alignments (IfcAlignment) with station marks',
+  'aln.alignment': 'Alignment',
+  'aln.station': 'Station',
+  'aln.offset': 'Offset (left +)',
+  'aln.aboveProfile': 'Above vertical profile',
+  'aln.stationFromTo': 'Station',
+  'aln.dStation': 'Δ station',
+  'aln.none': 'The loaded models have no alignments (IfcAlignment, IFC4x3).',
+  'aln.formatTitle': 'Station format',
 };
 
 const da = {
@@ -756,6 +766,16 @@ const da = {
   'drw.empty': 'Snitplanet skærer ingen synlige elementer.',
   'drw.tooBig': 'Tegningen er større end papiret i 1:{scale} – vælg en mindre målestok eller et større papir.',
   'drw.done': 'Tegning eksporteret: {n} elementer i {layers} lag.',
+  'mi.alignments': 'Vis linjeføringer',
+  'mi.alignmentsDesc': 'IFC4x3-linjeføringer (IfcAlignment) med stationsmærker',
+  'aln.alignment': 'Linjeføring',
+  'aln.station': 'Station',
+  'aln.offset': 'Sideafstand (venstre +)',
+  'aln.aboveProfile': 'Over længdeprofil',
+  'aln.stationFromTo': 'Station',
+  'aln.dStation': 'Δ station',
+  'aln.none': 'De indlæste modeller har ingen linjeføringer (IfcAlignment, IFC4x3).',
+  'aln.formatTitle': 'Stationsformat',
 };
 
 const de = {
@@ -1130,6 +1150,16 @@ const de = {
   'drw.empty': 'Die Schnittebene schneidet keine sichtbaren Elemente.',
   'drw.tooBig': 'Die Zeichnung ist im Maßstab 1:{scale} größer als das Papier – kleineren Maßstab oder größeres Papier wählen.',
   'drw.done': 'Zeichnung exportiert: {n} Elemente in {layers} Layern.',
+  'mi.alignments': 'Achsen zeigen',
+  'mi.alignmentsDesc': 'IFC4x3-Achsen (IfcAlignment) mit Stationsmarken',
+  'aln.alignment': 'Achse',
+  'aln.station': 'Station',
+  'aln.offset': 'Abstand (links +)',
+  'aln.aboveProfile': 'Über Gradiente',
+  'aln.stationFromTo': 'Station',
+  'aln.dStation': 'Δ Station',
+  'aln.none': 'Die geladenen Modelle haben keine Achsen (IfcAlignment, IFC4x3).',
+  'aln.formatTitle': 'Stationsformat',
 };
 
 const hi = {
@@ -1438,6 +1468,16 @@ const hi = {
   'drw.empty': 'सेक्शन प्लेन किसी दिखाई देने वाले एलिमेंट को नहीं काटता।',
   'drw.tooBig': '1:{scale} पर ड्रॉइंग कागज़ से बड़ी है – छोटा स्केल या बड़ा कागज़ चुनें।',
   'drw.done': 'ड्रॉइंग निर्यात हुई: {layers} परतों में {n} एलिमेंट।',
+  'mi.alignments': 'संरेखण दिखाएँ',
+  'mi.alignmentsDesc': 'स्टेशन चिह्नों के साथ IFC4x3 संरेखण (IfcAlignment)',
+  'aln.alignment': 'संरेखण',
+  'aln.station': 'स्टेशन',
+  'aln.offset': 'पार्श्व दूरी (बाएँ +)',
+  'aln.aboveProfile': 'ऊर्ध्वाधर प्रोफ़ाइल से ऊपर',
+  'aln.stationFromTo': 'स्टेशन',
+  'aln.dStation': 'Δ स्टेशन',
+  'aln.none': 'लोड किए गए मॉडलों में कोई संरेखण (IfcAlignment, IFC4x3) नहीं है।',
+  'aln.formatTitle': 'स्टेशन प्रारूप',
 };
 
 const DICTS = { en, da, de, hi };

@@ -8,6 +8,7 @@ import { MeasureTool } from './measure.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
+import { readAlignments, AlignmentLayer } from './alignment.js';
 import { computeSection, layout, toSvg, toPdf, toDxf, renderBackground, SCALES } from './drawing.js';
 import { runIdsCheck, colorIdsResult, idsCsv, specSummary } from './ids.js';
 import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS } from './compare.js';
@@ -35,6 +36,8 @@ const PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#59a14f', '#b07aa1', '#edc948
 const viewer = new Viewer($('#viewport'));
 const measure = new MeasureTool(viewer, $('#viewport'));
 const mapLayer = new MapLayer(viewer);
+const alignmentLayer = new AlignmentLayer(viewer, $('#viewport'));
+measure.alignments = alignmentLayer;
 const state = {
   selection: new Map(), // model -> Set(expressID)
   active: null, // {model, id}
@@ -103,6 +106,7 @@ async function openFiles(files) {
       try {
         const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length) });
         viewer.addModel(model);
+        try { model.alignments = await readAlignments(model); } catch (e) { console.warn('alignments', e); model.alignments = []; }
         // Build the picking index (BVH) in the background so the first click is instant
         setTimeout(() => { try { model.pickTargets(); } catch { /* built on first pick instead */ } }, 300);
         if (state.spacesVisible) model.show(model.spaceIds);
@@ -138,7 +142,14 @@ async function loadBytes(name, data, { replace = null } = {}) {
   return model;
 }
 
+function updateAlignments() {
+  const all = viewer.models.filter((m) => m.visible).flatMap((m) => m.alignments || []);
+  alignmentLayer.set(all);
+  $('#alignments-check').textContent = alignmentLayer.visible ? '☑' : '☐';
+}
+
 function afterModelsChanged() {
+  updateAlignments();
   if (idsResults && idsResults.some((e) => !viewer.models.includes(e.model))) { idsResults = null; renderIds(); }
   if (comparison && (!viewer.models.includes(comparison.oldM) || !viewer.models.includes(comparison.newM))) { comparison = null; renderComparison(); }
   $('#welcome').hidden = viewer.models.length > 0;
@@ -341,6 +352,11 @@ document.addEventListener('click', (e) => {
     isolate: () => isolateSelected(),
     'show-all': () => showAll(),
     'toggle-spaces': () => toggleSpaces(),
+    'toggle-alignments': () => {
+      if (!viewer.models.some((m) => m.alignments?.length)) return toast(t('aln.none'));
+      alignmentLayer.setVisible(!alignmentLayer.visible);
+      $('#alignments-check').textContent = alignmentLayer.visible ? '☑' : '☐';
+    },
     'toggle-edit': () => setEditMode(!state.editMode),
     merge: () => openMergeDialog(),
     'merge-cancel': () => $('#merge-dialog').close(),
@@ -1130,6 +1146,7 @@ measure.addEventListener('change', renderMeasure);
 for (const b of $$('#measure-modes [data-measure]')) b.addEventListener('click', () => setMeasureMode(measure.mode === b.dataset.measure ? null : b.dataset.measure));
 $('#measure-snap').addEventListener('change', (e) => { measure.snapOn = e.target.checked; });
 $('#measure-unit').addEventListener('change', (e) => { measure.unit = e.target.value; measure.refresh(); });
+$('#station-format').addEventListener('change', (e) => { alignmentLayer.format = e.target.value; alignmentLayer.rebuild(); measure.refresh(); });
 for (const cb of $$('[data-spot-show]')) {
   cb.checked = !!measure.spotShow[cb.dataset.spotShow];
   cb.addEventListener('change', () => measure.setSpotShow(cb.dataset.spotShow, cb.checked));

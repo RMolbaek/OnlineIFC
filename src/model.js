@@ -1300,7 +1300,7 @@ function materialNames(api, mid, id, depth = 0) {
   if (!id || depth > 5) return [];
   const m = api.GetLine(mid, id, false);
   if (!m) return [];
-  const tn = api.GetNameFromTypeCode(m.type);
+  const tn = String(api.GetNameFromTypeCode(m.type)).toUpperCase();
   const sub = (h) => (h && typeof h === 'object' && 'value' in h ? materialNames(api, mid, h.value, depth + 1) : []);
   switch (tn) {
     case 'IFCMATERIAL': return [fmtValue(m.Name)].filter(Boolean);
@@ -1319,7 +1319,7 @@ function materialNames(api, mid, id, depth = 0) {
 
 function collectMaterials(obj, rows, api, depth) {
   if (!obj || typeof obj !== 'object' || depth > 6) return;
-  const tn = api.GetNameFromTypeCode(obj.type);
+  const tn = String(api.GetNameFromTypeCode(obj.type)).toUpperCase();
   const name = (o) => decodeIfcString(o?.Name?.value ?? '');
   switch (tn) {
     case 'IFCMATERIAL':

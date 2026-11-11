@@ -70,6 +70,7 @@
           <button class="menu-item" data-action="show-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="mi-text"><b data-i18n="mi.showAll"></b><small data-i18n="mi.showAllDesc"></small></span><kbd>⇧H</kbd></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-spaces"><span class="mi-icon mi-check" id="spaces-check">☐</span><span class="mi-text"><b data-i18n="mi.spaces"></b><small data-i18n="mi.spacesDesc"></small></span></button>
+          <button class="menu-item" data-action="toggle-alignments"><span class="mi-icon mi-check" id="alignments-check">☑</span><span class="mi-text"><b data-i18n="mi.alignments"></b><small data-i18n="mi.alignmentsDesc"></small></span></button>
         </div>
       </div>
 
@@ -209,6 +210,7 @@
             <div class="measure-opts">
               <label class="chk"><input type="checkbox" id="measure-snap" checked /> <span data-i18n="measure.snapLabel"></span></label>
               <select id="measure-unit" class="sm"><option value="m">m</option><option value="mm">mm</option></select>
+              <select id="station-format" class="sm" data-i18n-title="aln.formatTitle"><option value="km">0+000.000</option><option value="m">0.000 m</option></select>
             </div>
             <div class="measure-opts lock-opts">
               <label class="chk" data-i18n-title="measure.lockXYTitle"><input type="checkbox" id="measure-lock-xy" /> <span data-i18n="measure.lockXY"></span></label>
