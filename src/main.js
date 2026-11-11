@@ -6,6 +6,7 @@ import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js'
 import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
+import { FilterPanel } from './filters.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -457,10 +458,12 @@ for (const tab of $$('.tab')) {
   tab.addEventListener('click', () => {
     for (const x of $$('.tab')) x.classList.toggle('active', x === tab);
     for (const b of $$('.tab-body')) b.classList.toggle('active', b.id === `tab-${tab.dataset.tab}`);
+    if (tab.dataset.tab === 'filters') filters.render();
   });
 }
 
 function renderAll() {
+  filters.render();
   renderModels();
   renderTree();
   renderClasses();
@@ -1097,6 +1100,20 @@ for (const cb of $$('[data-spot-show]')) {
   cb.checked = !!measure.spotShow[cb.dataset.spotShow];
   cb.addEventListener('change', () => measure.setSpotShow(cb.dataset.spotShow, cb.checked));
 }
+
+// ====================================================================== filters
+const filters = new FilterPanel({
+  viewer, h, toast, withLoading,
+  root: $('#filters'),
+  setSelection: (map) => {
+    state.selection.clear();
+    state.treeKeys.clear();
+    for (const [m, ids] of map) if (ids.length) state.selection.set(m, new Set(ids));
+    state.active = null;
+    applySelection();
+  },
+  refreshVisibility: () => refreshVisibilityUi(),
+});
 
 // ===================================================================== opacity
 for (const r of $$('[data-sel-opacity]')) {

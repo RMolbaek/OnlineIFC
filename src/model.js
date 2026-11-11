@@ -46,6 +46,7 @@ export class IfcModel {
     this.opacity = 1;
     this.hidden = new Set(); // skjulte expressIDs
     this.elementOpacity = new Map(); // expressID -> own transparency (0..1)
+    this.elementColor = new Map(); // expressID -> own colour (0xRRGGBB)
     this.selected = new Set();
     this.highlightMaterial = null;
 
@@ -96,10 +97,7 @@ export class IfcModel {
     m.transparent = transparent;
     m.opacity = op;
     m.depthWrite = !transparent;
-    for (const f of b.fades || []) {
-      f.material.color.copy(m.color);
-      f.material.opacity = op * f.userData.fadeOpacity;
-    }
+    for (const f of b.fades || []) this.#styleFade(b, f);
   }
 
   setColor(color) {
@@ -119,8 +117,9 @@ export class IfcModel {
 
   // ---------------------------------------------------------------- synlighed
   #rebuild(b) {
-    // Elements with their own transparency are drawn in separate meshes (see #rebuildFades)
-    const faded = this.elementOpacity.size ? (id) => this.elementOpacity.has(id) : () => false;
+    // Elements with their own colour/transparency are drawn in separate meshes (see #rebuildFades)
+    const faded = this.elementOpacity.size || this.elementColor.size
+      ? (id) => this.elementOpacity.has(id) || this.elementColor.has(id) : () => false;
     const excluded = (id) => this.hidden.has(id) || faded(id);
     const anyHidden = b.items.some((it) => excluded(it.id));
     const starts = [];
@@ -147,7 +146,10 @@ export class IfcModel {
     this.#rebuildFades(b);
   }
 
-  /** One transparent mesh per bucket and transparency level for elements with their own transparency. */
+  /**
+   * Elements with their own colour and/or transparency are drawn in extra meshes,
+   * one per bucket and style (colour + transparency).
+   */
   #rebuildFades(b) {
     for (const f of b.fades || []) {
       this.group.remove(f);
@@ -155,15 +157,18 @@ export class IfcModel {
       f.material.dispose();
     }
     b.fades = [];
-    if (!this.elementOpacity.size) return;
-    const byOpacity = new Map();
+    if (!this.elementOpacity.size && !this.elementColor.size) return;
+    const byStyle = new Map();
     for (const it of b.items) {
+      if (this.hidden.has(it.id)) continue;
       const op = this.elementOpacity.get(it.id);
-      if (op === undefined || this.hidden.has(it.id)) continue;
-      if (!byOpacity.has(op)) byOpacity.set(op, []);
-      byOpacity.get(op).push(it);
+      const col = this.elementColor.get(it.id);
+      if (op === undefined && col === undefined) continue;
+      const key = `${col ?? 'base'}|${op ?? 1}`;
+      if (!byStyle.has(key)) byStyle.set(key, { op: op ?? 1, col, items: [] });
+      byStyle.get(key).items.push(it);
     }
-    for (const [op, items] of byOpacity) {
+    for (const { op, col, items } of byStyle.values()) {
       let total = 0;
       for (const it of items) total += it.count;
       const out = new Uint32Array(total);
@@ -180,16 +185,50 @@ export class IfcModel {
       g.setIndex(new THREE.BufferAttribute(out, 1));
       g.boundingBox = b.geometry.boundingBox;
       g.boundingSphere = b.geometry.boundingSphere;
-      const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, transparent: true, depthWrite: false });
+      const mat = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide });
       installSectionFill(mat);
-      mat.color.copy(b.material.color);
-      mat.opacity = b.material.opacity * op;
       const mesh = new THREE.Mesh(g, mat);
-      mesh.userData = { model: this, bucket: b, fade: true, fadeOpacity: op, starts: Int32Array.from(starts), ids: Int32Array.from(ids) };
-      mesh.renderOrder = 5;
+      mesh.userData = { model: this, bucket: b, fade: true, fadeOpacity: op, fadeColor: col, starts: Int32Array.from(starts), ids: Int32Array.from(ids) };
+      mesh.renderOrder = op < 0.999 ? 5 : 0;
+      this.#styleFade(b, mesh);
       b.fades.push(mesh);
       this.group.add(mesh);
     }
+  }
+
+  #styleFade(b, f) {
+    const m = f.material;
+    const { fadeOpacity, fadeColor } = f.userData;
+    if (fadeColor !== undefined) m.color.setHex(fadeColor);
+    else m.color.copy(this.overrideColor || b.color);
+    // A colour override makes the element opaque unless it has its own transparency
+    const base = fadeColor !== undefined ? this.opacity : b.opacity * this.opacity;
+    const op = base * fadeOpacity;
+    const transparent = op < 0.999;
+    if (m.transparent !== transparent) m.needsUpdate = true;
+    m.transparent = transparent;
+    m.opacity = op;
+    m.depthWrite = !transparent;
+  }
+
+  /** Gives single elements their own colour (number like 0xff0000). null removes the colour. */
+  setElementColor(ids, color) {
+    for (const id of ids) {
+      if (color === null || color === undefined) this.elementColor.delete(id);
+      else this.elementColor.set(id, color);
+    }
+    this.#rebuildAll();
+  }
+
+  /** Several colours at once: Map id -> colour. Replaces all element colours. */
+  setElementColors(map) {
+    this.elementColor = new Map(map);
+    this.#rebuildAll();
+  }
+
+  resetElementColors() {
+    this.elementColor.clear();
+    this.#rebuildAll();
   }
 
   /** Sets the transparency of single elements: 0 = invisible, 1 = solid (removes the override). */
@@ -311,10 +350,9 @@ export class IfcModel {
     // three.js (x, y up, z) -> IFC (x, -z, y)
     const load = (v, P, i) => v.set(P[i * 3], -P[i * 3 + 2], P[i * 3 + 1]);
     let found = false;
-    for (const b of this.buckets) {
+    for (const [b, it] of this.#itemsOf(id)) {
       const P = b.positions, I = b.index;
-      for (const it of b.items) {
-        if (it.id !== id) continue;
+      {
         found = true;
         for (let k = it.start; k + 2 < it.start + it.count; k += 3) {
           load(ax, P, I[k]); load(bx, P, I[k + 1]); load(cx, P, I[k + 2]);
@@ -336,6 +374,129 @@ export class IfcModel {
     const q = { volume: Math.abs(vol), area, planArea, length: rect.length, width: rect.width, height: zmax - zmin };
     this._qto.set(id, q);
     return q;
+  }
+
+  /** [bucket, item] pairs holding an element's triangles (index built once). */
+  #itemsOf(id) {
+    if (!this._itemsById) {
+      this._itemsById = new Map();
+      for (const b of this.buckets) for (const it of b.items) {
+        if (!this._itemsById.has(it.id)) this._itemsById.set(it.id, []);
+        this._itemsById.get(it.id).push([b, it]);
+      }
+    }
+    return this._itemsById.get(id) || [];
+  }
+
+  // ------------------------------------------------------------ property index
+  /**
+   * All attributes, properties and calculated quantities of all elements with geometry, for
+   * filtering and colouring. Keys: 'attr:Name', 'pset:Pset_WallCommon.FireRating', 'calc:volume' …
+   * Values are numbers or strings. Built in one pass over the relationships and cached.
+   */
+  async buildPropertyIndex(onProgress = () => {}) {
+    if (this._pindex && this._pindex.version === this.version) return this._pindex;
+    const api = this.api, mid = this.modelID;
+    const data = new Map();
+    const keys = new Map(); // key -> {numeric, count}
+    const put = (id, key, v) => {
+      const o = data.get(id);
+      if (!o || v === '' || v === null || v === undefined) return;
+      if (key in o) return; // first value wins (instance before type)
+      o[key] = v;
+      let k = keys.get(key);
+      if (!k) { k = { numeric: true, count: 0 }; keys.set(key, k); }
+      k.count++;
+      if (typeof v !== 'number') k.numeric = false;
+    };
+    const tick = async (f) => { onProgress(f); await new Promise((r) => setTimeout(r, 0)); };
+    const ids = [...this.elementIds];
+    for (const id of ids) data.set(id, {});
+
+    // Attributes
+    let i = 0;
+    for (const id of ids) {
+      const line = api.GetLine(mid, id, false);
+      put(id, 'attr:Model', this.name);
+      put(id, 'attr:Class', this.typeName(id));
+      for (const k of ['Name', 'ObjectType', 'Tag', 'PredefinedType', 'Description']) put(id, `attr:${k}`, rawIndexValue(line?.[k]));
+      put(id, 'attr:Storey', this.#storeyOf(id));
+      if (++i % 500 === 0) await tick(0.2 * (i / ids.length));
+    }
+
+    // Property sets and quantities (instance)
+    const psetCache = new Map();
+    const psetValues = (pid) => {
+      if (psetCache.has(pid)) return psetCache.get(pid);
+      const out = [];
+      const ps = api.GetLine(mid, pid, false);
+      const pname = fmtValue(ps?.Name) || prettyTypeName(api, ps?.type);
+      for (const h of ps?.HasProperties || ps?.Quantities || []) {
+        const prop = api.GetLine(mid, h.value, false);
+        if (!prop) continue;
+        let v;
+        if ('NominalValue' in prop) v = rawIndexValue(prop.NominalValue);
+        else if ('EnumerationValues' in prop) v = fmtValue(prop.EnumerationValues);
+        else for (const [k] of QTO_UNITS) if (k in prop) { v = rawIndexValue(prop[k]); break; }
+        if (v !== undefined && v !== '') out.push([`pset:${pname}.${fmtValue(prop.Name)}`, v]);
+      }
+      psetCache.set(pid, out);
+      return out;
+    };
+    const rels = api.GetLineIDsWithType(mid, WebIFC.IFCRELDEFINESBYPROPERTIES);
+    for (let r = 0; r < rels.size(); r++) {
+      const rel = api.GetLine(mid, rels.get(r), false);
+      const def = rel.RelatingPropertyDefinition;
+      const defs = Array.isArray(def) ? def.map((d) => d.value) : [def?.value];
+      for (const o of rel.RelatedObjects || []) {
+        if (!data.has(o.value)) continue;
+        for (const d of defs) if (d) for (const [k, v] of psetValues(d)) put(o.value, k, v);
+      }
+      if (r % 300 === 0) await tick(0.2 + 0.4 * (r / rels.size()));
+    }
+
+    // Types: name and type property sets
+    const typeOfElement = new Map();
+    const trels = api.GetLineIDsWithType(mid, WebIFC.IFCRELDEFINESBYTYPE);
+    for (let r = 0; r < trels.size(); r++) {
+      const rel = api.GetLine(mid, trels.get(r), false);
+      const tid = rel.RelatingType?.value;
+      if (!tid) continue;
+      const ty = api.GetLine(mid, tid, false);
+      const tname = fmtValue(ty?.Name);
+      for (const o of rel.RelatedObjects || []) {
+        if (!data.has(o.value)) continue;
+        typeOfElement.set(o.value, tid);
+        put(o.value, 'attr:Type', tname);
+        for (const h of ty?.HasPropertySets || []) for (const [k, v] of psetValues(h.value)) put(o.value, k, v);
+      }
+    }
+
+    // Materials
+    const mrels = api.GetLineIDsWithType(mid, WebIFC.IFCRELASSOCIATESMATERIAL);
+    const matByObject = new Map();
+    for (let r = 0; r < mrels.size(); r++) {
+      const rel = api.GetLine(mid, mrels.get(r), false);
+      const name = materialNames(api, mid, rel.RelatingMaterial?.value).join(', ');
+      if (!name) continue;
+      for (const o of rel.RelatedObjects || []) matByObject.set(o.value, name);
+    }
+    for (const id of ids) {
+      const m = matByObject.get(id) ?? matByObject.get(typeOfElement.get(id));
+      if (m) put(id, 'attr:Material', m);
+    }
+    await tick(0.7);
+
+    // Calculated quantities
+    i = 0;
+    for (const id of ids) {
+      const q = this.computeQuantities(id);
+      if (q) for (const k of ['volume', 'area', 'planArea', 'length', 'width', 'height']) put(id, `calc:${k}`, Math.round(q[k] * 1000) / 1000);
+      if (++i % 300 === 0) await tick(0.7 + 0.3 * (i / ids.length));
+    }
+    onProgress(1);
+    this._pindex = { version: this.version, data, keys };
+    return this._pindex;
   }
 
   /** Sums of calculated quantities over several elements. */
@@ -1074,6 +1235,42 @@ function siSymbol(prefix, name) {
 export function isSpatialType(ty) {
   const n = String(ty).toUpperCase();
   return ['IFCPROJECT', 'IFCSITE', 'IFCBUILDING', 'IFCBUILDINGSTOREY', 'IFCFACILITY', 'IFCFACILITYPART', 'IFCBRIDGE', 'IFCROAD', 'IFCRAILWAY', 'IFCMARINEFACILITY'].includes(n);
+}
+
+/** A value for the property index: number when numeric, otherwise a display string. */
+function rawIndexValue(v) {
+  if (v === null || v === undefined) return undefined;
+  if (typeof v === 'object' && !Array.isArray(v)) {
+    const x = '_representationValue' in v ? v._representationValue : v.value;
+    if (typeof x === 'number' && Number.isFinite(x)) return x;
+    if (typeof x === 'boolean') return x ? t('val.true') : t('val.false');
+    if (x === 'T') return t('val.true');
+    if (x === 'F') return t('val.false');
+  }
+  const s = fmtValue(v);
+  return s === '' ? undefined : s;
+}
+
+/** Material names of an IfcMaterial / layer set / list / constituent set / profile set. */
+function materialNames(api, mid, id, depth = 0) {
+  if (!id || depth > 5) return [];
+  const m = api.GetLine(mid, id, false);
+  if (!m) return [];
+  const tn = api.GetNameFromTypeCode(m.type);
+  const sub = (h) => (h && typeof h === 'object' && 'value' in h ? materialNames(api, mid, h.value, depth + 1) : []);
+  switch (tn) {
+    case 'IFCMATERIAL': return [fmtValue(m.Name)].filter(Boolean);
+    case 'IFCMATERIALLAYERSETUSAGE': return sub(m.ForLayerSet);
+    case 'IFCMATERIALPROFILESETUSAGE': return sub(m.ForProfileSet);
+    case 'IFCMATERIALLAYERSET': return [...new Set((m.MaterialLayers || []).flatMap((l) => sub(l)))];
+    case 'IFCMATERIALLAYER': return sub(m.Material);
+    case 'IFCMATERIALLIST': return [...new Set((m.Materials || []).flatMap((x) => sub(x)))];
+    case 'IFCMATERIALCONSTITUENTSET': return [...new Set((m.MaterialConstituents || []).flatMap((x) => sub(x)))];
+    case 'IFCMATERIALCONSTITUENT': return sub(m.Material);
+    case 'IFCMATERIALPROFILESET': return [...new Set((m.MaterialProfiles || []).flatMap((x) => sub(x)))];
+    case 'IFCMATERIALPROFILE': return sub(m.Material);
+    default: return fmtValue(m.Name) ? [fmtValue(m.Name)] : [];
+  }
 }
 
 function collectMaterials(obj, rows, api, depth) {
