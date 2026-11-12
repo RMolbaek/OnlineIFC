@@ -566,9 +566,9 @@ function renderModels() {
   }
 }
 
-function saveIfc(model) {
+async function saveIfc(model) {
   const name = model.changes.length ? model.name.replace(/(\.ifc)?$/i, '_edited.ifc') : model.name;
-  download(name, model.getBytes(), 'application/x-step');
+  download(name, await model.getBytes(), 'application/x-step');
 }
 
 async function exportCsv(model) {

@@ -26,7 +26,7 @@ function installSectionFill(material) {
 }
 
 export class IfcModel {
-  constructor({ name, api, modelID, buckets, schema, fileSize, coordMatrix, spaceIds, sourceBytes }) {
+  constructor({ name, api, modelID, buckets, schema, fileSize, coordMatrix, spaceIds, sourceBlob }) {
     this.uid = nextUid++;
     this.name = name;
     this.api = api;
@@ -35,7 +35,7 @@ export class IfcModel {
     this.fileSize = fileSize;
     this.coordMatrix = coordMatrix;
     this.spaceIds = spaceIds || new Set();
-    this.sourceBytes = sourceBytes || null; // original file, used while there are no edits
+    this.sourceBlob = sourceBlob || null; // original file (File/Blob, read lazily), used while there are no edits
     this.version = 0; // incremented on every metadata edit
     this.changes = []; // human readable change log
 
@@ -64,7 +64,7 @@ export class IfcModel {
   #createBucket(b) {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(b.positions, 3));
-    geometry.setAttribute('normal', new THREE.BufferAttribute(b.normals, 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(b.normals, 3, b.normals instanceof Int8Array));
     geometry.setIndex(new THREE.BufferAttribute(b.index, 1));
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
@@ -1093,8 +1093,8 @@ export class IfcModel {
   }
 
   /** The current file content (including edits). */
-  getBytes() {
-    if (!this.changes.length && this.sourceBytes) return this.sourceBytes;
+  async getBytes() {
+    if (!this.changes.length && this.sourceBlob) return new Uint8Array(await this.sourceBlob.arrayBuffer());
     return this.api.SaveModel(this.modelID);
   }
 

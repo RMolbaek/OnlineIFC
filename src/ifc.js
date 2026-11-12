@@ -51,12 +51,17 @@ export async function loadIfcFile(file, opts = {}) {
 
   const name = file.name;
   onProgress(t('load.reading', { name }), 0.05);
-  const data = file.data instanceof Uint8Array ? file.data : new Uint8Array(await file.arrayBuffer());
+  // The source is kept as a File/Blob (read again only when needed), not as bytes in memory.
+  const sourceBlob = file.data instanceof Uint8Array ? new Blob([file.data]) : file;
+  let data = file.data instanceof Uint8Array ? file.data : new Uint8Array(await file.arrayBuffer());
+  const fileSize = data.byteLength;
   await nextFrame();
 
   onProgress(t('load.parsing', { name }), 0.15);
   await nextFrame();
-  const modelID = api.OpenModel(data, { COORDINATE_TO_ORIGIN: true, CIRCLE_SEGMENTS: 16 });
+  // MEMORY_LIMIT: web-ifc's default is 2 GB; large models (300 MB+ files) need more. 32-bit wasm allows up to 4 GB.
+  const modelID = api.OpenModel(data, { COORDINATE_TO_ORIGIN: true, CIRCLE_SEGMENTS: 16, MEMORY_LIMIT: 3.5 * 1024 ** 3 });
+  data = null; // web-ifc has its own copy now
   if (modelID < 0) throw new Error(t('err.notIfc'));
 
   const schema = api.GetModelSchema(modelID);
@@ -69,6 +74,8 @@ export async function loadIfcFile(file, opts = {}) {
   const spaceIds = new Set();
   // Many elements share the same geometry (type geometry / mapped items): read it once.
   const geomCache = new Map();
+  let cacheBytes = 0;
+  const CACHE_BUDGET = 192 * 1024 * 1024;
   const readGeometry = (gid) => {
     let g = geomCache.get(gid);
     if (!g) {
@@ -78,7 +85,9 @@ export async function loadIfcFile(file, opts = {}) {
         idx: api.GetIndexArray(geom.GetIndexData(), geom.GetIndexDataSize()).slice(),
       };
       geom.delete();
-      geomCache.set(gid, g);
+      // keep small geometries (bolts, sleepers, windows …) which are usually repeated; within a budget
+      const bytes = g.verts.byteLength + g.idx.byteLength;
+      if (bytes < 512 * 1024 && cacheBytes + bytes < CACHE_BUDGET) { geomCache.set(gid, g); cacheBytes += bytes; }
     }
     return g;
   };
@@ -112,7 +121,7 @@ export async function loadIfcFile(file, opts = {}) {
       const n6 = (m4 * m9 - m8 * m5) / det, n7 = (m8 * m1 - m0 * m9) / det, n8 = (m0 * m5 - m4 * m1) / det;
       const vc = verts.length / 6;
       const pos = new Float32Array(vc * 3);
-      const nor = new Float32Array(vc * 3);
+      const nor = new Int8Array(vc * 3); // normalized normals: 3 bytes per vertex instead of 12
       for (let k = 0, o = 0, q = 0; k < vc; k++, o += 6, q += 3) {
         const x = verts[o], y = verts[o + 1], z = verts[o + 2];
         pos[q] = m0 * x + m4 * y + m8 * z + m12;
@@ -121,7 +130,7 @@ export async function loadIfcFile(file, opts = {}) {
         const a = verts[o + 3], bb = verts[o + 4], cc = verts[o + 5];
         let nx = n0 * a + n1 * bb + n2 * cc, ny = n3 * a + n4 * bb + n5 * cc, nz = n6 * a + n7 * bb + n8 * cc;
         const l = Math.hypot(nx, ny, nz) || 1;
-        nor[q] = nx / l; nor[q + 1] = ny / l; nor[q + 2] = nz / l;
+        nor[q] = Math.round((nx / l) * 127); nor[q + 1] = Math.round((ny / l) * 127); nor[q + 2] = Math.round((nz / l) * 127);
       }
       const ind = new Uint32Array(idx.length);
       const off = b.vCount;
@@ -162,15 +171,16 @@ export async function loadIfcFile(file, opts = {}) {
       color: b.color,
       opacity: b.opacity,
       positions: concat(Float32Array, b.pos, b.vCount * 3),
-      normals: concat(Float32Array, b.nor, b.vCount * 3),
+      normals: concat(Int8Array, b.nor, b.vCount * 3),
       index: concat(Uint32Array, b.idx, b.iCount),
       items: b.items,
     });
+    b.pos = b.nor = b.idx = null; // free the chunks of this bucket before merging the next
   }
 
   const coordMatrix = new THREE.Matrix4().fromArray(api.GetCoordinationMatrix(modelID));
 
-  const model = new IfcModel({ name, api, modelID, buckets: merged, schema, fileSize: data.byteLength, coordMatrix, spaceIds, sourceBytes: data });
+  const model = new IfcModel({ name, api, modelID, buckets: merged, schema, fileSize, coordMatrix, spaceIds, sourceBlob });
 
   onProgress(t('load.structure', { name }), 0.9);
   await nextFrame();
