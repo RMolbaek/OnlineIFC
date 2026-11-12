@@ -541,6 +541,12 @@ const en = {
   'proj.clearCache': 'Remove prepared geometry',
   'proj.clearCacheTitle': 'Frees space; the projects and their files are kept',
   'proj.new': 'New project',
+  'units.label': 'Unit',
+  'units.title': 'Length unit of the coordinates. Change it when the file states a wrong unit (the model is then far too small or too large).',
+  'units.asFile': 'As in the file ({unit})',
+  'units.as': 'Read as {unit}',
+  'units.fixed': '{name}: the file says {declared}, but the coordinates are in {shown}. It is shown in {shown} – you can change this on the model card.',
+  'units.mergeDiffer': 'The models use different length units ({units}). The merged file uses the unit of the first model, so the others will be at the wrong scale. Merge anyway?',
 };
 
 const da = {
@@ -1074,6 +1080,12 @@ const da = {
   'proj.clearCache': 'Fjern forberedt geometri',
   'proj.clearCacheTitle': 'Frigør plads; projekterne og deres filer bevares',
   'proj.new': 'Nyt projekt',
+  'units.label': 'Enhed',
+  'units.title': 'Koordinaternes længdeenhed. Skift den, hvis filen angiver en forkert enhed (modellen er så alt for lille eller stor).',
+  'units.asFile': 'Som i filen ({unit})',
+  'units.as': 'Læs som {unit}',
+  'units.fixed': '{name}: filen siger {declared}, men koordinaterne er i {shown}. Den vises i {shown} – du kan ændre det på modelkortet.',
+  'units.mergeDiffer': 'Modellerne bruger forskellige længdeenheder ({units}). Den samlede fil bruger den første models enhed, så de andre får forkert skala. Saml alligevel?',
 };
 
 const de = {
@@ -1607,6 +1619,12 @@ const de = {
   'proj.clearCache': 'Vorbereitete Geometrie entfernen',
   'proj.clearCacheTitle': 'Gibt Speicher frei; Projekte und ihre Dateien bleiben erhalten',
   'proj.new': 'Neues Projekt',
+  'units.label': 'Einheit',
+  'units.title': 'Längeneinheit der Koordinaten. Ändern, wenn die Datei eine falsche Einheit angibt (das Modell ist dann viel zu klein oder zu groß).',
+  'units.asFile': 'Wie in der Datei ({unit})',
+  'units.as': 'Als {unit} lesen',
+  'units.fixed': '{name}: Die Datei gibt {declared} an, die Koordinaten sind aber in {shown}. Es wird in {shown} angezeigt – das lässt sich auf der Modellkarte ändern.',
+  'units.mergeDiffer': 'Die Modelle verwenden unterschiedliche Längeneinheiten ({units}). Die zusammengeführte Datei verwendet die Einheit des ersten Modells, die anderen haben dann einen falschen Maßstab. Trotzdem zusammenführen?',
 };
 
 const hi = {
@@ -2074,6 +2092,12 @@ const hi = {
   'proj.clearCache': 'तैयार ज्यामिति हटाएँ',
   'proj.clearCacheTitle': 'जगह खाली करता है; प्रोजेक्ट और उनकी फ़ाइलें रहती हैं',
   'proj.new': 'नया प्रोजेक्ट',
+  'units.label': 'इकाई',
+  'units.title': 'निर्देशांकों की लंबाई इकाई। यदि फ़ाइल गलत इकाई बताती है तो इसे बदलें (तब मॉडल बहुत छोटा या बड़ा दिखता है)।',
+  'units.asFile': 'फ़ाइल के अनुसार ({unit})',
+  'units.as': '{unit} के रूप में पढ़ें',
+  'units.fixed': '{name}: फ़ाइल {declared} बताती है, लेकिन निर्देशांक {shown} में हैं। इसे {shown} में दिखाया गया है – आप इसे मॉडल कार्ड पर बदल सकते हैं।',
+  'units.mergeDiffer': 'मॉडल अलग-अलग लंबाई इकाइयों ({units}) का उपयोग करते हैं। मिली हुई फ़ाइल पहले मॉडल की इकाई का उपयोग करती है, इसलिए बाकी का पैमाना गलत होगा। फिर भी मिलाएँ?',
 };
 
 const DICTS = { en, da, de, hi };

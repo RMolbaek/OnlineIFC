@@ -146,7 +146,7 @@ export class ProjectManager extends EventTarget {
           this.saved.set(m, m.version);
         }
       }
-      const files = viewer.models.filter((m) => this.keys.has(m)).map((m) => ({ key: this.keys.get(m), name: m.name, changes: m.changes.slice(-200).map((c) => ({ time: c.time, description: c.description })) }));
+      const files = viewer.models.filter((m) => this.keys.has(m)).map((m) => ({ key: this.keys.get(m), name: m.name, unitFix: m.unitFix, changes: m.changes.slice(-200).map((c) => ({ time: c.time, description: c.description })) }));
       const current = viewer.models.length ? views.capture('current') : null;
       const rec = {
         ...this.current,
@@ -226,6 +226,7 @@ export class ProjectManager extends EventTarget {
       viewer.models.forEach((m) => {
         const f = rec.files.find((x) => x.key === this.keys.get(m));
         if (f?.changes?.length) m.changes = f.changes.map((c) => ({ ...c, time: new Date(c.time) }));
+        if (f?.unitFix && f.unitFix !== m.unitFix) viewer.setUnitFix(m, f.unitFix); // a unit chosen by hand
         this.saved.set(m, m.version);
       });
       if (st?.current) views.apply(st.current);

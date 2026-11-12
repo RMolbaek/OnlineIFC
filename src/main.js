@@ -149,6 +149,7 @@ async function openIfcFiles(list, keys = null) {
         if (!key && projects.enabled) { try { key = await projects.keyOf(file); } catch { key = null; } }
         const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length), geometryCache: key ? projects.geometryCacheFor(key) : null });
         viewer.addModel(model);
+        checkUnits(model);
         if (key) projects.modelAdded(model, file, key);
         try { model.alignments = await readAlignments(model); } catch (e) { console.warn('alignments', e); model.alignments = []; }
         // Build the picking index (BVH) in the background so the first click is instant
@@ -162,6 +163,65 @@ async function openIfcFiles(list, keys = null) {
   });
   afterModelsChanged();
   viewer.fitBox(viewer.sceneBox(), { keepDirection: before > 0 });
+}
+
+// ------------------------------------------------------------- length units
+// Some exporters write a length unit that does not match the coordinates (e.g. "millimetre" while
+// the coordinates are metres). Such a model is shown 1000× too small and far from the others, and the
+// view breaks down when zooming. checkUnits() detects the obvious cases and corrects them.
+const UNIT_SCALES = [1, 0.001, 0.01, 0.3048];
+const unitLabel = (sc) => ({ 1: 'm', 0.001: 'mm', 0.01: 'cm', 0.3048: 'ft' })[+sc.toPrecision(6)] || `${+sc.toPrecision(4)} m`;
+
+/** The model's local origin in metres (as it would be with the unit correction f). */
+function modelOrigin(m, f = m.unitFix) {
+  return new THREE.Vector3().setFromMatrixPosition(m.rawCoordMatrix.clone().invert()).multiplyScalar(f);
+}
+/** Corrections that turn the declared unit into one of the usual ones. */
+function unitCandidates(m) {
+  const s = m.declaredLengthScale ?? 1;
+  return UNIT_SCALES.filter((r) => Math.abs(r - s) / r > 1e-6).map((r) => r / s);
+}
+
+function checkUnits(model) {
+  const others = viewer.models.filter((m) => m !== model);
+  const near = (a, fa, b, fb) => modelOrigin(a, fa).distanceTo(modelOrigin(b, fb));
+  const toMetre = (m, f) => Math.abs((m.declaredLengthScale ?? 1) * f - 1) < 1e-6;
+  let fix = null;
+  // 1) on its own: a model of a few metres whose origin lies at projected coordinates (≥ 100 km)
+  //    once corrected, or a model of thousands of kilometres
+  if (model.unitFix === 1) {
+    const size = model.getBox().getSize(new THREE.Vector3()).length();
+    for (const f of unitCandidates(model)) {
+      const o = modelOrigin(model, f);
+      const horiz = Math.max(Math.abs(o.x), Math.abs(o.z));
+      if (f > 1 && size < 50 && size * f < 50000 && horiz >= 1e5 && horiz < 2e7) { fix = { model, f }; break; }
+      if (f < 1 && size > 1e6 && size * f < 1e5) { fix = { model, f }; break; }
+    }
+  }
+  // 2) compared with the models already loaded: one is very far away, and a unit correction (of
+  //    this model or of the other one) brings them together. Corrections to metres are preferred.
+  if (!fix && others.length) {
+    const d0 = Math.min(...others.map((o) => near(model, model.unitFix, o, o.unitFix)));
+    if (d0 > 20000) {
+      let best = { score: Infinity };
+      // both origins must be at projected coordinates (≥ 100 km from 0,0): scaling moves everything
+      // towards 0,0, so a model at a local origin would otherwise "attract" any other model
+      const far = (m, f) => { const o = modelOrigin(m, f); return Math.hypot(o.x, o.z) >= 1e5; };
+      const consider = (d, m, f) => {
+        if (!far(m, f) || !others.concat(model).filter((x) => x !== m).some((x) => far(x, x.unitFix))) return;
+        const score = d * (toMetre(m, f) ? 1 : 10); if (d < 5000 && d < d0 / 50 && score < best.score) best = { score, model: m, f };
+      };
+      for (const o of others) {
+        for (const f of unitCandidates(model)) consider(near(model, f, o, o.unitFix), model, f);
+        for (const g of unitCandidates(o)) consider(near(model, model.unitFix, o, g), o, g);
+      }
+      if (best.model) fix = best;
+    }
+  }
+  if (!fix) return;
+  viewer.setUnitFix(fix.model, fix.f);
+  const declared = fix.model.declaredLengthScale ?? 1;
+  toast(t('units.fixed', { name: fix.model.name, declared: unitLabel(declared), shown: unitLabel(declared * fix.f) }));
 }
 
 /** Loads IFC bytes (e.g. produced by Python) into the viewer, optionally replacing a model. */
@@ -683,6 +743,7 @@ function renderModels() {
       h('div', { class: 'card-row' }, h('label', { text: t('models.color') }), colorInput,
         h('button', { onclick: () => { m.setColor(null); renderModels(); }, text: t('models.original') })),
       h('div', { class: 'card-row' }, h('label', { text: t('models.transparency') }), opacity, opVal),
+      unitRow(m),
       h('div', { class: 'card-btns' },
         h('button', { onclick: () => viewer.fitBox(m.getBox()), text: t('models.zoom') }),
         h('button', { class: m.changes.length ? 'primary-outline' : null, onclick: () => saveIfc(m), text: t('models.downloadIfc') }),
@@ -702,6 +763,25 @@ function renderModels() {
     );
     list.append(card);
   }
+}
+
+/** Length unit of a model: as in the file, or corrected. */
+function unitRow(m) {
+  const declared = m.declaredLengthScale ?? 1;
+  const sel = h('select', { title: t('units.title') },
+    h('option', { value: '1', text: t('units.asFile', { unit: unitLabel(declared) }) }),
+    unitCandidates(m).map((f) => h('option', { value: String(f), text: t('units.as', { unit: unitLabel(declared * f) }) })));
+  sel.value = String(m.unitFix);
+  if (sel.value !== String(m.unitFix)) sel.value = '1';
+  sel.addEventListener('change', () => {
+    viewer.setUnitFix(m, +sel.value);
+    projects.touch?.();
+    m.alignments = null;
+    readAlignments(m).then((a) => { m.alignments = a; }).catch(() => { m.alignments = []; });
+    viewer.fitBox(viewer.sceneBox());
+    afterModelsChanged();
+  });
+  return h('div', { class: `card-row${m.unitFix !== 1 ? ' unit-fixed' : ''}` }, h('label', { text: t('units.label') }), sel);
 }
 
 async function saveIfc(model) {
@@ -1865,6 +1945,14 @@ async function runMerge() {
   const uids = $$('#merge-models input:checked').map((i) => +i.value);
   const models = viewer.models.filter((m) => uids.includes(m.uid));
   if (models.length < 2) return toast(t('merge.needTwo'));
+  // The merged file gets the length unit of the first file. Files whose geometry is in different
+  // units cannot be combined correctly in the text; a file whose unit was corrected should not be first.
+  const shown = new Set(models.map((m) => +m.shownLengthScale.toPrecision(6)));
+  if (shown.size > 1 && !confirm(t('units.mergeDiffer', { units: [...shown].map(unitLabel).join(' / ') }))) return;
+  if (models[0].unitFix !== 1) {
+    const i = models.findIndex((m) => m.unitFix === 1 && +m.shownLengthScale.toPrecision(6) === +models[0].shownLengthScale.toPrecision(6));
+    if (i > 0) models.unshift(...models.splice(i, 1));
+  }
   const name = ($('#merge-name').value.trim() || 'merged.ifc').replace(/(\.ifc)?$/i, '.ifc');
   const replace = $('#merge-replace').checked;
   const dl = $('#merge-download').checked;

@@ -635,3 +635,4 @@ dialog .qto-table td:first-child { color: var(--text); }
 #projects-dialog { width: 640px; max-width: 96vw; }
 #projects-dialog .proj-list { max-height: 52vh; overflow: auto; margin-bottom: 8px; }
 #projects-dialog .dialog-btns form { margin: 0; }
+.card-row.unit-fixed select { border-color: var(--accent); }

@@ -47,6 +47,20 @@ function encode(str) {
   return out;
 }
 
+/** A record without the whitespace and comments in front of it (some exporters comment every entity). */
+function lead(r) {
+  let i = 0;
+  for (;;) {
+    while (i < r.length && r.charCodeAt(i) <= 32) i++;
+    if (r.startsWith('/*', i)) {
+      const e = r.indexOf('*/', i + 2);
+      if (e < 0) return '';
+      i = e + 2;
+    } else break;
+  }
+  return i ? r.slice(i) : r;
+}
+
 /**
  * Yields the records of a STEP file (text up to and including the ';' that ends it, quotes and
  * comments respected) together with the fraction of the file read so far.
@@ -92,10 +106,10 @@ async function* records(blob) {
       }
     }
     const f = pos / blob.size;
-    for (const r of batch) yield [r, f];
+    for (const r of batch) yield [lead(r), f];
     rest = text.slice(start);
     if (last) {
-      if (rest.trim()) yield [rest, 1];
+      if (rest.trim()) yield [lead(rest), 1];
       break;
     }
     if (rest.length > 64 * 1024 * 1024) throw new Error('Not a valid IFC (STEP) file: a record without end');
