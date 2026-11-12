@@ -600,9 +600,10 @@ export class IfcModel {
   }
 
   // ---------------------------------------------------------- rumlig struktur
-  async loadStructure() {
+  /** Reads the spatial structure (tree); `tree` is a stored copy from the project cache, if any. */
+  async loadStructure(tree = null) {
     const api = this.api;
-    this.tree = await api.properties.getSpatialStructure(this.modelID, false);
+    this.tree = tree || await api.properties.getSpatialStructure(this.modelID, false);
     this.parent = new Map();
     this.spatialIds = new Set();
     const walk = (node, parent) => {

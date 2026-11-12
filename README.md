@@ -25,6 +25,13 @@ The interface is in **English**, **Danish**, **German** and **Hindi** (language 
 - **X-ray** (X): everything becomes see-through except the selected elements.
 - **Walk mode** (W): first-person view. W/A/S/D or the arrow keys move horizontally, drag to look around, Q/E down/up, Shift is faster, the wheel sets the speed, Esc leaves walk mode.
 
+### Projects (remembered locally)
+
+- OnlineIFC remembers what you worked on, **only in this browser on this computer** (IndexedDB) – nothing is uploaded. A project is created automatically when you open a model and saved automatically: the IFC files (including metadata edits), the saved views, the issues and the last view (camera, sections, visibility, colours, transparency, X-ray).
+- The start screen shows the **recent projects**; click one to continue where you stopped. The *Models* tab shows the current project (rename it there); *Projects* lists all projects with their size, and can start a new project, delete projects, remove the prepared geometry to free space, or turn the saving off.
+- **Large models open faster the second time:** the prepared geometry and the spatial structure are stored with the file (in a test 93 MB / 240,000 elements: 15.5 s the first time, 5.2 s from the project). Files are recognised by a fingerprint of their content, so a changed file is prepared again.
+- The browser may remove the data when the disk is almost full; OnlineIFC asks it to keep the data (persistent storage). Clearing the browser's site data removes the projects.
+
 ### Saved views and workspace
 
 - **Views tab:** save the current view under a name (camera, sections, visibility, colours, transparency, selection, X-ray) with a thumbnail, and click it to return. Views refer to elements by GlobalId, so they also work on a newer version of the model. They are kept in the browser.

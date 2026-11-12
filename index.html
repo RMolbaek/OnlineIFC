@@ -155,6 +155,12 @@
           <button class="tab" data-tab="views" data-i18n="tabs.views"></button>
         </nav>
         <section class="tab-body active" id="tab-models">
+          <div class="project-bar" id="project-bar" hidden>
+            <span class="proj-ico">▤</span>
+            <span class="proj-text"><b id="project-name"></b><small class="muted" id="project-status"></small></span>
+            <button class="btn xs" data-action="project-rename" data-i18n="views.rename"></button>
+            <button class="btn xs" data-action="projects" data-i18n="proj.projects"></button>
+          </div>
           <div class="empty-hint" id="models-empty" data-i18n-html="models.empty"></div>
           <div id="model-list"></div>
           <div class="panel-actions" id="model-actions" hidden>
@@ -214,6 +220,10 @@
               <span class="btn primary big" data-i18n="welcome.choose"></span>
               <p class="muted small" data-i18n="welcome.types"></p>
             </label>
+            <div class="recent-projects" id="recent-projects" hidden>
+              <div class="recent-head"><b data-i18n="proj.recent"></b><button class="link" data-action="projects" data-i18n="proj.all"></button></div>
+              <div id="recent-list" class="proj-list"></div>
+            </div>
             <p class="welcome-text" data-i18n="welcome.text"></p>
             <p class="muted small" data-i18n="welcome.local"></p>
           </div>
@@ -427,6 +437,20 @@
     </dialog>
 
     <dialog id="qto-dialog" class="wide qto-dialog"></dialog>
+
+    <dialog id="projects-dialog" class="wide">
+      <h2 data-i18n="proj.title"></h2>
+      <p class="muted small" data-i18n="proj.intro"></p>
+      <div id="proj-list" class="proj-list"></div>
+      <p class="empty-hint" id="proj-empty" data-i18n="proj.empty" hidden></p>
+      <label class="chk"><input type="checkbox" id="proj-enabled" checked /> <span data-i18n="proj.enabled"></span></label>
+      <p class="muted small" id="proj-usage"></p>
+      <div class="dialog-btns">
+        <button class="btn" data-action="proj-clear-cache" data-i18n="proj.clearCache" data-i18n-title="proj.clearCacheTitle"></button>
+        <button class="btn" data-action="project-new" data-i18n="proj.new"></button>
+        <form method="dialog"><button class="btn primary" data-i18n="common.close"></button></form>
+      </div>
+    </dialog>
 
     <dialog id="about-dialog">
       <h2 data-i18n="about.title"></h2>

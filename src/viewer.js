@@ -186,6 +186,7 @@ export class Viewer extends EventTarget {
     model.dispose();
     if (!this.models.length) this.referenceMatrix = null;
     this.#updateSceneRadius();
+    this.dispatchEvent(Object.assign(new Event('modelremoved'), { model }));
   }
 
   sceneBox({ visibleOnly = true } = {}) {

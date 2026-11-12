@@ -12,6 +12,7 @@ import { QtoTable } from './qto.js';
 import { mergeIfcBlobs } from './merge.js';
 import { ContextMenu } from './contextmenu.js';
 import { renderVersion } from './version.js';
+import { ProjectManager } from './projects.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -136,15 +137,19 @@ async function openFiles(files) {
   }
 }
 
-async function openIfcFiles(list) {
+async function openIfcFiles(list, keys = null) {
   const before = viewer.models.length;
   await withLoading(async (progress) => {
     for (let i = 0; i < list.length; i++) {
       const file = list[i];
       const prefix = list.length > 1 ? `(${i + 1}/${list.length}) ` : '';
       try {
-        const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length) });
+        // the file's fingerprint finds its stored geometry and links it to the current project
+        let key = keys?.[i] || null;
+        if (!key && projects.enabled) { try { key = await projects.keyOf(file); } catch { key = null; } }
+        const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length), geometryCache: key ? projects.geometryCacheFor(key) : null });
         viewer.addModel(model);
+        if (key) projects.modelAdded(model, file, key);
         try { model.alignments = await readAlignments(model); } catch (e) { console.warn('alignments', e); model.alignments = []; }
         // Build the picking index (BVH) in the background so the first click is instant
         setTimeout(() => { try { model.pickTargets(); } catch { /* built on first pick instead */ } }, 300);
@@ -161,7 +166,11 @@ async function openIfcFiles(list) {
 
 /** Loads IFC bytes (e.g. produced by Python) into the viewer, optionally replacing a model. */
 async function loadBytes(name, data, { replace = null } = {}) {
-  const model = await withLoading((progress) => loadIfcFile({ name, data }, { onProgress: progress }));
+  const blob = data instanceof Blob ? data : new Blob([data]);
+  let key = null;
+  if (projects.enabled) { try { key = await projects.keyOf(blob); } catch { key = null; } }
+  const model = await withLoading((progress) => loadIfcFile({ name, data: blob }, { onProgress: progress, geometryCache: key ? projects.geometryCacheFor(key) : null }));
+  if (key) { if (replace) projects.modelReplaced(replace, model, blob, key); else projects.modelAdded(model, blob, key); }
   if (replace) {
     viewer.replaceModel(replace, model);
     // Express IDs survive the round trip through IfcOpenShell, so the selection can be kept
@@ -192,6 +201,8 @@ function afterModelsChanged() {
   if (idsResults && idsResults.some((e) => !viewer.models.includes(e.model))) { idsResults = null; renderIds(); }
   if (comparison && (!viewer.models.includes(comparison.oldM) || !viewer.models.includes(comparison.newM))) { comparison = null; renderComparison(); }
   $('#welcome').hidden = viewer.models.length > 0;
+  if (!viewer.models.length) renderRecentProjects();
+  renderProjectBar();
   if (!viewer.models.length && mapLayer.visible) { mapLayer.remove(); updateMapUi(); }
   renderAll();
 }
@@ -415,6 +426,18 @@ document.addEventListener('click', (e) => {
       try { localStorage.setItem(THEME_KEY, currentTheme() === 'dark' ? 'light' : 'dark'); } catch { /* ignore */ }
       applyTheme();
     },
+    projects: () => openProjectsDialog(),
+    'project-rename': async () => {
+      if (!projects.current) { await projects.saveNow(); if (!projects.current) return toast(t('proj.off')); }
+      const n = prompt(t('proj.renamePrompt'), projects.current.name);
+      if (n && n.trim()) projects.rename(projects.current.id, n.trim());
+    },
+    'project-new': async () => {
+      if (viewer.models.length && !confirm(t('proj.newConfirm'))) return;
+      await projects.close();
+      $('#projects-dialog').close();
+    },
+    'proj-clear-cache': async () => { await projects.clearGeometryCache(); renderProjectsDialog(); toast(t('proj.cacheCleared'), true); },
     about: () => { renderVersion($('#about-version'), h); $('#about-dialog').showModal(); },
     'toggle-left': () => setPanelHidden('left', !document.body.classList.contains('hide-left')),
     'toggle-right': () => setPanelHidden('right', !document.body.classList.contains('hide-right')),
@@ -1352,6 +1375,57 @@ const views = new ViewsPanel({
   afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); renderModels(); },
   setXray: (on) => setXray(on),
 });
+
+// ===================================================================== projects
+const projects = new ProjectManager({
+  viewer, views, issues, state, h, toast,
+  clearModels: () => {
+    for (const m of [...viewer.models]) viewer.removeModel(m);
+    state.selection.clear();
+    state.treeKeys.clear();
+    state.active = null;
+    afterModelsChanged();
+  },
+  openFiles: (files, keys) => openIfcFiles(files, keys),
+  afterRestore: () => { updateSpacesUi(); afterModelsChanged(); },
+});
+viewer.addEventListener('modelremoved', ({ model }) => projects.modelRemoved(model));
+projects.addEventListener('change', () => { renderProjectBar(); if (!viewer.models.length) renderRecentProjects(); if ($('#projects-dialog').open) renderProjectsDialog(); });
+
+/** Recent projects on the start screen. */
+async function renderRecentProjects() {
+  const box = $('#recent-projects');
+  if (!projects.enabled) { box.hidden = true; return; }
+  const n = await projects.renderList($('#recent-list'), { limit: 4 });
+  box.hidden = n === 0;
+}
+
+/** The project line at the top of the Models tab. */
+function renderProjectBar() {
+  const bar = $('#project-bar');
+  bar.hidden = !viewer.models.length;
+  if (bar.hidden) return;
+  $('#project-name').textContent = projects.current?.name || t('proj.unsaved');
+  $('#project-status').textContent = projects.statusText();
+}
+
+async function renderProjectsDialog() {
+  $('#proj-enabled').checked = projects.enabled;
+  const n = await projects.renderList($('#proj-list'), { onOpen: () => $('#projects-dialog').close() });
+  $('#proj-empty').hidden = n > 0;
+  const u = await projects.usage();
+  $('#proj-usage').textContent = t('proj.usage', { files: projects.fmtBytes(u.files), geom: projects.fmtBytes(u.geom), free: u.quota ? projects.fmtBytes(u.quota) : '?' });
+}
+
+function openProjectsDialog() {
+  renderProjectsDialog();
+  $('#projects-dialog').showModal();
+}
+$('#proj-enabled').addEventListener('change', (e) => {
+  if (!e.target.checked && !confirm(t('proj.disableConfirm'))) { e.target.checked = true; return; }
+  projects.setEnabled(e.target.checked);
+});
+renderRecentProjects();
 
 // ================================================== ortho, X-ray and storeys
 function setOrtho(on) {
