@@ -19,6 +19,7 @@ export class SectionViewer {
     this.section = null;
     this.view = null; // {x, y, w, h} viewBox in drawing metres (y flipped)
     this.win = null;
+    try { this.showPoints = localStorage.getItem('onlineifc.sv.points') === '1'; } catch { this.showPoints = false; }
     this.busy = false;
     this.pending = false;
     this.#build();
@@ -40,6 +41,7 @@ export class SectionViewer {
         h('label', { class: 'sv-steplbl' }, h('span', { text: t('sv.step') }), this.stepIn, h('span', { text: 'm' })),
         btn('⤢', t('sv.fit'), () => { this.fit(); this.render(); }),
         btn('⟳', t('sv.refresh'), () => this.update()),
+        this.ptsBtn = btn('⌖', t('sv.points'), () => { this.showPoints = !this.showPoints; try { localStorage.setItem('onlineifc.sv.points', this.showPoints ? '1' : ''); } catch { /* ignore */ } this.update(); }),
         this.popBtn,
         btn('✕', t('common.close'), () => this.close())));
     this.svg = document.createElementNS(SVG, 'svg');
@@ -143,7 +145,7 @@ export class SectionViewer {
     setTimeout(() => {
       try {
         const t0 = performance.now();
-        this.section = this.ctx.compute(this.plane);
+        this.section = this.ctx.compute(this.plane, this.showPoints);
         this.ms = Math.round(performance.now() - t0);
       } catch (e) {
         console.error(e);
@@ -226,6 +228,25 @@ export class SectionViewer {
         if (!m.line) continue;
         svg.append(mk('path', { d: `M${m.line.map((q) => `${q[0]} ${-q[1]}`).join('L')}`, fill: 'none', stroke: m.color || '#c0392b', 'stroke-width': 1.2, 'stroke-dasharray': '10 3 2 3', 'vector-effect': 'non-scaling-stroke' }));
       }
+    }
+    this.ptsBtn.classList.toggle('on', !!this.showPoints);
+    // break points of the top outline with offset / height (not closer than the labels need)
+    const A = sec?.annot;
+    if (this.showPoints && A?.runs) {
+      const dec = A.dec || '.';
+      const num = (v) => (Math.abs(v) < 5e-4 ? 0 : v).toFixed(3).replace('.', dec);
+      const pts = A.runs.flat().sort((a, b) => b.sig - a.sig);
+      const used = [];
+      const gp = mk('g', { class: 'sv-points' });
+      for (const p of pts) {
+        if (used.some((q) => Math.abs(q.x - p.x) < 16 * px && Math.abs(q.y - p.y) < 60 * px)) continue;
+        used.push(p);
+        gp.append(mk('circle', { cx: p.x, cy: -p.y, r: 3 * px }));
+        const tx = mk('text', { x: p.x + 2 * px, y: -p.y - 6 * px, 'font-size': 10.5 * px, transform: `rotate(-90 ${p.x + 2 * px} ${-p.y - 6 * px})` });
+        tx.textContent = `${num(p.x - A.originX)} / ${num(p.y)}`;
+        gp.append(tx);
+      }
+      svg.append(gp);
     }
     let n = 0;
     for (const L of sec?.layers?.values() || []) n += L.elements;
