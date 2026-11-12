@@ -78,21 +78,45 @@ export class Viewer extends EventTarget {
 
     this.renderHooks = []; // functions called every frame after rendering (e.g. measurement labels)
     this.dblclickCenters = true;
-    const loop = () => {
-      this.controls.update();
+    // Render on demand: a frame is drawn while the camera moves, for a short while after any input
+    // or invalidate(), and otherwise twice a second as a safety net. An idle view costs no GPU time,
+    // which matters for large models (fans, battery).
+    this.dirtyUntil = 0;
+    let lastRender = 0;
+    let lastCam = '';
+    const camKey = () => {
+      const c = this.camera, p = c.position, q = c.quaternion;
+      return `${this.isOrtho ? `o${this.orthoHeight}` : 'p'}|${p.x},${p.y},${p.z}|${q.x},${q.y},${q.z},${q.w}`;
+    };
+    const loop = (now = performance.now()) => {
+      requestAnimationFrame(loop);
+      const moved = this.controls.update();
+      const key = camKey();
+      if (!moved && key === lastCam && now > this.dirtyUntil && now - lastRender < 500) return;
+      lastCam = key;
+      lastRender = now;
       this.#updateClip();
       renderer.render(this.scene, this.camera);
       this.#renderGizmo();
       for (const fn of this.renderHooks) fn();
-      requestAnimationFrame(loop);
     };
+    const wake = () => this.invalidate(400);
+    for (const ev of ['pointerdown', 'pointermove', 'pointerup', 'wheel', 'keydown', 'keyup', 'input', 'change', 'click']) {
+      window.addEventListener(ev, wake, { capture: true, passive: true });
+    }
     loop();
+  }
+
+  /** Asks for the view to be drawn again (for `ms` milliseconds, e.g. while something loads). */
+  invalidate(ms = 100) {
+    this.dirtyUntil = Math.max(this.dirtyUntil, performance.now() + ms);
   }
 
   resize() {
     const w = this.container.clientWidth || 1;
     const h = this.container.clientHeight || 1;
     this.renderer.setSize(w, h, false);
+    this.invalidate?.();
     this.perspCamera.aspect = w / h;
     this.perspCamera.updateProjectionMatrix();
     this.#updateOrthoFrustum();
@@ -159,6 +183,7 @@ export class Viewer extends EventTarget {
     this.modelRoot.add(model.group);
     model.setSelection([], this.highlightMaterial);
     this.#updateSceneRadius();
+    this.invalidate(1000);
   }
 
   /** Group matrix of a model: from its own coordinates into those of the reference model. */
@@ -210,6 +235,7 @@ export class Viewer extends EventTarget {
     model.dispose();
     if (!this.models.length) { this.referenceMatrix = null; this.referenceModel = null; }
     this.#updateSceneRadius();
+    this.invalidate(300);
     this.dispatchEvent(Object.assign(new Event('modelremoved'), { model }));
   }
 
@@ -540,6 +566,7 @@ export class Viewer extends EventTarget {
   setPlanePos(entry, pos) {
     entry.plane.constant = -pos / entry.plane.normal.dot(entry.axisVec);
     this.#updateHelper(entry);
+    this.invalidate();
     this.dispatchEvent(new Event('planeschanged'));
   }
 
@@ -593,6 +620,7 @@ export class Viewer extends EventTarget {
   setHelpersVisible(v) { this.showPlaneHelpers = v; this.#updateClipping(); }
 
   #updateClipping() {
+    this.invalidate();
     this.dispatchEvent(new Event('planeschanged'));
     this.renderer.clippingPlanes = this.planes.filter((p) => p.enabled).map((p) => p.plane);
     sectionFill.active.value = this.renderer.clippingPlanes.length && this.sectionFillOn !== false ? 1 : 0;

@@ -191,6 +191,7 @@ export class AlignmentLayer {
   }
 
   rebuild() {
+    this.viewer.invalidate?.();
     for (const o of [...this.group.children]) { this.group.remove(o); o.geometry?.dispose(); o.material?.dispose(); }
     for (const l of this.labels) l.el.remove();
     this.labels = [];
@@ -318,7 +319,7 @@ export class SectionMarks {
       const head = new THREE.Mesh(new THREE.BufferGeometry().setFromPoints(tris), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, depthTest: false }));
       for (const o of [line, stub, head]) { o.renderOrder = 26; o.frustumCulled = false; this.group.add(o); }
     }
-    this.viewer.requestRender?.();
+    this.viewer.invalidate?.();
   }
 
   #place() {

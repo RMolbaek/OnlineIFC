@@ -1,9 +1,4 @@
 // Python panel: code editor, console and example scripts. Python runs in a worker (see python.js).
-import { EditorView, basicSetup } from 'codemirror';
-import { keymap } from '@codemirror/view';
-import { Prec } from '@codemirror/state';
-import { indentWithTab } from '@codemirror/commands';
-import { python as pythonLang } from '@codemirror/lang-python';
 import { PythonEngine } from './python.js';
 import { EXAMPLES } from './examples.js';
 import { t } from './i18n.js';
@@ -65,18 +60,25 @@ export class PythonPanel {
     this.open = force ?? !this.open;
     this.panel.hidden = !this.open;
     if (this.open) {
-      this.#ensureEditor();
+      this.#ensureEditor().then(() => { if (this.open) this.editor.focus(); }).catch((e) => this.#write(`${e.message || e}\n`, 'err'));
       if (this.engine.state === 'idle') {
         this.#write(`${t('py.loadingInfo')}\n`, 'info');
         this.engine.ensure().catch(() => {});
       }
-      this.editor.focus();
     }
     this.onOpenChange?.(this.open);
   }
 
+  /** The code editor is loaded the first time the panel is opened (it is a large library). */
   #ensureEditor() {
-    if (this.editor) return;
+    this.editorReady ||= this.#createEditor();
+    return this.editorReady;
+  }
+
+  async #createEditor() {
+    const [{ EditorView, basicSetup }, { keymap }, { Prec }, { indentWithTab }, { python: pythonLang }] = await Promise.all([
+      import('codemirror'), import('@codemirror/view'), import('@codemirror/state'), import('@codemirror/commands'), import('@codemirror/lang-python'),
+    ]);
     let saved = null;
     try { saved = localStorage.getItem(STORE_KEY); } catch { /* ignore */ }
     let saveTimer = null;

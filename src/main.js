@@ -93,16 +93,28 @@ darkQuery.addEventListener?.('change', applyTheme);
 applyTheme();
 
 // =================================================================== side panels
+// On small screens the panels are drawers over the 3D view: closed from the start, one at a time,
+// and their state is not remembered.
+const narrow = window.matchMedia('(max-width: 900px)');
 function setPanelHidden(side, hidden) {
   document.body.classList.toggle(`hide-${side}`, hidden);
   $(`.panel-reopen.${side}`).hidden = !hidden;
+  if (narrow.matches) {
+    const other = side === 'left' ? 'right' : 'left';
+    if (!hidden && !document.body.classList.contains(`hide-${other}`)) setPanelHidden(other, true);
+    return;
+  }
   try { localStorage.setItem(`onlineifc.hide-${side}`, hidden ? '1' : ''); } catch { /* ignore */ }
 }
-for (const side of ['left', 'right']) {
-  let v = '';
-  try { v = localStorage.getItem(`onlineifc.hide-${side}`) || ''; } catch { /* ignore */ }
-  setPanelHidden(side, v === '1');
+function restorePanels() {
+  for (const side of ['left', 'right']) {
+    let v = '';
+    try { v = localStorage.getItem(`onlineifc.hide-${side}`) || ''; } catch { /* ignore */ }
+    setPanelHidden(side, narrow.matches || v === '1');
+  }
 }
+restorePanels();
+narrow.addEventListener?.('change', restorePanels);
 
 // ======================================================================== files
 async function withLoading(fn) {
@@ -111,7 +123,7 @@ async function withLoading(fn) {
   try { return await fn((msg, frac) => {
     $('#loading-text').textContent = msg;
     $('#loading-bar').style.width = `${Math.round(frac * 100)}%`;
-  }); } finally { loading.hidden = true; }
+  }); } finally { loading.hidden = true; viewer.invalidate(600); }
 }
 
 async function openFiles(files) {
@@ -482,6 +494,7 @@ document.addEventListener('click', (e) => {
     'prof-draw': () => { $('#profile-dialog').close(); startLineTool((path) => openProfileDialog(path)); },
     'prof-remove-line': () => { const al = profilePath(); if (al?.drawn && confirm(t('line.removeConfirm', { name: al.name }))) { removeDrawnPath(al); openProfileDialog(); } },
     drive: () => openDrive(),
+    'draw-line': () => startLineTool((path) => { if (path) toast(t('line.done', { name: path.name }), true); }),
     'drive-play': () => setDrivePlaying(!drive.playing),
     'drive-dir': () => { drive.dir = -drive.dir; $('#drive-dir').textContent = drive.dir > 0 ? '→' : '←'; drivePose(); },
     'drive-close': () => closeDrive(),
@@ -761,13 +774,14 @@ function renderModels() {
       h('div', { class: 'card-meta', text: `${m.schema} · ${t('models.elements', { n: fmtNum(m.elementIds.size) })} · ${fmtBytes(m.fileSize)}` }),
       changes,
       h('div', { class: 'card-row' }, h('label', { text: t('models.color') }), colorInput,
-        h('button', { onclick: () => { m.setColor(null); renderModels(); }, text: t('models.original') })),
+        h('button', { class: 'btn xs', onclick: () => { m.setColor(null); renderModels(); }, text: t('models.original') })),
       h('div', { class: 'card-row' }, h('label', { text: t('models.transparency') }), opacity, opVal),
       h('div', { class: 'card-btns' },
-        h('button', { onclick: () => viewer.fitBox(m.getBox()), text: t('models.zoom') }),
-        h('button', { class: m.changes.length ? 'primary-outline' : null, onclick: () => saveIfc(m), text: t('models.downloadIfc') }),
-        h('button', { onclick: () => exportCsv(m), text: t('models.exportCsv') }),
+        h('button', { class: 'btn sm', onclick: () => viewer.fitBox(m.getBox()), text: t('models.zoom') }),
+        h('button', { class: `btn sm${m.changes.length ? ' primary-outline' : ''}`, onclick: () => saveIfc(m), text: t('models.downloadIfc') }),
+        h('button', { class: 'btn sm', onclick: () => exportCsv(m), text: t('models.exportCsv') }),
         h('button', {
+          class: 'btn sm danger',
           onclick: () => {
             const msg = m.changes.length ? t('models.removeUnsaved', { name: m.name }) : t('models.removeConfirm', { name: m.name });
             if (!confirm(msg)) return;
@@ -1303,42 +1317,48 @@ function renderPlanes() {
   renderStatus();
   if (!viewer.planes.length) return;
 
-  for (const p of viewer.planes) {
-    if (p.station) { list.append(stationRow(p)); continue; }
-    const range = viewer.planeRange(p);
-    const step = (range.max - range.min) / 1000;
-    const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: t('planes.active') });
-    enabled.addEventListener('change', () => viewer.togglePlane(p, enabled.checked));
-    const slider = h('input', { type: 'range', min: String(range.min), max: String(range.max), step: String(step), value: String(viewer.getPlanePos(p)) });
-    // exact position: type it, or step with the arrow buttons / arrow keys in the field
-    const posInput = h('input', { type: 'number', step: 'any', title: t('planes.posTitle') });
-    const val = h('div', { class: 'val' }, posInput, h('span', { text: 'm' }));
-    const upd = () => { posInput.value = viewer.getPlanePos(p).toFixed(3); slider.value = String(viewer.getPlanePos(p)); };
-    const moveTo = (v) => { viewer.setPlanePos(p, v); upd(); };
-    slider.addEventListener('input', () => { viewer.setPlanePos(p, +slider.value); posInput.value = viewer.getPlanePos(p).toFixed(3); });
-    posInput.addEventListener('change', () => { if (Number.isFinite(+posInput.value) && posInput.value !== '') moveTo(+posInput.value); else upd(); });
-    posInput.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); moveTo(viewer.getPlanePos(p) + (e.key === 'ArrowUp' ? 1 : -1) * planeStep()); }
-    });
-    const stepBtn = (dir) => h('button', {
-      class: 'step', text: dir > 0 ? '›' : '‹', title: t(dir > 0 ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) }),
-      onclick: () => moveTo(viewer.getPlanePos(p) + dir * planeStep()),
-    });
-    upd();
-    const name = p.boxPart ? `${t('planes.boxPart')} ${p.axis === 'y' ? 'Z' : p.axis === 'z' ? 'Y' : 'X'} ${p.boxPart}` : t(AXIS_LABEL[p.axis]);
-    list.append(h('div', { class: 'plane-row' },
+  for (const p of viewer.planes) list.append(p.station ? stationRow(p) : axisRow(p));
+}
+
+/**
+ * A row of the sections panel. Line 1: on/off, name, actions. Line 2: ‹ slider › position.
+ * parts: {name (text or element), slider, posInput, unit, step(dir), cls}
+ */
+function planeRow(p, { name, slider, posInput, unit, step, cls = '' }) {
+  const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: t('planes.active') });
+  enabled.addEventListener('change', () => viewer.togglePlane(p, enabled.checked));
+  const stepBtn = (dir) => h('button', {
+    class: 'btn xs step', text: dir > 0 ? '›' : '‹', title: t(dir > 0 ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) }),
+    onclick: () => step(dir),
+  });
+  const act = (text, title, fn) => h('button', { class: 'btn xs', text, title, onclick: fn });
+  return h('div', { class: `plane-row ${cls}` },
+    h('div', { class: 'pl-head' },
       enabled,
-      h('span', { class: 'pl-name', text: name, title: name }),
-      stepBtn(-1),
-      slider,
-      stepBtn(1),
-      h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
-      p.boxPart ? null : h('button', { title: t('sv.open'), text: '▣', onclick: () => openSecView(p) }),
-      p.boxPart ? null : h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
-      h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
-      val,
-    ));
-  }
+      typeof name === 'string' ? h('span', { class: 'pl-name', text: name, title: name }) : name,
+      act('⇄', t('planes.flip'), () => { viewer.flipPlane(p); renderPlanes(); }),
+      p.boxPart ? null : act('▣', t('sv.open'), () => openSecView(p)),
+      p.boxPart ? null : act('2D', t('drw.title'), () => openDrawingDialog(p)),
+      act('✕', t('planes.remove'), () => { viewer.removePlane(p); renderPlanes(); })),
+    h('div', { class: 'pl-pos' }, stepBtn(-1), slider, stepBtn(1), h('span', { class: 'val' }, posInput, h('span', { text: unit }))));
+}
+
+/** Row of a plan / X / Y / face section or a side of the section box. */
+function axisRow(p) {
+  const range = viewer.planeRange(p);
+  const slider = h('input', { type: 'range', min: String(range.min), max: String(range.max), step: String((range.max - range.min) / 1000), value: String(viewer.getPlanePos(p)) });
+  // exact position: type it, or step with the arrow buttons / arrow keys in the field
+  const posInput = h('input', { type: 'number', step: 'any', title: t('planes.posTitle') });
+  const upd = () => { posInput.value = viewer.getPlanePos(p).toFixed(3); slider.value = String(viewer.getPlanePos(p)); };
+  const moveTo = (v) => { viewer.setPlanePos(p, v); upd(); };
+  slider.addEventListener('input', () => { viewer.setPlanePos(p, +slider.value); posInput.value = viewer.getPlanePos(p).toFixed(3); });
+  posInput.addEventListener('change', () => { if (Number.isFinite(+posInput.value) && posInput.value !== '') moveTo(+posInput.value); else upd(); });
+  posInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); moveTo(viewer.getPlanePos(p) + (e.key === 'ArrowUp' ? 1 : -1) * planeStep()); }
+  });
+  upd();
+  const name = p.boxPart ? `${t('planes.boxPart')} ${p.axis === 'y' ? 'Z' : p.axis === 'z' ? 'Y' : 'X'} ${p.boxPart}` : t(AXIS_LABEL[p.axis]);
+  return planeRow(p, { name, slider, posInput, unit: 'm', step: (dir) => moveTo(viewer.getPlanePos(p) + dir * planeStep()) });
 }
 // ------------------------------------------------- cross sections at a station
 /** All alignments of the visible models. */
@@ -1547,47 +1567,35 @@ function planMarks(bounds) {
   return [...planAlignmentMarks(box), ...sec];
 }
 
-/** Panel row of a station plane: alignment, ‹ station ›, slider. */
+/** Row of a cross section at a station: alignment, ‹ slider › station. */
 function stationRow(p) {
-  const st = p.station;
-  const al = st.al;
-  const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: t('planes.active') });
-  enabled.addEventListener('change', () => viewer.togglePlane(p, enabled.checked));
-  const slider = h('input', { type: 'range', min: '0', max: String(al.length), step: String(Math.max(0.01, al.length / 4000)), value: String(st.s) });
+  const al = p.station.al;
+  const slider = h('input', { type: 'range', min: '0', max: String(al.length), step: String(Math.max(0.01, al.length / 4000)), value: String(p.station.s) });
   const posInput = h('input', { type: 'text', inputmode: 'decimal', title: t('st.title'), class: 'station-input' });
   const upd = () => { posInput.value = formatStation(al.station0 + p.station.s); slider.value = String(p.station.s); };
-  const moveTo = (s) => { setStationPlane(p, p.station.al, s); upd(); };
+  const moveTo = (s2) => { setStationPlane(p, p.station.al, s2); upd(); };
   slider.addEventListener('input', () => moveTo(+slider.value));
   posInput.addEventListener('change', () => {
     const v = parseStation(posInput.value);
     if (v === null) { toast(t('st.bad', { v: posInput.value })); return upd(); }
-    const s = v - al.station0;
-    if (s < -0.001 || s > al.length + 0.001) toast(t('st.outside', { from: formatStation(al.station0), to: formatStation(al.station0 + al.length) }));
-    moveTo(s);
+    const s2 = v - al.station0;
+    if (s2 < -0.001 || s2 > al.length + 0.001) toast(t('st.outside', { from: formatStation(al.station0), to: formatStation(al.station0 + al.length) }));
+    moveTo(s2);
   });
   posInput.addEventListener('keydown', (e) => {
     if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); moveTo(p.station.s + (e.key === 'ArrowUp' ? 1 : -1) * planeStep()); }
   });
-  const stepBtn = (dir) => h('button', {
-    class: 'step', text: dir > 0 ? '›' : '‹', title: t(dir > 0 ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) }),
-    onclick: () => moveTo(p.station.s + dir * planeStep()),
-  });
-  // several alignments: choose which one the plane follows
+  // several alignments: choose which one the section follows
   const list = allAlignments();
+  const letter = sectionLetter(p);
+  const label = `${t('st.section')} ${letter}–${letter}`;
   const name = list.length > 1
-    ? h('select', { class: 'pl-name', title: t('st.alignment'), onchange: (e) => { const a = list[+e.target.value]; const r = project(a, viewer.toIfc(p.anchor)); setStationPlane(p, a, r.s); renderPlanes(); } },
-      list.map((a, i) => h('option', { value: String(i), text: a.name, selected: a === al })))
-    : h('span', { class: 'pl-name', text: `${t('st.section')} ${sectionLetter(p)}–${sectionLetter(p)} · ${al.name}`, title: al.name });
+    ? h('span', { class: 'pl-name pl-pick' }, h('b', { text: label }),
+      h('select', { title: t('st.alignment'), onchange: (e) => { const a = list[+e.target.value]; const r = project(a, viewer.toIfc(p.anchor)); setStationPlane(p, a, r.s); renderPlanes(); } },
+        list.map((a, i2) => h('option', { value: String(i2), text: a.name, selected: a === al }))))
+    : h('span', { class: 'pl-name', title: al.name }, h('b', { text: label }), ` · ${al.name}`);
   upd();
-  return h('div', { class: 'plane-row station' },
-    name, enabled,
-    stepBtn(-1), slider, stepBtn(1),
-    h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
-    h('button', { title: t('sv.open'), text: '▣', onclick: () => openSecView(p) }),
-    h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
-    h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
-    h('div', { class: 'val' }, posInput, h('span', { text: 'km' })),
-  );
+  return planeRow(p, { name, slider, posInput, unit: 'km', step: (dir) => moveTo(p.station.s + dir * planeStep()), cls: 'station' });
 }
 
 // ------------------------------------------------------------------ drawn lines
@@ -1928,7 +1936,7 @@ try { const v = localStorage.getItem('onlineifc.planeStep'); if (v) $('#plane-st
 $('#plane-step').addEventListener('change', () => {
   try { localStorage.setItem('onlineifc.planeStep', String(planeStep())); } catch { /* ignore */ }
   // only the tooltips change: redrawing the rows here would swallow a click on ‹ › that blurs this field
-  for (const b of $$('.plane-row button.step')) b.title = t(b.textContent === '›' ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) });
+  for (const b of $$('.plane-row .step')) b.title = t(b.textContent === '›' ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) });
 });
 $('#plane-helpers').addEventListener('change', (e) => viewer.setHelpersVisible(e.target.checked));
 $('#plane-fill').addEventListener('change', (e) => viewer.setSectionFill(e.target.checked));
@@ -2646,6 +2654,7 @@ const python = new PythonPanel({
 
 // ======================================================================= status
 function renderStatus() {
+  viewer.invalidate(); // the status changes with almost every change of the scene
   const models = viewer.models.length;
   if (!models) { $('#statusbar').textContent = t('status.ready'); return; }
   let elements = 0, hidden = 0;

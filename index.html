@@ -4,7 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>OnlineIFC – IFC viewer</title>
-    <meta name="description" content="Review, edit, merge and script IFC models in the browser. Files never leave your computer." />
+    <meta name="description" content="View and review IFC models in the browser: sections, long profiles and stationing along alignments, measuring, metadata. Files never leave your computer." />
+    <meta name="author" content="Rasmus Roien Molbaek" />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 29 9v14l-13 7-13-7V9z' fill='%233aa0ff'/%3E%3Cpath d='M16 2v28M3 9l13 7 13-7' stroke='%23fff' stroke-width='1.5' fill='none'/%3E%3C/svg%3E" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <meta name="theme-color" content="#1f6fd1" />
@@ -48,7 +49,6 @@
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-ortho"><span class="mi-icon mi-check" id="ortho-check">☐</span><span class="mi-text"><b data-i18n="mi.ortho"></b><small data-i18n="mi.orthoDesc"></small></span><kbd>O</kbd></button>
           <button class="menu-item" data-action="walk"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="13" cy="4" r="2"/><path d="M10 21l2-6 3 3v3M8 12l3-4 4 2 3 3M11 8l-1 5"/></svg></span><span class="mi-text"><b data-i18n="mi.walk"></b><small data-i18n="mi.walkDesc"></small></span><kbd>W</kbd></button>
-          <button class="menu-item" data-action="drive"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M6 21l3-18M18 21l-3-18M7.5 12h9M8.5 6h7M6.8 17h10.4"/></svg></span><span class="mi-text"><b data-i18n="drive.menu"></b><small data-i18n="drive.menuDesc"></small></span></button>
           <div class="menu-sep"></div>
           <div class="menu-head" data-i18n="mi.storeys"></div>
           <div id="storey-items"></div>
@@ -63,10 +63,10 @@
           <button class="menu-item" data-plane="y"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12h20M6 12V5h12v7"/></svg></span><span class="mi-text"><b data-i18n="mi.plan"></b><small data-i18n="mi.planDesc"></small></span></button>
           <button class="menu-item" data-plane="x"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M5 7h14v12H5"/></svg></span><span class="mi-text"><b data-i18n="mi.secX"></b><small data-i18n="mi.secXDesc"></small></span></button>
           <button class="menu-item" data-plane="z"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M7 9h10v10H7"/></svg></span><span class="mi-text"><b data-i18n="mi.secY"></b><small data-i18n="mi.secYDesc"></small></span></button>
-          <button class="menu-item" data-action="plane-station"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 18c5-1 8-6 18-12M12 5v14M9 12h6"/></svg></span><span class="mi-text"><b data-i18n="st.menu"></b><small data-i18n="st.menuDesc"></small></span></button>
-          <button class="menu-item" data-action="profile"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 4-7 5 5M3 21h18"/></svg></span><span class="mi-text"><b data-i18n="prof.menu"></b><small data-i18n="prof.menuDesc"></small></span></button>
           <button class="menu-item" data-action="plane-face"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 18 10 6h10l-6 12zM12 12l-4 8"/></svg></span><span class="mi-text"><b data-i18n="mi.face"></b><small data-i18n="mi.faceDesc"></small></span></button>
           <button class="menu-item" data-action="section-box"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8"/></svg></span><span class="mi-text"><b data-i18n="mi.box"></b><small data-i18n="mi.boxDesc"></small></span></button>
+          <button class="menu-item" data-action="plane-station"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 18c5-1 8-6 18-12M12 5v14M9 12h6"/></svg></span><span class="mi-text"><b data-i18n="st.menu"></b><small data-i18n="st.menuDesc"></small></span></button>
+          <div class="menu-sep"></div>
           <button class="menu-item" data-action="drawing"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 15h16M9 15v5"/></svg></span><span class="mi-text"><b data-i18n="mi.drawing"></b><small data-i18n="mi.drawingDesc"></small></span></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="clear-planes"><span class="mi-icon">✕</span><span class="mi-text"><b data-i18n="mi.clearSections"></b></span></button>
@@ -84,6 +84,14 @@
           <button class="menu-item" data-action="show-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="mi-text"><b data-i18n="mi.showAll"></b><small data-i18n="mi.showAllDesc"></small></span><kbd>⇧H</kbd></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-spaces"><span class="mi-icon mi-check" id="spaces-check">☐</span><span class="mi-text"><b data-i18n="mi.spaces"></b><small data-i18n="mi.spacesDesc"></small></span></button>
+        </div>
+      </div>
+
+      <div class="menu">
+        <button class="menu-btn" data-menu="alignment" data-i18n-title="tb.alignmentTitle">
+          <svg viewBox="0 0 24 24"><path d="M3 19c6-1 9-7 18-14M7 14.5l1.6 2.2M12 10l1.6 2.2M17 5.8l1.6 2.2"/></svg><span data-i18n="tb.alignment"></span><span class="caret-down">▾</span>
+        </button>
+        <div class="menu-pop" data-pop="alignment" hidden>
           <button class="menu-item" data-action="toggle-alignments"><span class="mi-icon mi-check" id="alignments-check">☑</span><span class="mi-text"><b data-i18n="mi.alignments"></b><small data-i18n="mi.alignmentsDesc"></small></span></button>
           <div class="menu-sub" id="station-row">
             <label><span data-i18n="mi.stationing"></span>
@@ -97,31 +105,35 @@
               </select></label>
             <label id="station-custom-wrap" hidden><input type="number" id="station-custom" min="0.1" step="any" value="15" class="sm" /> m</label>
           </div>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="plane-station"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 18c5-1 8-6 18-12M12 5v14M9 12h6"/></svg></span><span class="mi-text"><b data-i18n="st.menu"></b><small data-i18n="st.menuDesc"></small></span></button>
+          <button class="menu-item" data-action="profile"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 4-7 5 5M3 21h18"/></svg></span><span class="mi-text"><b data-i18n="prof.menu"></b><small data-i18n="prof.menuDesc"></small></span></button>
+          <button class="menu-item" data-action="drive"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M6 21l3-18M18 21l-3-18M7.5 12h9M8.5 6h7M6.8 17h10.4"/></svg></span><span class="mi-text"><b data-i18n="drive.menu"></b><small data-i18n="drive.menuDesc"></small></span></button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="draw-line"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 19 10 9l5 5 5-9"/><circle cx="4" cy="19" r="1.5"/><circle cx="10" cy="9" r="1.5"/><circle cx="15" cy="14" r="1.5"/><circle cx="20" cy="5" r="1.5"/></svg></span><span class="mi-text"><b data-i18n="line.menu"></b><small data-i18n="line.menuDesc"></small></span></button>
         </div>
       </div>
 
       <div class="sep"></div>
 
-      <div class="group">
-        <button data-action="toggle-measure" data-i18n-title="tb.measureTitle">
-          <svg viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg><span data-i18n="tb.measure"></span>
+      <button data-action="toggle-measure" data-i18n-title="tb.measureTitle">
+        <svg viewBox="0 0 24 24"><path d="M3 17 17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/></svg><span data-i18n="tb.measure"></span>
+      </button>
+      <button data-action="toggle-edit" data-i18n-title="tb.editTitle">
+        <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg><span data-i18n="tb.edit"></span>
+      </button>
+      <div class="menu">
+        <button class="menu-btn" data-menu="tools" data-i18n-title="tb.toolsTitle">
+          <svg viewBox="0 0 24 24"><path d="M14.5 5.5a4 4 0 0 0-5.3 5.3L3 17l4 4 6.2-6.2a4 4 0 0 0 5.3-5.3L16 12l-4-4z"/></svg><span data-i18n="tb.tools"></span><span class="caret-down">▾</span>
         </button>
-        <button data-action="toggle-edit" data-i18n-title="tb.editTitle">
-          <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4"/></svg><span data-i18n="tb.edit"></span>
-        </button>
-        <button data-action="merge" data-i18n-title="tb.mergeTitle">
-          <svg viewBox="0 0 24 24"><path d="M6 4v5a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4v3M18 4v5a4 4 0 0 1-4 4"/></svg><span data-i18n="tb.merge"></span>
-        </button>
-        <button data-action="toggle-python" data-i18n-title="tb.pythonTitle">
-          <svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16"/></svg><span>Python</span>
-        </button>
-        <button data-action="ids" data-i18n-title="tb.idsTitle">
-          <svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg><span>IDS</span>
-        </button>
-        <button data-action="compare" data-i18n-title="tb.compareTitle">
-          <svg viewBox="0 0 24 24"><path d="M8 3v18M16 3v18M3 8h5M16 16h5M3 16h5M16 8h5"/></svg><span data-i18n="tb.compare"></span>
-        </button>
-<!-- map underlay: hidden until its placement has been tested more (src/map.js) -->
+        <div class="menu-pop" data-pop="tools" hidden>
+          <button class="menu-item" data-action="merge"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M6 4v5a4 4 0 0 0 4 4h4a4 4 0 0 1 4 4v3M18 4v5a4 4 0 0 1-4 4"/></svg></span><span class="mi-text"><b data-i18n="mi.merge"></b><small data-i18n="tb.mergeTitle"></small></span></button>
+          <button class="menu-item" data-action="compare"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M8 3v18M16 3v18M3 8h5M16 16h5M3 16h5M16 8h5"/></svg></span><span class="mi-text"><b data-i18n="mi.compare"></b><small data-i18n="tb.compareTitle"></small></span></button>
+          <button class="menu-item" data-action="ids"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg></span><span class="mi-text"><b data-i18n="mi.ids"></b><small data-i18n="tb.idsTitle"></small></span></button>
+          <button class="menu-item" data-action="qto"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 10h16M4 15h16M10 5v14"/></svg></span><span class="mi-text"><b data-i18n="mi.qto"></b><small data-i18n="qto.buttonTitle"></small></span><kbd>Q</kbd></button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="toggle-python"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16"/></svg></span><span class="mi-text"><b data-i18n="mi.python"></b><small data-i18n="tb.pythonTitle"></small></span></button>
+        </div>
       </div>
 
       <div class="spacer"></div>
@@ -165,23 +177,22 @@
           <div class="empty-hint" id="models-empty" data-i18n-html="models.empty"></div>
           <div id="model-list"></div>
           <div class="panel-actions" id="model-actions" hidden>
-            <button data-action="color-by-model" data-i18n="models.colorByModel"></button>
-            <button data-action="reset-colors" data-i18n="models.resetColors"></button>
-            <button data-action="qto" data-i18n="qto.button" data-i18n-title="qto.buttonTitle"></button>
+            <button class="btn sm" data-action="color-by-model" data-i18n="models.colorByModel"></button>
+            <button class="btn sm" data-action="reset-colors" data-i18n="models.resetColors"></button>
           </div>
         </section>
         <section class="tab-body" id="tab-tree">
           <input class="search" id="tree-search" type="search" data-i18n-placeholder="tree.search" />
           <div class="sel-bar">
             <span class="sel-count"></span>
-            <button data-action="sel-hide" data-needs-sel data-i18n="sel.hide" data-i18n-title="sel.hideTitle"></button>
-            <button data-action="sel-show" data-needs-sel data-i18n="sel.show" data-i18n-title="sel.showTitle"></button>
-            <button data-action="sel-isolate" data-needs-sel data-i18n="sel.isolate" data-i18n-title="sel.isolateTitle"></button>
-            <button data-action="show-all" data-i18n="sel.showAll" data-i18n-title="tb.showAllTitle"></button>
-            <button data-action="sel-clear" data-needs-sel class="icon-only" data-i18n-title="sel.clear">✕</button>
+            <button class="btn xs" data-action="sel-hide" data-needs-sel data-i18n="sel.hide" data-i18n-title="sel.hideTitle"></button>
+            <button class="btn xs" data-action="sel-show" data-needs-sel data-i18n="sel.show" data-i18n-title="sel.showTitle"></button>
+            <button class="btn xs" data-action="sel-isolate" data-needs-sel data-i18n="sel.isolate" data-i18n-title="sel.isolateTitle"></button>
+            <button class="btn xs" data-action="show-all" data-i18n="sel.showAll" data-i18n-title="tb.showAllTitle"></button>
+            <button data-action="sel-clear" data-needs-sel class="btn xs icon-only" data-i18n-title="sel.clear">✕</button>
             <label class="sel-opacity" data-i18n-title="sel.opacityTitle"><span data-i18n="sel.opacity"></span>
               <input type="range" min="0.05" max="1" step="0.05" value="1" data-sel-opacity data-needs-sel /></label>
-            <button data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
+            <button class="btn xs" data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
           </div>
           <div id="tree"></div>
         </section>
@@ -197,14 +208,14 @@
         <section class="tab-body" id="tab-classes">
           <div class="sel-bar">
             <span class="sel-count"></span>
-            <button data-action="sel-hide" data-needs-sel data-i18n="sel.hide" data-i18n-title="sel.hideTitle"></button>
-            <button data-action="sel-show" data-needs-sel data-i18n="sel.show" data-i18n-title="sel.showTitle"></button>
-            <button data-action="sel-isolate" data-needs-sel data-i18n="sel.isolate" data-i18n-title="sel.isolateTitle"></button>
-            <button data-action="show-all" data-i18n="sel.showAll" data-i18n-title="tb.showAllTitle"></button>
-            <button data-action="sel-clear" data-needs-sel class="icon-only" data-i18n-title="sel.clear">✕</button>
+            <button class="btn xs" data-action="sel-hide" data-needs-sel data-i18n="sel.hide" data-i18n-title="sel.hideTitle"></button>
+            <button class="btn xs" data-action="sel-show" data-needs-sel data-i18n="sel.show" data-i18n-title="sel.showTitle"></button>
+            <button class="btn xs" data-action="sel-isolate" data-needs-sel data-i18n="sel.isolate" data-i18n-title="sel.isolateTitle"></button>
+            <button class="btn xs" data-action="show-all" data-i18n="sel.showAll" data-i18n-title="tb.showAllTitle"></button>
+            <button data-action="sel-clear" data-needs-sel class="btn xs icon-only" data-i18n-title="sel.clear">✕</button>
             <label class="sel-opacity" data-i18n-title="sel.opacityTitle"><span data-i18n="sel.opacity"></span>
               <input type="range" min="0.05" max="1" step="0.05" value="1" data-sel-opacity data-needs-sel /></label>
-            <button data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
+            <button class="btn xs" data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
           </div>
           <div id="classes"></div>
         </section>
@@ -228,33 +239,33 @@
             <p class="welcome-text" data-i18n="welcome.text"></p>
             <p class="muted small" data-i18n="welcome.local"></p>
           </div>
-          <div class="tool-hint" id="tool-hint" hidden></div>
-          <div class="drive-panel" id="drive-panel" hidden>
+          <div class="float tool-hint" id="tool-hint" hidden></div>
+          <div class="float drive-panel" id="drive-panel" hidden>
             <b data-i18n="drive.title"></b>
             <select id="drive-path" data-i18n-title="st.alignment"></select>
             <input id="drive-station" class="station-input" type="text" inputmode="decimal" data-i18n-title="drive.stationTitle" />
-            <button class="btn xs" id="drive-play" data-action="drive-play" data-i18n-title="drive.play">▶</button>
-            <button class="btn xs" data-action="drive-dir" id="drive-dir" data-i18n-title="drive.dir">→</button>
+            <button class="btn sm primary" id="drive-play" data-action="drive-play" data-i18n-title="drive.play">▶</button>
+            <button class="btn sm" data-action="drive-dir" id="drive-dir" data-i18n-title="drive.dir">→</button>
             <label><select id="drive-speed"><option value="5">5</option><option value="20">20</option><option value="40">40</option><option value="80" selected>80</option><option value="120">120</option><option value="200">200</option></select> km/h</label>
             <label><span data-i18n="drive.eye"></span> <input id="drive-eye" type="number" step="0.5" value="3.5" /> m</label>
-            <button class="btn xs" data-action="drive-close" data-i18n-title="common.close">✕</button>
+            <button class="icon-btn" data-action="drive-close" data-i18n-title="common.close">✕</button>
           </div>
-          <div class="planes-panel" id="planes-panel" hidden>
-            <div class="planes-head">
+          <div class="float planes-panel" id="planes-panel" hidden>
+            <div class="float-head">
               <b data-i18n="planes.title"></b>
-              <label class="chk"><input type="checkbox" id="plane-fill" checked /> <span data-i18n="planes.fill"></span></label>
-              <label class="chk"><input type="checkbox" id="plane-helpers" checked /> <span data-i18n="planes.helpers"></span></label>
+              <span class="spacer"></span>
               <button class="link" data-action="clear-planes" data-i18n="planes.clear"></button>
             </div>
-            <div class="planes-step">
-              <label data-i18n-title="planes.stepTitle"><span data-i18n="planes.step"></span>
+            <div class="planes-opts">
+              <label class="chk"><input type="checkbox" id="plane-fill" checked /> <span data-i18n="planes.fill"></span></label>
+              <label class="chk"><input type="checkbox" id="plane-helpers" checked /> <span data-i18n="planes.helpers"></span></label>
+              <label class="planes-step" data-i18n-title="planes.stepHint"><span data-i18n="planes.step"></span>
                 <input type="number" id="plane-step" min="0.001" step="any" value="1" /> m</label>
-              <span class="muted small" data-i18n="planes.stepHint"></span>
             </div>
             <div id="plane-list"></div>
           </div>
-          <div class="measure-panel" id="measure-panel" hidden>
-            <div class="measure-head">
+          <div class="float measure-panel" id="measure-panel" hidden>
+            <div class="float-head measure-head">
               <b data-i18n="measure.title"></b>
               <span class="spacer"></span>
               <button class="icon-btn" data-action="measure-close" data-i18n-title="common.close">✕</button>
@@ -285,8 +296,8 @@
             </div>
             <div id="measure-list"></div>
           </div>
-          <div class="cmp-panel" id="cmp-panel" hidden></div>
-          <div class="cmp-panel ids-panel" id="ids-panel" hidden></div>
+          <div class="float cmp-panel" id="cmp-panel" hidden></div>
+          <div class="float cmp-panel ids-panel" id="ids-panel" hidden></div>
           <div class="mode-hint" id="mode-hint" hidden></div>
           <div class="map-attribution" id="map-attribution" hidden></div>
           <div class="statusbar" id="statusbar"></div>
@@ -504,13 +515,14 @@
 
     <dialog id="about-dialog">
       <h2 data-i18n="about.title"></h2>
-      <div class="about-version" id="about-version"></div>
       <p data-i18n="about.purpose"></p>
+      <p data-i18n="about.private"></p>
       <p data-i18n="about.hobby"></p>
-      <p data-i18n-html="about.repo"></p>
+      <p class="about-sign"><span data-i18n="about.thanks"></span><b data-i18n="about.author"></b></p>
+      <div class="about-version" id="about-version"></div>
+      <p class="muted small" data-i18n-html="about.repo"></p>
       <p class="muted small" data-i18n="about.privacy"></p>
-      <p><b data-i18n="about.thanks"></b></p>
-      <form method="dialog"><button class="btn primary" data-i18n="common.close"></button></form>
+      <form method="dialog" class="dialog-btns"><button class="btn primary" data-i18n="common.close"></button></form>
     </dialog>
 
     <dialog id="help-dialog">
@@ -538,7 +550,7 @@
         <tr><td>Ctrl+Enter</td><td data-i18n="help.ctrlEnter"></td></tr>
       </table>
       <p class="muted" data-i18n="help.note"></p>
-      <form method="dialog"><button class="btn primary" data-i18n="common.close"></button></form>
+      <form method="dialog" class="dialog-btns"><button class="btn primary" data-i18n="common.close"></button></form>
     </dialog>
 
     <script type="module" src="/src/main.js"></script>

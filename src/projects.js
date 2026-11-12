@@ -125,11 +125,15 @@ export class ProjectManager extends EventTarget {
     if (!this.enabled || this.restoring) return;
     if (!force && !this.current) return;
     clearTimeout(this.timer);
-    this.timer = setTimeout(() => this.saveNow(), AUTOSAVE_MS);
+    // quiet for a moment → save; while the user keeps working, still save every 20 s
+    const now = Date.now();
+    this.pendingSince ||= now;
+    this.timer = setTimeout(() => this.saveNow(), Math.max(0, Math.min(AUTOSAVE_MS, this.pendingSince + 20000 - now)));
   }
 
   async saveNow() {
     clearTimeout(this.timer);
+    this.pendingSince = 0;
     this.timer = null;
     if (!this.enabled || this.restoring || !this.current) return;
     if (this.saving) { this.again = true; return; }
