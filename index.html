@@ -240,11 +240,11 @@
               <label class="chk"><input type="checkbox" data-spot-show="z" /> Z</label>
             </div>
             <div class="measure-hint muted small" id="measure-hint"></div>
-            <div id="measure-list"></div>
             <div class="measure-foot" id="measure-foot" hidden>
               <button class="link" data-action="measure-copy" data-i18n="measure.copy"></button>
               <button class="link" data-action="measure-clear" data-i18n="measure.clear"></button>
             </div>
+            <div id="measure-list"></div>
           </div>
           <div class="cmp-panel" id="cmp-panel" hidden></div>
           <div class="cmp-panel ids-panel" id="ids-panel" hidden></div>
@@ -371,7 +371,13 @@
       </div>
       <label class="chk"><input type="checkbox" id="drw-fill" checked /> <span data-i18n="drw.fill"></span></label>
       <label class="chk"><input type="checkbox" id="drw-bg" checked /> <span data-i18n="drw.background"></span></label>
-      <label class="chk"><input type="checkbox" id="drw-mono" /> <span data-i18n="drw.mono"></span></label>
+      <label class="field"><span data-i18n="drw.colors"></span>
+        <select id="drw-colors">
+          <option value="class" data-i18n="drw.colClass"></option>
+          <option value="shown" data-i18n="drw.colShown"></option>
+          <option value="original" data-i18n="drw.colOriginal"></option>
+          <option value="mono" data-i18n="drw.mono"></option>
+        </select></label>
       <p class="muted small" data-i18n="drw.note"></p>
       <div class="dialog-btns">
         <button class="btn" data-action="drawing-cancel" data-i18n="common.cancel"></button>

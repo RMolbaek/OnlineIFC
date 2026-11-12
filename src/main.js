@@ -8,6 +8,7 @@ import { MeasureTool } from './measure.js';
 import { WalkMode } from './walk.js';
 import { ViewsPanel } from './views.js';
 import { QtoTable } from './qto.js';
+import { mergeIfcBlobs } from './merge.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -578,6 +579,14 @@ function refreshVisibilityUi() {
 }
 
 // ======================================================================= models
+/** File name with line-break opportunities after _ - . (long names without spaces wrap nicely). */
+function breakableName(name) {
+  const out = [];
+  for (const part of name.split(/(?<=[_\-.])/)) out.push(part, document.createElement('wbr'));
+  out.pop();
+  return out;
+}
+
 function renderModels() {
   const list = $('#model-list');
   list.replaceChildren();
@@ -604,7 +613,7 @@ function renderModels() {
       : null;
 
     const card = h('div', { class: 'card' },
-      h('div', { class: 'card-head' }, vis, dot, h('span', { class: 'card-name', title: m.name, text: m.name })),
+      h('div', { class: 'card-head' }, vis, dot, h('span', { class: 'card-name', title: m.name }, breakableName(m.name))),
       h('div', { class: 'card-meta', text: `${m.schema} · ${t('models.elements', { n: fmtNum(m.elementIds.size) })} · ${fmtBytes(m.fileSize)}` }),
       changes,
       h('div', { class: 'card-row' }, h('label', { text: t('models.color') }), colorInput,
@@ -1374,7 +1383,7 @@ async function exportDrawing() {
   if (!entry) return;
   const format = $('#drw-format').value;
   const scaleVal = $('#drw-scale').value;
-  const opts = { paper: $('#drw-paper').value, scale: scaleVal === 'fit' ? 'fit' : +scaleVal, fill: $('#drw-fill').checked, mono: $('#drw-mono').checked };
+  const opts = { paper: $('#drw-paper').value, scale: scaleVal === 'fit' ? 'fit' : +scaleVal, fill: $('#drw-fill').checked, mono: $('#drw-colors').value === 'mono', colors: $('#drw-colors').value };
   $('#drawing-dialog').close();
   let section;
   try {
@@ -1703,20 +1712,34 @@ async function runMerge() {
   const replace = $('#merge-replace').checked;
   const dl = $('#merge-download').checked;
   $('#merge-dialog').close();
-  const keys = models.map((m) => String(m.uid));
-  const code = `_merged = merge_models([_files[k] for k in ${JSON.stringify(keys)}])
-print("${t('merge.done')}:", len(_merged.by_type("IfcProduct")), "IfcProduct")
-app.add_model(_merged, ${JSON.stringify(name)})
-${dl ? `app.download(_merged, ${JSON.stringify(name)})` : ''}
-del _merged`;
-  const ok = await python.runCode(code, { title: t('merge.running'), show: true });
-  if (ok && replace) {
+  // Streamed merge on the STEP text (merge.js): fast and needs little memory, also for large models
+  let res;
+  try {
+    const sources = [];
+    for (const m of models) sources.push({ name: m.name, blob: m.changes.length || !m.sourceBlob ? new Blob([await m.getBytes()]) : m.sourceBlob });
+    res = await withLoading((progress) => mergeIfcBlobs(sources, (f, file) => progress(t('merge.progress', { name: file || '' }), f)));
+  } catch (e) {
+    console.error(e);
+    toast(t('merge.failed', { error: e.message || e }));
+    return;
+  }
+  if (dl) download(name, res.blob, 'application/x-step');
+  // remove the source models first, so their memory is free before the merged model is loaded
+  if (replace) {
     for (const m of models) {
       state.selection.delete(m);
       if (state.active?.model === m) state.active = null;
       viewer.removeModel(m);
     }
     afterModelsChanged();
+  }
+  try {
+    await loadBytes(name, res.blob);
+    viewer.fitAll();
+    toast(t('merge.doneMsg', { n: models.length, entities: fmtNum(res.entities), combined: res.combined }), true);
+  } catch (e) {
+    console.error(e);
+    toast(t('msg.loadFailed', { name, error: e.message || e }));
   }
 }
 
@@ -1738,7 +1761,8 @@ const python = new PythonPanel({
         await loadBytes(a.name, a.bytes);
         viewer.fitAll();
       } else if (a.kind === 'download') {
-        download(a.name, a.text, /\.csv$/i.test(a.name) ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8');
+        if (a.bytes) download(a.name, a.bytes, 'application/x-step');
+        else download(a.name, a.text, /\.csv$/i.test(a.name) ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8');
       } else if (a.kind === 'select') {
         state.selection.clear();
         state.active = null;

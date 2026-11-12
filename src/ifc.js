@@ -52,8 +52,9 @@ export async function loadIfcFile(file, opts = {}) {
   const name = file.name;
   onProgress(t('load.reading', { name }), 0.05);
   // The source is kept as a File/Blob (read again only when needed), not as bytes in memory.
-  const sourceBlob = file.data instanceof Uint8Array ? new Blob([file.data]) : file;
-  let data = file.data instanceof Uint8Array ? file.data : new Uint8Array(await file.arrayBuffer());
+  const src = file.data ?? file; // {name, data: Uint8Array | Blob} or a File
+  const sourceBlob = src instanceof Uint8Array ? new Blob([src]) : src;
+  let data = src instanceof Uint8Array ? src : new Uint8Array(await src.arrayBuffer());
   const fileSize = data.byteLength;
   await nextFrame();
 
@@ -228,8 +229,13 @@ function concat(Type, chunks, total) {
   return out;
 }
 
+/**
+ * Gives the browser a moment to update the progress bar and handle input.
+ * Not tied to requestAnimationFrame: that waits for a rendered frame (slow while a large model
+ * is already in the scene) and is paused completely in a background tab.
+ */
 export function nextFrame() {
-  return new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  return new Promise((r) => setTimeout(r, 0));
 }
 
 // ---------------------------------------------------------------------------

@@ -49,7 +49,7 @@ The **Issues** tab creates issues from the current view. The camera, section pla
 
 ### 2D drawings
 **Section → Export section as drawing** (or **2D** next to a section plane) turns a section into a drawing:
-- **PDF/SVG:** true scale on A4–A0 (or fitted), cut outlines per IFC class with filled cut areas, title block, scale bar, and optionally the view behind the cut as a background.
+- **PDF/SVG:** true scale on A4–A0 (or fitted), cut outlines with filled cut areas coloured per IFC class, with the model colours as shown in the viewer (including colours you chose, e.g. from a filter), with the original IFC colours, or in black and white, title block, scale bar, and optionally the view behind the cut as a background.
 - **DXF (R12):** one layer per IFC class, coordinates in metres. Plan sections use the real IFC X/Y coordinates, so they line up with other drawings.
 
 ### Alignments and stationing (IFC4x3)
@@ -79,7 +79,9 @@ Turn on **Edit** (toolbar, properties panel or the `E` key):
 - Every model card shows the list of changes. **Download IFC** saves the edited file (`*_edited.ifc`).
 
 ### Merge models
-**Merge** combines two or more loaded models into a single IFC file with IfcOpenShell (the same approach as `ifcpatch` *MergeProjects*). The first model keeps its project, units and coordinate system, and the spatial structures of the others are attached to it. The result opens in the viewer and can be downloaded. The models must use the same IFC schema. A warning is shown if length units differ or if GlobalIds are duplicated.
+**Merge** combines two or more loaded models into a single IFC file (the same result as `ifcpatch` *MergeProjects*). The first model keeps its header, project, units and coordinate system; the projects of the others are replaced by it. Sites, buildings, storeys and other spatial elements with the same GlobalId in several models are combined into one, and their repeated relations are dropped. The merge works directly on the STEP text, streamed in chunks, so it is fast and needs little more memory than the files themselves (about 370 MB in 30 s in a test). The result opens in the viewer and can be downloaded. The models must use the same IFC schema. Tick *Replace the source models* for very large models: the sources are removed before the merged model is loaded, which saves memory.
+
+In Python scripts, `app.merge(files)` / `merge_models(files)` merges with IfcOpenShell. Files leave Python by being written straight to the in-memory file system (not as one big string), but IfcOpenShell needs roughly 7× the file size in memory and the browser limits Python to 4 GB, so use the *Merge* button for large models.
 
 ### Python with IfcOpenShell
 **Python** opens a code editor with a console. Scripts run with [Pyodide](https://pyodide.org) and [IfcOpenShell](https://ifcopenshell.org) 0.8.5 in a Web Worker in the browser. The first start downloads about 30 MB; after that the browser caches it.

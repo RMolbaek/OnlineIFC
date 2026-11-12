@@ -46,6 +46,8 @@ export class PythonEngine extends EventTarget {
         this.#emit('output', { stream: msg.type, text: msg.text });
         break;
       case 'done': {
+        // models the script released from Python's memory are sent again next time
+        for (const k of msg.released || []) this.sent.delete(String(k));
         const p = this.pending.get(msg.id);
         this.pending.delete(msg.id);
         this.#setState('ready');

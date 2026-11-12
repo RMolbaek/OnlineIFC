@@ -58,10 +58,9 @@ const en = {
   'err.boolean': '"{value}" is not a yes/no value (use true or false).', 'err.integer': '"{value}" is not an integer.',
   'err.number': '"{value}" is not a number.', 'err.notIfc': 'The file could not be opened as IFC.',
   // merge
-  'merge.title': 'Merge models', 'merge.text': 'Combine models into a single IFC file with IfcOpenShell. The first model keeps its project, units and coordinate system.',
+  'merge.title': 'Merge models',
   'merge.name': 'File name', 'merge.replace': 'Replace the source models in the view with the merged model',
   'merge.download': 'Download the merged file', 'merge.run': 'Merge',
-  'merge.note': 'The models must use the same IFC schema. Python + IfcOpenShell is loaded the first time (about 30 MB).',
   'merge.needTwo': 'Load at least two models to merge.', 'merge.running': 'Merging models', 'merge.done': 'Merged',
   // python
   'py.run': 'Run', 'py.runTitle': 'Run script (Ctrl+Enter)', 'py.stop': 'Stop', 'py.reset': 'Reset',
@@ -456,6 +455,15 @@ const en = {
   'welcome.types': 'IFC models · BCF issues (.bcf/.bcfzip) · IDS (.ids) · workspace (.onlineifc.json)',
   'drop.hint': 'Drop the files to open them',
   'msg.unknownFiles': 'These files cannot be opened here: {names}',
+  'merge.text': 'Combine models into a single IFC file. The first model keeps its project, units and coordinate system. Sites, buildings and storeys with the same GlobalId are combined.',
+  'merge.note': 'The models must use the same IFC schema. The merge runs directly on the files, so large models (several hundred MB) can be merged too. Tip: tick “Replace the source models” for very large models to save memory.',
+  'merge.progress': 'Merging {name} …',
+  'merge.failed': 'Merge failed: {error}',
+  'merge.doneMsg': 'Merged {n} models ({entities} entities, {combined} shared spatial elements combined).',
+  'drw.colors': 'Colours',
+  'drw.colClass': 'A colour per IFC class',
+  'drw.colShown': 'Model colours as shown (incl. chosen colours)',
+  'drw.colOriginal': 'Original colours from the IFC file',
 };
 
 const da = {
@@ -509,10 +517,9 @@ const da = {
   'err.propExists': 'Der findes allerede en egenskab med navnet "{name}".', 'err.lastProperty': 'Et egenskabssæt skal have mindst én egenskab.',
   'err.boolean': '"{value}" er ikke en ja/nej-værdi (brug sand eller falsk).', 'err.integer': '"{value}" er ikke et heltal.',
   'err.number': '"{value}" er ikke et tal.', 'err.notIfc': 'Filen kunne ikke åbnes som IFC.',
-  'merge.title': 'Flet modeller', 'merge.text': 'Saml modeller i én IFC-fil med IfcOpenShell. Den første model beholder sit projekt, sine enheder og sit koordinatsystem.',
+  'merge.title': 'Flet modeller',
   'merge.name': 'Filnavn', 'merge.replace': 'Erstat kildemodellerne i visningen med den flettede model',
   'merge.download': 'Download den flettede fil', 'merge.run': 'Flet',
-  'merge.note': 'Modellerne skal bruge samme IFC-skema. Python + IfcOpenShell indlæses første gang (ca. 30 MB).',
   'merge.needTwo': 'Indlæs mindst to modeller for at flette.', 'merge.running': 'Fletter modeller', 'merge.done': 'Flettet',
   'py.run': 'Kør', 'py.runTitle': 'Kør script (Ctrl+Enter)', 'py.stop': 'Stop', 'py.reset': 'Nulstil',
   'py.resetTitle': 'Glem Python-variabler og genindlæs modellerne ved næste kørsel', 'py.clear': 'Ryd', 'py.close': 'Luk',
@@ -904,6 +911,15 @@ const da = {
   'welcome.types': 'IFC-modeller · BCF-sager (.bcf/.bcfzip) · IDS (.ids) · arbejdsfil (.onlineifc.json)',
   'drop.hint': 'Slip filerne for at åbne dem',
   'msg.unknownFiles': 'Disse filer kan ikke åbnes her: {names}',
+  'merge.text': 'Saml modeller i én IFC-fil. Den første model beholder sit projekt, sine enheder og sit koordinatsystem. Grunde, bygninger og etager med samme GlobalId samles.',
+  'merge.note': 'Modellerne skal bruge samme IFC-skema. Fletningen sker direkte på filerne, så også store modeller (flere hundrede MB) kan flettes. Tip: sæt flueben i “Erstat kildemodellerne” ved meget store modeller for at spare hukommelse.',
+  'merge.progress': 'Fletter {name} …',
+  'merge.failed': 'Fletningen mislykkedes: {error}',
+  'merge.doneMsg': '{n} modeller flettet ({entities} entiteter, {combined} fælles rumlige elementer samlet).',
+  'drw.colors': 'Farver',
+  'drw.colClass': 'En farve pr. IFC-klasse',
+  'drw.colShown': 'Modelfarver som vist (inkl. valgte farver)',
+  'drw.colOriginal': 'Originale farver fra IFC-filen',
 };
 
 const de = {
@@ -957,10 +973,9 @@ const de = {
   'err.propExists': 'Eine Eigenschaft namens "{name}" existiert bereits.', 'err.lastProperty': 'Ein Eigenschaftssatz muss mindestens eine Eigenschaft behalten.',
   'err.boolean': '"{value}" ist kein Ja/Nein-Wert (wahr oder falsch verwenden).', 'err.integer': '"{value}" ist keine Ganzzahl.',
   'err.number': '"{value}" ist keine Zahl.', 'err.notIfc': 'Die Datei konnte nicht als IFC geöffnet werden.',
-  'merge.title': 'Modelle zusammenführen', 'merge.text': 'Modelle mit IfcOpenShell zu einer IFC-Datei zusammenführen. Das erste Modell behält Projekt, Einheiten und Koordinatensystem.',
+  'merge.title': 'Modelle zusammenführen',
   'merge.name': 'Dateiname', 'merge.replace': 'Quellmodelle in der Ansicht durch das zusammengeführte Modell ersetzen',
   'merge.download': 'Zusammengeführte Datei herunterladen', 'merge.run': 'Zusammenführen',
-  'merge.note': 'Die Modelle müssen dasselbe IFC-Schema verwenden. Python + IfcOpenShell wird beim ersten Mal geladen (ca. 30 MB).',
   'merge.needTwo': 'Laden Sie mindestens zwei Modelle zum Zusammenführen.', 'merge.running': 'Modelle werden zusammengeführt', 'merge.done': 'Zusammengeführt',
   'py.run': 'Ausführen', 'py.runTitle': 'Skript ausführen (Strg+Enter)', 'py.stop': 'Stopp', 'py.reset': 'Zurücksetzen',
   'py.resetTitle': 'Python-Variablen vergessen und Modelle beim nächsten Lauf neu laden', 'py.clear': 'Leeren', 'py.close': 'Schließen',
@@ -1352,6 +1367,15 @@ const de = {
   'welcome.types': 'IFC-Modelle · BCF-Themen (.bcf/.bcfzip) · IDS (.ids) · Arbeitsdatei (.onlineifc.json)',
   'drop.hint': 'Dateien ablegen, um sie zu öffnen',
   'msg.unknownFiles': 'Diese Dateien können hier nicht geöffnet werden: {names}',
+  'merge.text': 'Modelle zu einer IFC-Datei zusammenführen. Das erste Modell behält Projekt, Einheiten und Koordinatensystem. Grundstücke, Gebäude und Geschosse mit derselben GlobalId werden zusammengelegt.',
+  'merge.note': 'Die Modelle müssen dasselbe IFC-Schema verwenden. Das Zusammenführen erfolgt direkt auf den Dateien, daher sind auch große Modelle (mehrere hundert MB) möglich. Tipp: Bei sehr großen Modellen „Quellmodelle ersetzen“ wählen, um Speicher zu sparen.',
+  'merge.progress': 'Führe {name} zusammen …',
+  'merge.failed': 'Zusammenführen fehlgeschlagen: {error}',
+  'merge.doneMsg': '{n} Modelle zusammengeführt ({entities} Entitäten, {combined} gemeinsame räumliche Elemente zusammengelegt).',
+  'drw.colors': 'Farben',
+  'drw.colClass': 'Eine Farbe je IFC-Klasse',
+  'drw.colShown': 'Modellfarben wie angezeigt (inkl. gewählter Farben)',
+  'drw.colOriginal': 'Originalfarben aus der IFC-Datei',
 };
 
 const hi = {
@@ -1403,10 +1427,9 @@ const hi = {
   'err.propExists': '"{name}" नाम की प्रॉपर्टी पहले से मौजूद है।', 'err.lastProperty': 'प्रॉपर्टी सेट में कम से कम एक प्रॉपर्टी होनी चाहिए।',
   'err.boolean': '"{value}" हाँ/नहीं मान नहीं है (true या false लिखें)।', 'err.integer': '"{value}" पूर्णांक नहीं है।',
   'err.number': '"{value}" संख्या नहीं है।', 'err.notIfc': 'फ़ाइल को IFC के रूप में नहीं खोला जा सका।',
-  'merge.title': 'मॉडल मिलाएँ', 'merge.text': 'IfcOpenShell से मॉडलों को एक IFC फ़ाइल में जोड़ें। पहला मॉडल अपना प्रोजेक्ट, इकाइयाँ और निर्देशांक प्रणाली रखता है।',
+  'merge.title': 'मॉडल मिलाएँ',
   'merge.name': 'फ़ाइल का नाम', 'merge.replace': 'दृश्य में स्रोत मॉडलों को मिले हुए मॉडल से बदलें',
   'merge.download': 'मिली हुई फ़ाइल डाउनलोड करें', 'merge.run': 'मिलाएँ',
-  'merge.note': 'मॉडलों का IFC स्कीमा एक जैसा होना चाहिए। Python + IfcOpenShell पहली बार लोड होता है (लगभग 30 MB)।',
   'merge.needTwo': 'मिलाने के लिए कम से कम दो मॉडल लोड करें।', 'merge.running': 'मॉडल मिलाए जा रहे हैं', 'merge.done': 'मिलाया गया',
   'py.run': 'चलाएँ', 'py.runTitle': 'स्क्रिप्ट चलाएँ (Ctrl+Enter)', 'py.stop': 'रोकें', 'py.reset': 'रीसेट',
   'py.resetTitle': 'Python वेरिएबल भूलें और अगली बार मॉडल दोबारा लोड करें', 'py.clear': 'साफ़ करें', 'py.close': 'बंद करें',
@@ -1734,6 +1757,15 @@ const hi = {
   'welcome.types': 'IFC मॉडल · BCF इश्यू (.bcf/.bcfzip) · IDS (.ids) · वर्कस्पेस (.onlineifc.json)',
   'drop.hint': 'खोलने के लिए फ़ाइलें छोड़ें',
   'msg.unknownFiles': 'ये फ़ाइलें यहाँ नहीं खोली जा सकतीं: {names}',
+  'merge.text': 'मॉडलों को एक IFC फ़ाइल में मिलाएँ। पहला मॉडल अपना प्रोजेक्ट, इकाइयाँ और निर्देशांक प्रणाली रखता है। समान GlobalId वाली साइट, भवन और मंज़िलें एक हो जाती हैं।',
+  'merge.note': 'मॉडलों का IFC स्कीमा एक जैसा होना चाहिए। मर्ज सीधे फ़ाइलों पर होता है, इसलिए बड़े मॉडल (कई सौ MB) भी मिलाए जा सकते हैं। सुझाव: बहुत बड़े मॉडलों के लिए मेमोरी बचाने हेतु “स्रोत मॉडल बदलें” चुनें।',
+  'merge.progress': '{name} मिलाया जा रहा है …',
+  'merge.failed': 'मर्ज विफल: {error}',
+  'merge.doneMsg': '{n} मॉडल मिलाए गए ({entities} एंटिटी, {combined} साझा स्थानिक तत्व एक किए गए)।',
+  'drw.colors': 'रंग',
+  'drw.colClass': 'हर IFC क्लास के लिए एक रंग',
+  'drw.colShown': 'दिखाए गए मॉडल रंग (चुने गए रंग सहित)',
+  'drw.colOriginal': 'IFC फ़ाइल के मूल रंग',
 };
 
 const DICTS = { en, da, de, hi };
