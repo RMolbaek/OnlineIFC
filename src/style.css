@@ -536,3 +536,33 @@ dialog a { color: var(--accent); }
 .menu-item.active b { color: var(--accent); }
 .menu-empty { padding: 4px 10px; font-size: 12px; color: var(--muted); }
 #viewport.walking canvas { cursor: crosshair; }
+.btn.xs { height: 20px; padding: 0 6px; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); cursor: pointer; }
+.btn.xs.danger:hover { color: #d33; border-color: #d33; }
+.views-add { display: flex; gap: 6px; }
+.views-add input { flex: 1; min-width: 0; padding: 4px 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); font-size: 12px; }
+.views-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.view-card { display: flex; gap: 8px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); cursor: pointer; }
+.view-card:hover { border-color: var(--accent); }
+.view-card img, .view-noimg { width: 96px; height: 60px; object-fit: cover; border-radius: 4px; background: var(--panel); flex: none; }
+.view-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.view-meta b { font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view-btns { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; }
+.views-rename { width: 100%; font-size: 12px; padding: 2px 4px; border: 1px solid var(--accent); border-radius: 4px; background: var(--panel); color: var(--text); }
+.tabs { overflow-x: auto; scrollbar-width: none; }
+.tabs .tab { flex: 1 0 auto; padding-left: 5px; padding-right: 5px; font-size: 12.5px; white-space: nowrap; }
+.tabs .panel-collapse { position: sticky; right: 0; background: var(--panel); flex: none; }
+dialog.qto-dialog { max-width: min(1100px, 96vw); width: 1000px; }
+.qto-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.qto-controls select { width: 100%; }
+.qto-wrap { max-height: 55vh; overflow: auto; border: 1px solid var(--border); border-radius: 6px; }
+.qto-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.qto-table th, .qto-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap; }
+dialog .qto-table td:first-child { color: var(--text); }
+.qto-table th { position: sticky; top: 0; background: var(--panel-2); cursor: pointer; user-select: none; font-weight: 600; }
+.qto-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.qto-table tbody tr { cursor: pointer; }
+.qto-table tbody tr:hover { background: var(--accent-soft); }
+.qto-table tfoot td { position: sticky; bottom: 0; background: var(--panel-2); font-weight: 600; border-top: 2px solid var(--border); }
+.panel.left { width: 340px; }
+.tabs .tab { font-size: 12px; padding-left: 4px; padding-right: 4px; }
+.qto-controls select.sm { height: 28px; padding: 0 6px; }

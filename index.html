@@ -136,6 +136,7 @@
           <button class="tab" data-tab="classes" data-i18n="tabs.classes"></button>
           <button class="tab" data-tab="filters" data-i18n="tabs.filters"></button>
           <button class="tab" data-tab="issues" data-i18n="tabs.issues"></button>
+          <button class="tab" data-tab="views" data-i18n="tabs.views"></button>
         </nav>
         <section class="tab-body active" id="tab-models">
           <div class="empty-hint" id="models-empty" data-i18n-html="models.empty"></div>
@@ -143,6 +144,7 @@
           <div class="panel-actions" id="model-actions" hidden>
             <button data-action="color-by-model" data-i18n="models.colorByModel"></button>
             <button data-action="reset-colors" data-i18n="models.resetColors"></button>
+            <button data-action="qto" data-i18n="qto.button" data-i18n-title="qto.buttonTitle"></button>
           </div>
         </section>
         <section class="tab-body" id="tab-tree">
@@ -159,6 +161,9 @@
             <button data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
           </div>
           <div id="tree"></div>
+        </section>
+        <section class="tab-body" id="tab-views">
+          <div id="views"></div>
         </section>
         <section class="tab-body" id="tab-issues">
           <div id="issues"></div>
@@ -392,6 +397,8 @@
       </div>
     </dialog>
 
+    <dialog id="qto-dialog" class="wide qto-dialog"></dialog>
+
     <dialog id="about-dialog">
       <h2 data-i18n="about.title"></h2>
       <p data-i18n="about.purpose"></p>
@@ -422,6 +429,7 @@
         <tr><td>X</td><td data-i18n="help.x"></td></tr>
         <tr><td>Page Up / Page Down</td><td data-i18n="help.pgUpDown"></td></tr>
         <tr><td>W</td><td data-i18n="help.w"></td></tr>
+        <tr><td>Q</td><td data-i18n="help.q"></td></tr>
         <tr><td>Ctrl+Enter</td><td data-i18n="help.ctrlEnter"></td></tr>
       </table>
       <p class="muted" data-i18n="help.note"></p>

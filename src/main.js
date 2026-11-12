@@ -6,6 +6,8 @@ import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js'
 import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
 import { WalkMode } from './walk.js';
+import { ViewsPanel } from './views.js';
+import { QtoTable } from './qto.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -366,6 +368,7 @@ document.addEventListener('click', (e) => {
     'toggle-spaces': () => toggleSpaces(),
     'toggle-ortho': () => { if (walk.active) walk.stop(); setOrtho(!viewer.isOrtho); },
     walk: () => walk.toggle(),
+    qto: () => qto.open(),
     'toggle-xray': () => setXray(!state.xray),
     'storey-cut': () => { state.storeyCut = !state.storeyCut; renderStoreyItems(); if (state.storey) showStorey(state.storey); },
     'toggle-alignments': () => {
@@ -500,9 +503,10 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'i' || e.key === 'I') isolateSelected();
   else if (e.key === 'e' || e.key === 'E') setEditMode(!state.editMode);
   else if (e.key === 'm' || e.key === 'M') setMeasureMode(measure.mode ? null : lastMeasureMode);
-  else if (e.key === 'o' || e.key === 'O') { if (!walk.active) setOrtho(!viewer.isOrtho); }
-  else if (e.key === 'w' || e.key === 'W') walk.toggle();
-  else if (e.key === 'x' || e.key === 'X') setXray(!state.xray);
+  else if ((e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey) { if (!walk.active) setOrtho(!viewer.isOrtho); }
+  else if ((e.key === 'w' || e.key === 'W') && !e.ctrlKey && !e.metaKey) walk.toggle();
+  else if ((e.key === 'x' || e.key === 'X') && !e.ctrlKey && !e.metaKey) setXray(!state.xray);
+  else if ((e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey) qto.open();
   else if (e.key === 'PageUp' || e.key === 'PageDown') { e.preventDefault(); stepStorey(e.key === 'PageUp' ? 1 : -1); }
   else if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); $('#file-input').click(); }
 });
@@ -514,12 +518,14 @@ for (const tab of $$('.tab')) {
     for (const b of $$('.tab-body')) b.classList.toggle('active', b.id === `tab-${tab.dataset.tab}`);
     if (tab.dataset.tab === 'filters') filters.render();
     if (tab.dataset.tab === 'issues') issues.render();
+    if (tab.dataset.tab === 'views') views.render();
   });
 }
 
 function renderAll() {
   filters.render();
   issues.render();
+  views.render();
   renderModels();
   renderTree();
   renderClasses();
@@ -1187,6 +1193,12 @@ const filters = new FilterPanel({
   refreshVisibility: () => refreshVisibilityUi(),
 });
 
+const qto = new QtoTable({
+  viewer, h, toast, download, state,
+  ensureIndex: () => filters.ensureIndex(),
+  setSelection: (map) => filters.ctx.setSelection(new Map([...map].map(([m, ids]) => [m, ids]))),
+}, $('#qto-dialog'));
+
 // ======================================================================= issues
 const issues = new IssuesPanel({
   viewer, h, toast, download, state,
@@ -1200,6 +1212,15 @@ const issues = new IssuesPanel({
   },
   setSpacesVisible: (v) => { state.spacesVisible = v; updateSpacesUi(); },
   afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); },
+});
+
+const views = new ViewsPanel({
+  viewer, h, toast, download, state, issues,
+  root: $('#views'),
+  setSelection: (map) => issues.ctx.setSelection(map),
+  setSpacesVisible: (v) => issues.ctx.setSpacesVisible(v),
+  afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); renderModels(); },
+  setXray: (on) => setXray(on),
 });
 
 // ================================================== ortho, X-ray and storeys
@@ -1740,4 +1761,4 @@ window.addEventListener('beforeunload', (e) => {
 renderAll();
 
 // For debugging in the console
-window.onlineIfc = { viewer, state, openFiles, python, measure };
+window.onlineIfc = { viewer, state, openFiles, python, measure, views, walk };
