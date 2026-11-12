@@ -18,6 +18,29 @@ The interface is in **English**, **Danish**, **German** and **Hindi** (language 
 - **Calculated quantities:** for every element the volume, surface area, plan area (top faces), length, width and height are calculated from the 3D geometry, next to the quantities stored in the IFC file. With several elements selected, the totals are shown. The values are also included in the CSV export.
 - **Structure and classes:** a tree from project to element and a list of IFC classes, searchable by name, class, GUID or tag. Select several rows with Ctrl+click (toggle) and Shift+click (range), then hide, show or isolate them all at once with the bar above the list, or with the eye on any selected row. The same bar has a **transparency** slider for the selected elements (*Solid* makes them solid again).
 - Hide, isolate, show all, show/hide spaces, CSV export of all properties, screenshots.
+- **Large models:** geometry is streamed in batches with progress, shared geometry is read once, and picking/snapping uses a BVH (three-mesh-bvh), so clicking and measuring stay fast on models with tens of thousands of elements.
+
+### Filters (colour and find by properties)
+The **Filters** tab indexes the attributes, storey, type, material, property sets, quantities and calculated quantities of all elements.
+- **Colour by property:** choose any property and get a legend with a colour per value (numeric values are grouped in ranges). Click a value to select its elements, hide/show values, change colours, and optionally make elements without a value transparent.
+- **Find elements:** rules such as *Class = IfcWall* and *Pset_WallCommon.FireRating has no value* (=, ≠, contains, >, <, has / has no value; all or any rule) to select, isolate, hide or colour the matching elements.
+
+### Compare versions
+**Compare** matches the elements of two loaded versions by GlobalId and shows what was **added** (green), **removed** (red) and **changed** (orange: attributes, property values, volume/area or position), with unchanged elements in transparent grey. The panel lists every change; click an element to zoom to it. The report can be exported as CSV.
+
+### IDS check
+**IDS** checks models against an `.ids` file (buildingSMART Information Delivery Specification) with IfcOpenShell's **ifctester**, running in the browser. Results are listed per specification with the requirements and the failing elements and their reasons. Failing elements can be selected, results coloured pass/fail, and everything exported as CSV. ifctester is installed the first time (a few seconds).
+
+### Issues (BCF)
+The **Issues** tab creates issues from the current view. The camera, section planes, visibility, selection and colours are saved as a BCF viewpoint with a snapshot. Issues have type, status, priority, assignee and comments (optionally with their own view), and clicking an issue restores its view. **Export** writes a `.bcfzip` in BCF 2.1 (default, the most widely supported) or 3.0, validated against the buildingSMART schemas. **Import** reads BCF 2.0, 2.1 and 3.0 files from other tools (BIMcollab, Solibri, Revit, Trimble Connect …).
+
+### 2D drawings
+**Section → Export section as drawing** (or **2D** next to a section plane) turns a section into a drawing:
+- **PDF/SVG:** true scale on A4–A0 (or fitted), cut outlines per IFC class with filled cut areas, title block, scale bar, and optionally the view behind the cut as a background.
+- **DXF (R12):** one layer per IFC class, coordinates in metres. Plan sections use the real IFC X/Y coordinates, so they line up with other drawings.
+
+### Alignments and stationing (IFC4x3)
+Models with `IfcAlignment` show the alignment in 3D with station marks (**View → Show alignments**). The vertical profile is computed from the alignment's vertical segments and the start station from `IfcReferent` / `Pset_Stationing`. Spot measurements show **station**, **lateral offset** (left positive, as in IFC) and the **height above the vertical profile**, and distances show the station range. Stations are written as `km+m` (`1+234.567`) or in metres.
 
 ### Measure
 **Measure** (toolbar or `M`) opens the measuring panel with three tools:
@@ -89,13 +112,19 @@ npm run build    # static build in dist/
 npm run preview  # preview the build
 ```
 
-Built with [three.js](https://threejs.org), [web-ifc](https://github.com/ThatOpen/engine_web-ifc) (viewing and metadata editing), [Pyodide](https://pyodide.org) + [IfcOpenShell](https://ifcopenshell.org) (Python and merging) and [CodeMirror](https://codemirror.net). It is a static site with no backend.
+Built with [three.js](https://threejs.org), [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh), [web-ifc](https://github.com/ThatOpen/engine_web-ifc) (viewing and metadata editing), [Pyodide](https://pyodide.org) + [IfcOpenShell](https://ifcopenshell.org) (Python, merging and IDS), [proj4js](https://proj4js.org), [fflate](https://github.com/101arrowz/fflate) and [CodeMirror](https://codemirror.net). It is a static site with no backend.
 
 | File | Purpose |
 | --- | --- |
 | `src/main.js` | user interface |
 | `src/viewer.js` | three.js scene, picking, sections |
 | `src/measure.js` | measuring tools and snapping |
+| `src/filters.js` | colour by property and rule-based filters |
+| `src/compare.js` | comparison of two model versions |
+| `src/ids.js` | IDS checking (ifctester in the Python worker) |
+| `src/bcf.js`, `src/issues.js` | BCF read/write and the Issues tab |
+| `src/drawing.js` | 2D drawings from section planes (PDF, SVG, DXF) |
+| `src/alignment.js` | IFC4x3 alignments and stationing |
 | `src/map.js` | map underlay, georeferencing and coordinate conversion (proj4) |
 | `src/ifc.js`, `src/model.js` | loading IFC, metadata and metadata editing (web-ifc) |
 | `src/python.js`, `src/python-worker.js` | Pyodide/IfcOpenShell worker and merge logic |
@@ -105,7 +134,7 @@ Built with [three.js](https://threejs.org), [web-ifc](https://github.com/ThatOpe
 
 ### Python runtime sources
 
-By default Pyodide is loaded from jsDelivr and the IfcOpenShell wheel from `ifcopenshell.github.io/wasm-wheels`. The pure-Python dependencies (`lark`, `isodate`) come from PyPI. To self-host (offline or on an intranet), copy the files and change `src/config.js`, or set an override in the browser:
+By default Pyodide is loaded from jsDelivr and the IfcOpenShell wheel from `ifcopenshell.github.io/wasm-wheels`. The pure-Python dependencies (`lark`, `isodate`, and for IDS `ifctester`, `xmlschema`, `elementpath`) come from PyPI. To self-host (offline or on an intranet), copy the files and change `src/config.js`, or set an override in the browser:
 
 ```js
 localStorage.setItem('onlineifc.python', JSON.stringify({

@@ -54,6 +54,7 @@
           <button class="menu-item" data-plane="z"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M7 9h10v10H7"/></svg></span><span class="mi-text"><b data-i18n="mi.secY"></b><small data-i18n="mi.secYDesc"></small></span></button>
           <button class="menu-item" data-action="plane-face"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 18 10 6h10l-6 12zM12 12l-4 8"/></svg></span><span class="mi-text"><b data-i18n="mi.face"></b><small data-i18n="mi.faceDesc"></small></span></button>
           <button class="menu-item" data-action="section-box"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8"/></svg></span><span class="mi-text"><b data-i18n="mi.box"></b><small data-i18n="mi.boxDesc"></small></span></button>
+          <button class="menu-item" data-action="drawing"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 15h16M9 15v5"/></svg></span><span class="mi-text"><b data-i18n="mi.drawing"></b><small data-i18n="mi.drawingDesc"></small></span></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="clear-planes"><span class="mi-icon">✕</span><span class="mi-text"><b data-i18n="mi.clearSections"></b></span></button>
         </div>
@@ -69,6 +70,7 @@
           <button class="menu-item" data-action="show-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="mi-text"><b data-i18n="mi.showAll"></b><small data-i18n="mi.showAllDesc"></small></span><kbd>⇧H</kbd></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-spaces"><span class="mi-icon mi-check" id="spaces-check">☐</span><span class="mi-text"><b data-i18n="mi.spaces"></b><small data-i18n="mi.spacesDesc"></small></span></button>
+          <button class="menu-item" data-action="toggle-alignments"><span class="mi-icon mi-check" id="alignments-check">☑</span><span class="mi-text"><b data-i18n="mi.alignments"></b><small data-i18n="mi.alignmentsDesc"></small></span></button>
         </div>
       </div>
 
@@ -86,6 +88,12 @@
         </button>
         <button data-action="toggle-python" data-i18n-title="tb.pythonTitle">
           <svg viewBox="0 0 24 24"><path d="M8 7 3 12l5 5M16 7l5 5-5 5M14 4l-4 16"/></svg><span>Python</span>
+        </button>
+        <button data-action="ids" data-i18n-title="tb.idsTitle">
+          <svg viewBox="0 0 24 24"><path d="M9 11l3 3 8-8M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg><span>IDS</span>
+        </button>
+        <button data-action="compare" data-i18n-title="tb.compareTitle">
+          <svg viewBox="0 0 24 24"><path d="M8 3v18M16 3v18M3 8h5M16 16h5M3 16h5M16 8h5"/></svg><span data-i18n="tb.compare"></span>
         </button>
         <button data-action="map" data-i18n-title="tb.mapTitle">
           <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg><span data-i18n="tb.map"></span>
@@ -119,6 +127,8 @@
           <button class="tab active" data-tab="models" data-i18n="tabs.models"></button>
           <button class="tab" data-tab="tree" data-i18n="tabs.tree"></button>
           <button class="tab" data-tab="classes" data-i18n="tabs.classes"></button>
+          <button class="tab" data-tab="filters" data-i18n="tabs.filters"></button>
+          <button class="tab" data-tab="issues" data-i18n="tabs.issues"></button>
         </nav>
         <section class="tab-body active" id="tab-models">
           <div class="empty-hint" id="models-empty" data-i18n-html="models.empty"></div>
@@ -142,6 +152,12 @@
             <button data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
           </div>
           <div id="tree"></div>
+        </section>
+        <section class="tab-body" id="tab-issues">
+          <div id="issues"></div>
+        </section>
+        <section class="tab-body" id="tab-filters">
+          <div id="filters"></div>
         </section>
         <section class="tab-body" id="tab-classes">
           <div class="sel-bar">
@@ -194,6 +210,7 @@
             <div class="measure-opts">
               <label class="chk"><input type="checkbox" id="measure-snap" checked /> <span data-i18n="measure.snapLabel"></span></label>
               <select id="measure-unit" class="sm"><option value="m">m</option><option value="mm">mm</option></select>
+              <select id="station-format" class="sm" data-i18n-title="aln.formatTitle"><option value="km">0+000.000</option><option value="m">0.000 m</option></select>
             </div>
             <div class="measure-opts lock-opts">
               <label class="chk" data-i18n-title="measure.lockXYTitle"><input type="checkbox" id="measure-lock-xy" /> <span data-i18n="measure.lockXY"></span></label>
@@ -211,6 +228,8 @@
               <button class="link" data-action="measure-clear" data-i18n="measure.clear"></button>
             </div>
           </div>
+          <div class="cmp-panel" id="cmp-panel" hidden></div>
+          <div class="cmp-panel ids-panel" id="ids-panel" hidden></div>
           <div class="mode-hint" id="mode-hint" hidden></div>
           <div class="map-attribution" id="map-attribution" hidden></div>
           <div class="statusbar" id="statusbar"></div>
@@ -317,6 +336,52 @@
         <button class="btn" data-action="map-remove" data-i18n="map.remove"></button>
         <button class="btn" data-action="map-close" data-i18n="common.close"></button>
         <button class="btn primary" data-action="map-show" data-i18n="map.show"></button>
+      </div>
+    </dialog>
+
+    <dialog id="drawing-dialog">
+      <h2 data-i18n="drw.title"></h2>
+      <p class="muted small" data-i18n="drw.intro"></p>
+      <label class="field"><span data-i18n="drw.plane"></span><select id="drw-plane"></select></label>
+      <label class="field"><span data-i18n="drw.name"></span><input id="drw-name" type="text" /></label>
+      <div class="grid3">
+        <label class="field"><span data-i18n="drw.format"></span>
+          <select id="drw-format"><option value="pdf">PDF</option><option value="svg">SVG</option><option value="dxf">DXF</option></select></label>
+        <label class="field"><span data-i18n="drw.paper"></span>
+          <select id="drw-paper"><option value="A4">A4</option><option value="A3" selected>A3</option><option value="A2">A2</option><option value="A1">A1</option><option value="A0">A0</option><option value="auto" data-i18n="drw.paperAuto"></option></select></label>
+        <label class="field"><span data-i18n="drw.scale"></span><select id="drw-scale"></select></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="drw-fill" checked /> <span data-i18n="drw.fill"></span></label>
+      <label class="chk"><input type="checkbox" id="drw-bg" checked /> <span data-i18n="drw.background"></span></label>
+      <label class="chk"><input type="checkbox" id="drw-mono" /> <span data-i18n="drw.mono"></span></label>
+      <p class="muted small" data-i18n="drw.note"></p>
+      <div class="dialog-btns">
+        <button class="btn" data-action="drawing-cancel" data-i18n="common.cancel"></button>
+        <button class="btn primary" data-action="drawing-run" data-i18n="drw.export"></button>
+      </div>
+    </dialog>
+
+    <dialog id="ids-dialog">
+      <h2 data-i18n="ids.title"></h2>
+      <p class="muted small" data-i18n="ids.intro"></p>
+      <label class="field"><span data-i18n="ids.file"></span><input id="ids-file" type="file" accept=".ids,.xml" /></label>
+      <div class="field"><span data-i18n="ids.models"></span><div id="ids-models" class="merge-models"></div></div>
+      <p class="muted small" data-i18n="ids.note"></p>
+      <div class="dialog-btns">
+        <button class="btn" data-action="ids-cancel" data-i18n="common.cancel"></button>
+        <button class="btn primary" data-action="ids-run" data-i18n="ids.run"></button>
+      </div>
+    </dialog>
+
+    <dialog id="compare-dialog">
+      <h2 data-i18n="cmp.title"></h2>
+      <p class="muted small" data-i18n="cmp.intro"></p>
+      <label class="field"><span data-i18n="cmp.oldModel"></span><select id="cmp-old"></select></label>
+      <label class="field"><span data-i18n="cmp.newModel"></span><select id="cmp-new"></select></label>
+      <label class="chk"><input type="checkbox" id="cmp-unchanged" checked /> <span data-i18n="cmp.showUnchanged"></span></label>
+      <div class="dialog-btns">
+        <button class="btn" data-action="compare-cancel" data-i18n="common.cancel"></button>
+        <button class="btn primary" data-action="compare-run" data-i18n="cmp.run"></button>
       </div>
     </dialog>
 

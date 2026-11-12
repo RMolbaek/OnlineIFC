@@ -2,6 +2,7 @@
 // (coordinates and elevation). Points snap to vertices, edge midpoints and edges.
 import * as THREE from 'three';
 import { t, fmtNum } from './i18n.js';
+import { formatStation } from './alignment.js';
 
 const SNAP_VERTEX_PX = 12;
 const SNAP_MID_PX = 10;
@@ -407,6 +408,9 @@ export class MeasureTool extends EventTarget {
     if (model) {
       info.element = `${model.typeName(hit.id)} – ${model.label(hit.id)}`;
     }
+    if (this.alignments?.alignments.length) {
+      info.align = this.alignments.locate({ x: ifc.x, y: ifc.y, z: ifc.z });
+    }
     return info;
   }
 
@@ -461,6 +465,12 @@ export class MeasureTool extends EventTarget {
           lines.push([t('measure.aboveStorey', { name: info.storey.name }), this.fmtLen(info.ifc.z - info.storey.elevation, true)]);
         }
         if (info.element) lines.push([t('measure.element'), info.element]);
+        if (info.align) {
+          const a = info.align;
+          lines.push([t('aln.alignment'), a.alignment.name], [t('aln.station'), formatStation(a.station, this.alignments.format)],
+            [t('aln.offset'), this.fmtLen(a.offset, true)]);
+          if (a.dz !== null) lines.push([t('aln.aboveProfile'), this.fmtLen(a.dz, true)]);
+        }
         return { m, n, title: `${t('measure.spot')} ${n}`, value: this.#spotLabel(info).replace(/\n/g, ' · '), lines };
       }
       const len = this.length(m);
@@ -471,6 +481,15 @@ export class MeasureTool extends EventTarget {
           lines.push([t('measure.horizontal'), this.fmtLen(c.horizontal)], [t('measure.dz'), this.fmtLen(c.dz, true)],
             ['ΔX / ΔY', `${this.fmtLen(c.dx, true)} / ${this.fmtLen(c.dy, true)}`]);
           if (c.slope !== null && Math.abs(c.dz) > 1e-4) lines.push([t('measure.slope'), `${c.slope.toFixed(2)} %`]);
+          if (this.alignments?.alignments.length) {
+            const pa = this.viewer.toIfc(m.points[0]), pb = this.viewer.toIfc(m.points[m.points.length - 1]);
+            const A = this.alignments.locate(pa), B = this.alignments.locate(pb);
+            if (A && B && A.alignment === B.alignment) {
+              const f = this.alignments.format;
+              lines.push([t('aln.stationFromTo'), `${formatStation(A.station, f)} → ${formatStation(B.station, f)}`],
+                [t('aln.dStation'), this.fmtLen(B.station - A.station, true)]);
+            }
+          }
         } else {
           lines.push([t('measure.segments'), fmtNum(m.points.length - 1)]);
         }

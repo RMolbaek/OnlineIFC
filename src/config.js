@@ -12,6 +12,8 @@ const DEFAULTS = {
   packages: ['micropip', 'numpy', 'shapely', 'python-dateutil', 'typing-extensions', 'sqlite3'],
   // Wheels installed with micropip (URLs or package names on PyPI)
   wheels: ['https://ifcopenshell.github.io/wasm-wheels/ifcopenshell-0.8.5-cp313-cp313-pyodide_2025_0_wasm32.whl'],
+  // Installed (without dependencies) the first time an IDS check runs. Must match the IfcOpenShell version.
+  idsWheels: ['ifctester==0.8.5', 'xmlschema', 'elementpath'],
 };
 
 export function getPythonConfig() {

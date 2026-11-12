@@ -6,6 +6,12 @@ import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js'
 import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
+import { FilterPanel, keyLabel } from './filters.js';
+import { IssuesPanel } from './issues.js';
+import { readAlignments, AlignmentLayer } from './alignment.js';
+import { computeSection, layout, toSvg, toPdf, toDxf, renderBackground, SCALES } from './drawing.js';
+import { runIdsCheck, colorIdsResult, idsCsv, specSummary } from './ids.js';
+import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS } from './compare.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -30,6 +36,8 @@ const PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#59a14f', '#b07aa1', '#edc948
 const viewer = new Viewer($('#viewport'));
 const measure = new MeasureTool(viewer, $('#viewport'));
 const mapLayer = new MapLayer(viewer);
+const alignmentLayer = new AlignmentLayer(viewer, $('#viewport'));
+measure.alignments = alignmentLayer;
 const state = {
   selection: new Map(), // model -> Set(expressID)
   active: null, // {model, id}
@@ -98,6 +106,9 @@ async function openFiles(files) {
       try {
         const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length) });
         viewer.addModel(model);
+        try { model.alignments = await readAlignments(model); } catch (e) { console.warn('alignments', e); model.alignments = []; }
+        // Build the picking index (BVH) in the background so the first click is instant
+        setTimeout(() => { try { model.pickTargets(); } catch { /* built on first pick instead */ } }, 300);
         if (state.spacesVisible) model.show(model.spaceIds);
       } catch (err) {
         console.error(err);
@@ -131,7 +142,16 @@ async function loadBytes(name, data, { replace = null } = {}) {
   return model;
 }
 
+function updateAlignments() {
+  const all = viewer.models.filter((m) => m.visible).flatMap((m) => m.alignments || []);
+  alignmentLayer.set(all);
+  $('#alignments-check').textContent = alignmentLayer.visible ? '☑' : '☐';
+}
+
 function afterModelsChanged() {
+  updateAlignments();
+  if (idsResults && idsResults.some((e) => !viewer.models.includes(e.model))) { idsResults = null; renderIds(); }
+  if (comparison && (!viewer.models.includes(comparison.oldM) || !viewer.models.includes(comparison.newM))) { comparison = null; renderComparison(); }
   $('#welcome').hidden = viewer.models.length > 0;
   if (!viewer.models.length && mapLayer.visible) { mapLayer.remove(); updateMapUi(); }
   renderAll();
@@ -305,6 +325,15 @@ document.addEventListener('click', (e) => {
     'toggle-left': () => setPanelHidden('left', !document.body.classList.contains('hide-left')),
     'toggle-right': () => setPanelHidden('right', !document.body.classList.contains('hide-right')),
     map: () => openMapDialog(),
+    compare: () => openCompareDialog(),
+    ids: () => openIdsDialog(),
+    drawing: () => openDrawingDialog(),
+    'drawing-cancel': () => $('#drawing-dialog').close(),
+    'drawing-run': () => exportDrawing(),
+    'ids-cancel': () => $('#ids-dialog').close(),
+    'ids-run': () => runIds(),
+    'compare-cancel': () => $('#compare-dialog').close(),
+    'compare-run': () => runCompare(),
     'map-close': () => $('#map-dialog').close(),
     'map-show': () => showMap(),
     'map-remove': () => { mapLayer.remove(); updateMapUi(); $('#map-dialog').close(); },
@@ -323,6 +352,11 @@ document.addEventListener('click', (e) => {
     isolate: () => isolateSelected(),
     'show-all': () => showAll(),
     'toggle-spaces': () => toggleSpaces(),
+    'toggle-alignments': () => {
+      if (!viewer.models.some((m) => m.alignments?.length)) return toast(t('aln.none'));
+      alignmentLayer.setVisible(!alignmentLayer.visible);
+      $('#alignments-check').textContent = alignmentLayer.visible ? '☑' : '☐';
+    },
     'toggle-edit': () => setEditMode(!state.editMode),
     merge: () => openMergeDialog(),
     'merge-cancel': () => $('#merge-dialog').close(),
@@ -457,10 +491,14 @@ for (const tab of $$('.tab')) {
   tab.addEventListener('click', () => {
     for (const x of $$('.tab')) x.classList.toggle('active', x === tab);
     for (const b of $$('.tab-body')) b.classList.toggle('active', b.id === `tab-${tab.dataset.tab}`);
+    if (tab.dataset.tab === 'filters') filters.render();
+    if (tab.dataset.tab === 'issues') issues.render();
   });
 }
 
 function renderAll() {
+  filters.render();
+  issues.render();
   renderModels();
   renderTree();
   renderClasses();
@@ -636,7 +674,21 @@ function treeNode(model, node, { open = false, label = null, cls = null, rootMod
 function renderChildren(model, node, children, ul, isGroup) {
   const parentSpatial = !isGroup && node.expressID !== -1 && isSpatialType(model.typeName(node.expressID));
   if (!parentSpatial) {
-    for (const c of children) ul.append(treeNode(model, c, { open: node.expressID === -1 }));
+    // Long lists (e.g. thousands of walls) are rendered 500 rows at a time
+    const CHUNK = 500;
+    let shown = 0;
+    const more = () => {
+      const end = Math.min(children.length, shown + CHUNK);
+      const frag = document.createDocumentFragment();
+      for (; shown < end; shown++) frag.append(treeNode(model, children[shown], { open: node.expressID === -1 }));
+      ul.append(frag);
+      if (shown < children.length) {
+        const btn = h('li', {}, h('button', { class: 'link tree-more', text: t('tree.showMore', { n: fmtNum(Math.min(CHUNK, children.length - shown)), rest: fmtNum(children.length - shown) }) }));
+        btn.firstChild.addEventListener('click', (e) => { e.stopPropagation(); btn.remove(); more(); applyTreeSelection(); refreshTreeEyes(); });
+        ul.append(btn);
+      }
+    };
+    more();
     return;
   }
   // Under spatial nodes: spatial children first, then elements grouped by class
@@ -1049,6 +1101,7 @@ function renderPlanes() {
       h('span', { class: 'pl-name', text: name }),
       slider,
       h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
+      p.boxPart ? null : h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
       h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
       val,
     ));
@@ -1093,9 +1146,291 @@ measure.addEventListener('change', renderMeasure);
 for (const b of $$('#measure-modes [data-measure]')) b.addEventListener('click', () => setMeasureMode(measure.mode === b.dataset.measure ? null : b.dataset.measure));
 $('#measure-snap').addEventListener('change', (e) => { measure.snapOn = e.target.checked; });
 $('#measure-unit').addEventListener('change', (e) => { measure.unit = e.target.value; measure.refresh(); });
+$('#station-format').addEventListener('change', (e) => { alignmentLayer.format = e.target.value; alignmentLayer.rebuild(); measure.refresh(); });
 for (const cb of $$('[data-spot-show]')) {
   cb.checked = !!measure.spotShow[cb.dataset.spotShow];
   cb.addEventListener('change', () => measure.setSpotShow(cb.dataset.spotShow, cb.checked));
+}
+
+// ====================================================================== filters
+const filters = new FilterPanel({
+  viewer, h, toast, withLoading,
+  root: $('#filters'),
+  setSelection: (map) => {
+    state.selection.clear();
+    state.treeKeys.clear();
+    for (const [m, ids] of map) if (ids.length) state.selection.set(m, new Set(ids));
+    state.active = null;
+    applySelection();
+  },
+  refreshVisibility: () => refreshVisibilityUi(),
+});
+
+// ======================================================================= issues
+const issues = new IssuesPanel({
+  viewer, h, toast, download, state,
+  root: $('#issues'),
+  setSelection: (map) => {
+    state.selection.clear();
+    state.treeKeys.clear();
+    for (const [m, ids] of map) if (ids.length) state.selection.set(m, new Set(ids));
+    state.active = null;
+    applySelection();
+  },
+  setSpacesVisible: (v) => { state.spacesVisible = v; updateSpacesUi(); },
+  afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); },
+});
+
+// ====================================================================== drawing
+function planeLabel(p, i) {
+  return p.boxPart ? `${t('planes.boxPart')} ${p.axis.toUpperCase()} ${p.boxPart}` : `${i + 1}. ${t(AXIS_LABEL[p.axis])} (${viewer.getPlanePos(p).toFixed(2)} m)`;
+}
+
+function openDrawingDialog(plane = null) {
+  const planes = viewer.planes.filter((p) => p.enabled);
+  if (!planes.length) return toast(t('drw.noPlane'));
+  $('#drw-plane').replaceChildren(...planes.map((p, i) => h('option', { value: String(p.id), text: planeLabel(p, i), selected: plane ? p === plane : i === 0 })));
+  $('#drw-scale').replaceChildren(h('option', { value: 'fit', text: t('drw.fit') }), ...SCALES.map((sc) => h('option', { value: String(sc), text: `1:${sc}` })));
+  const m = viewer.models[0];
+  const pSel = plane || planes[0];
+  $('#drw-name').value = `${m ? m.name.replace(/\.ifc$/i, '') : 'Model'} – ${t(AXIS_LABEL[pSel.axis] || 'planes.face')}`;
+  $('#drawing-dialog').showModal();
+}
+
+async function exportDrawing() {
+  const entry = viewer.planes.find((p) => String(p.id) === $('#drw-plane').value);
+  if (!entry) return;
+  const format = $('#drw-format').value;
+  const scaleVal = $('#drw-scale').value;
+  const opts = { paper: $('#drw-paper').value, scale: scaleVal === 'fit' ? 'fit' : +scaleVal, fill: $('#drw-fill').checked, mono: $('#drw-mono').checked };
+  $('#drawing-dialog').close();
+  let section;
+  try {
+    section = await withLoading(async (progress) => { progress(t('drw.cutting'), 0.3); await new Promise((r) => setTimeout(r, 30)); return computeSection(viewer, entry); });
+  } catch (e) { console.error(e); return toast(t('drw.failed', { error: e.message || e })); }
+  if (!section.layers.size) return toast(t('drw.empty'));
+  const name = $('#drw-name').value.trim() || 'Section';
+  const info = {
+    title: name,
+    subtitle: `${viewer.models.filter((m) => m.visible).map((m) => m.name).join(', ')} · ${planeLabel(entry, viewer.planes.indexOf(entry))}`,
+    date: new Date().toISOString().slice(0, 10),
+  };
+  const file = name.replace(/[^\w\-æøåÆØÅäöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || 'section';
+  if (format === 'dxf') {
+    download(`${file}.dxf`, toDxf(section, info), 'application/dxf');
+  } else {
+    const lay = layout(section, opts);
+    if (!lay.fits) toast(t('drw.tooBig', { scale: lay.scale }));
+    if ($('#drw-bg').checked) {
+      const helpersWere = viewer.showPlaneHelpers;
+      const fillWas = viewer.sectionFillOn !== false;
+      viewer.setHelpersVisible(false);
+      viewer.setSectionFill(false); // no red cut faces in the background image
+      try { opts.background = renderBackground(viewer, section, lay); } catch (e) { console.warn('background', e); }
+      viewer.setSectionFill(fillWas);
+      viewer.setHelpersVisible(helpersWere);
+    }
+    if (format === 'svg') download(`${file}.svg`, toSvg(section, lay, info, opts), 'image/svg+xml');
+    else download(`${file}.pdf`, toPdf(section, lay, info, opts), 'application/pdf');
+  }
+  let n = 0;
+  for (const L of section.layers.values()) n += L.elements;
+  toast(t('drw.done', { n: fmtNum(n), layers: section.layers.size }), true);
+}
+
+// ========================================================================== IDS
+let idsResults = null; // [{model, report}]
+let idsName = '';
+const idsOpen = new Set(); // "modelUid:specIndex" of expanded specifications
+
+function openIdsDialog() {
+  if (!viewer.models.length) return toast(t('msg.loadFirst'));
+  $('#ids-models').replaceChildren(...viewer.models.map((m) => h('label', { class: 'chk' },
+    h('input', { type: 'checkbox', value: String(m.uid), checked: true }), h('span', { text: `${m.name} (${m.schema})` }))));
+  $('#ids-dialog').showModal();
+}
+
+async function runIds() {
+  const file = $('#ids-file').files[0];
+  if (!file) return toast(t('ids.chooseFile'));
+  const uids = $$('#ids-models input:checked').map((i) => +i.value);
+  const models = viewer.models.filter((m) => uids.includes(m.uid));
+  if (!models.length) return toast(t('msg.loadFirst'));
+  $('#ids-dialog').close();
+  const text = await file.text();
+  idsName = file.name;
+  const res = await runIdsCheck(python, models, text, file.name);
+  if (!res) { toast(t('ids.failed')); return; }
+  idsResults = res;
+  idsOpen.clear();
+  renderIds();
+}
+
+function idsSelect(model, ids) {
+  state.selection.clear();
+  state.treeKeys.clear();
+  if (ids.length) state.selection.set(model, new Set(ids));
+  state.active = ids.length === 1 ? { model, id: ids[0] } : null;
+  applySelection();
+  const b = model.getBox(ids);
+  if (!b.isEmpty()) viewer.fitBox(b);
+}
+
+function renderIds() {
+  const panel = $('#ids-panel');
+  panel.hidden = !idsResults;
+  if (!idsResults) { panel.replaceChildren(); return; }
+  const parts = [
+    h('div', { class: 'cmp-head' }, h('b', { text: t('ids.title') }), h('span', { class: 'spacer' }),
+      h('button', { class: 'icon-btn', title: t('common.close'), text: '✕', onclick: () => { idsResults = null; renderIds(); } })),
+    h('div', { class: 'muted small', text: idsName }),
+  ];
+  for (const entry of idsResults) {
+    const { model, report } = entry;
+    const passed = report.specs.filter((s) => s.status).length;
+    parts.push(h('div', { class: `ids-model ${report.status ? 'ok' : 'bad'}` },
+      h('b', { text: model.name }),
+      h('span', { text: t('ids.modelSummary', { pass: passed, total: report.specs.length }) })));
+    report.specs.forEach((sp, i) => {
+      const key = `${model.uid}:${i}`;
+      const open = idsOpen.has(key);
+      const head = h('button', { class: 'cmp-group-head ids-spec-head' },
+        h('span', { class: `ids-icon ${sp.skipped || !sp.applicable ? 'na' : sp.status ? 'ok' : 'bad'}`, text: sp.skipped || !sp.applicable ? '–' : sp.status ? '✓' : '✗' }),
+        h('span', { class: 'ids-spec-name', text: sp.name || `#${i + 1}` }),
+        h('span', { class: 'muted small', text: specSummary(sp) }),
+        h('span', { class: 'caret', text: open ? '▾' : '▸' }));
+      head.addEventListener('click', () => { open ? idsOpen.delete(key) : idsOpen.add(key); renderIds(); });
+      let body = null;
+      if (open) {
+        body = h('div', { class: 'cmp-group-body' },
+          sp.description ? h('div', { class: 'small', text: sp.description }) : null,
+          sp.instructions ? h('div', { class: 'muted small', text: sp.instructions }) : null,
+          h('ul', { class: 'ids-reqs' }, sp.requirements.map((r) => h('li', { class: r.status ? 'ok' : 'bad' },
+            h('span', { text: r.status ? '✓ ' : '✗ ' }), h('span', { text: r.description }), r.fail ? h('b', { text: ` (${fmtNum(r.fail)})` }) : null))),
+          h('div', { class: 'flt-btns' },
+            sp.failed.length ? h('button', { class: 'btn sm', text: t('ids.selectFailed', { n: fmtNum(sp.failed.length) }), onclick: () => idsSelect(model, sp.failed.map((f) => f.id)) }) : null,
+            h('button', { class: 'btn sm', text: t('ids.colorSpec'), onclick: () => colorIdsResult(entry, i) })),
+          sp.failed.slice(0, 200).map((f) => {
+            const r = h('div', { class: 'cmp-row removed' },
+              h('div', { class: 'cmp-row-head' }, h('span', { class: 'lbl', text: f.name || f.gid }), h('span', { class: 'cls', text: f.cls })),
+              h('div', { class: 'muted small', text: f.reasons.join(' · ') }));
+            r.addEventListener('click', () => idsSelect(model, [f.id]));
+            return r;
+          }),
+          sp.failed.length > 200 ? h('div', { class: 'muted small', text: t('cmp.more', { n: fmtNum(sp.failed.length - 200) }) }) : null);
+      }
+      parts.push(h('div', { class: 'cmp-group' }, head, body));
+    });
+  }
+  parts.push(h('div', { class: 'cmp-foot' },
+    h('button', { class: 'link', text: t('ids.colorAll'), onclick: () => { for (const e of idsResults) colorIdsResult(e); } }),
+    h('button', { class: 'link', text: t('flt.resetColors'), onclick: () => { for (const e of idsResults) e.model.resetElementColors(); } }),
+    h('button', { class: 'link', text: t('ids.exportCsv'), onclick: () => download(`ids-${idsName.replace(/\.(ids|xml)$/i, '')}.csv`, idsCsv(idsResults), 'text/csv;charset=utf-8') })));
+  panel.replaceChildren(...parts);
+}
+
+// ====================================================================== compare
+let comparison = null;
+const cmpOpen = { added: true, removed: true, changed: true };
+
+function openCompareDialog() {
+  if (viewer.models.length < 2) return toast(t('cmp.needTwo'));
+  const opts = viewer.models.map((m, i) => [String(m.uid), `${i + 1}. ${m.name}`]);
+  $('#cmp-old').replaceChildren(...opts.map(([v, l], i) => h('option', { value: v, text: l, selected: i === 0 })));
+  $('#cmp-new').replaceChildren(...opts.map(([v, l], i) => h('option', { value: v, text: l, selected: i === opts.length - 1 })));
+  $('#compare-dialog').showModal();
+}
+
+async function runCompare() {
+  const oldM = viewer.models.find((m) => String(m.uid) === $('#cmp-old').value);
+  const newM = viewer.models.find((m) => String(m.uid) === $('#cmp-new').value);
+  if (!oldM || !newM || oldM === newM) return toast(t('cmp.pickTwo'));
+  $('#compare-dialog').close();
+  if (comparison) clearComparison(comparison);
+  try {
+    comparison = await withLoading(async (progress) => {
+      for (const m of [oldM, newM]) {
+        if (!m._pindex || m._pindex.version !== m.version) await m.buildPropertyIndex((f) => progress(t('flt.building', { name: m.name }), f * 0.6));
+      }
+      progress(t('cmp.running'), 0.6);
+      return compareModels(oldM, newM, (f) => progress(t('cmp.running'), 0.6 + 0.4 * f));
+    });
+  } catch (e) {
+    console.error(e);
+    return toast(t('cmp.failed', { error: e.message || e }));
+  }
+  comparison.showUnchanged = $('#cmp-unchanged').checked;
+  for (const m of viewer.models) if (m !== oldM && m !== newM) m.setVisible(false);
+  showComparison(comparison, { showUnchanged: comparison.showUnchanged });
+  renderComparison();
+  refreshVisibilityUi();
+  renderModels();
+}
+
+function endComparison() {
+  if (!comparison) return;
+  clearComparison(comparison);
+  comparison = null;
+  renderComparison();
+  refreshVisibilityUi();
+}
+
+function renderComparison() {
+  const panel = $('#cmp-panel');
+  panel.hidden = !comparison;
+  if (!comparison) { panel.replaceChildren(); return; }
+  const c = comparison;
+  const dot = (k) => h('span', { class: 'cmp-dot', style: `background:#${CMP_COLORS[k].toString(16).padStart(6, '0')}` });
+  const row = (model, id, extra = null, kind = '') => {
+    const r = h('div', { class: `cmp-row ${kind}` },
+      h('div', { class: 'cmp-row-head' }, h('span', { class: 'lbl', text: model.label(id) }), h('span', { class: 'cls', text: model.typeName(id) })),
+      extra);
+    r.addEventListener('click', () => {
+      select(model, [id], { activeId: id });
+      const b = model.getBox([id]);
+      if (!b.isEmpty()) viewer.fitBox(b);
+    });
+    return r;
+  };
+  const LIMIT = 300;
+  const group = (key, items, make) => {
+    const head = h('button', { class: 'cmp-group-head' }, dot(key), h('span', { text: t(`cmp.${key}`) }), h('b', { text: fmtNum(items.length) }), h('span', { class: 'caret', text: cmpOpen[key] ? '▾' : '▸' }));
+    head.addEventListener('click', () => { cmpOpen[key] = !cmpOpen[key]; renderComparison(); });
+    const body = cmpOpen[key] ? h('div', { class: 'cmp-group-body' }, items.slice(0, LIMIT).map(make),
+      items.length > LIMIT ? h('div', { class: 'muted small', text: t('cmp.more', { n: fmtNum(items.length - LIMIT) }) }) : null) : null;
+    return h('div', { class: 'cmp-group' }, head, body);
+  };
+  const diffTable = (ch) => {
+    const lines = [...ch.diffs.slice(0, 12).map((d) => [keyLabel(d.key), `${fmtCmp(d.a)} → ${fmtCmp(d.b)}`]), ...geomText(ch.geom)];
+    if (ch.diffs.length > 12) lines.push(['…', t('cmp.moreDiffs', { n: ch.diffs.length - 12 })]);
+    return h('table', { class: 'cmp-diffs' }, lines.map(([k, v]) => h('tr', {}, h('td', { text: k }), h('td', { text: v }))));
+  };
+  const unchangedToggle = h('input', { type: 'checkbox', checked: c.showUnchanged });
+  unchangedToggle.addEventListener('change', () => {
+    c.showUnchanged = unchangedToggle.checked;
+    clearComparison(c);
+    showComparison(c, { showUnchanged: c.showUnchanged });
+    refreshVisibilityUi();
+  });
+  panel.replaceChildren(
+    h('div', { class: 'cmp-head' },
+      h('b', { text: t('cmp.title') }), h('span', { class: 'spacer' }),
+      h('button', { class: 'icon-btn', title: t('cmp.end'), text: '✕', onclick: endComparison })),
+    h('div', { class: 'muted small', text: `${c.oldM.name} → ${c.newM.name}` }),
+    h('div', { class: 'cmp-summary', text: summaryText(c) }),
+    h('label', { class: 'chk' }, unchangedToggle, h('span', { text: t('cmp.showUnchanged') })),
+    group('added', c.added, (id) => row(c.newM, id, null, 'added')),
+    group('removed', c.removed, (id) => row(c.oldM, id, null, 'removed')),
+    group('changed', c.changed, (ch) => row(c.newM, ch.b, diffTable(ch), 'changed')),
+    h('div', { class: 'cmp-foot' },
+      h('button', { class: 'link', text: t('cmp.exportCsv'), onclick: () => download(`comparison-${c.newM.name.replace(/\.ifc$/i, '')}.csv`, comparisonCsv(c), 'text/csv;charset=utf-8') }),
+      h('button', { class: 'link', text: t('cmp.end'), onclick: endComparison })),
+  );
+}
+
+function fmtCmp(v) {
+  if (v === undefined) return '—';
+  return typeof v === 'number' ? v.toLocaleString(undefined, { maximumFractionDigits: 6 }) : String(v);
 }
 
 // ===================================================================== opacity
@@ -1282,7 +1617,7 @@ export function toast(msg, ok = false) {
 }
 
 window.addEventListener('beforeunload', (e) => {
-  if (viewer.models.some((m) => m.changes.length)) { e.preventDefault(); e.returnValue = ''; }
+  if (viewer.models.some((m) => m.changes.length) || issues.dirty) { e.preventDefault(); e.returnValue = ''; }
 });
 
 renderAll();

@@ -179,6 +179,9 @@ export class Viewer extends EventTarget {
     this.#animateTo(center.clone().add(d.multiplyScalar(dist)), center);
   }
 
+  /** Animates the camera to a position looking at a target. */
+  flyTo(pos, target) { this.#animateTo(pos, target); }
+
   #animateTo(pos, target) {
     const p0 = this.camera.position.clone();
     const t0 = this.controls.target.clone();
@@ -363,19 +366,14 @@ export class Viewer extends EventTarget {
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.raycaster.setFromCamera(ndc, this.camera);
     const targets = [];
-    for (const m of this.models) {
-      if (!m.visible) continue;
-      for (const b of m.buckets) {
-        if (b.mesh.visible) targets.push(b.mesh);
-        for (const f of b.fades || []) targets.push(f);
-      }
-    }
+    for (const m of this.models) if (m.visible) targets.push(...m.pickTargets());
     const hits = this.raycaster.intersectObjects(targets, false);
     const active = this.planes.filter((p) => p.enabled).map((p) => p.plane);
     for (const h of hits) {
-      if (active.some((pl) => pl.distanceToPoint(h.point) < -1e-6)) continue; // bortskåret
+      if (active.some((pl) => pl.distanceToPoint(h.point) < -1e-6)) continue; // cut away by a section
       const { model } = h.object.userData;
       const id = model.idFromHit(h.object, h.faceIndex);
+      if (model.hidden.has(id)) continue;
       const normal = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : null;
       return { model, id, point: h.point.clone(), normal, object: h.object, face: h.face };
     }
