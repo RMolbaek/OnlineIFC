@@ -186,6 +186,7 @@ export class Viewer extends EventTarget {
     model.dispose();
     if (!this.models.length) this.referenceMatrix = null;
     this.#updateSceneRadius();
+    this.dispatchEvent(Object.assign(new Event('modelremoved'), { model }));
   }
 
   sceneBox({ visibleOnly = true } = {}) {
@@ -413,6 +414,13 @@ export class Viewer extends EventTarget {
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
     el.addEventListener('pointerup', (e) => {
+      if (down && e.button === 2) {
+        // right click without dragging (dragging with the right button rotates): context menu
+        const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+        down = null;
+        if (moved <= 5) this.dispatchEvent(Object.assign(new Event('context'), { hit: this.pick(e.clientX, e.clientY), originalEvent: e }));
+        return;
+      }
       if (!down || e.button !== 0) return;
       const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
       down = null;

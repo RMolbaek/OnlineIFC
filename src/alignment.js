@@ -172,6 +172,7 @@ export class AlignmentLayer {
     this.visible = true;
     this.alignments = [];
     this.format = 'km';
+    this.interval = 'auto'; // station marks: 'auto', a distance in metres, or 0 = line only
     viewer.renderHooks.push(() => this.#place());
   }
 
@@ -193,22 +194,31 @@ export class AlignmentLayer {
       line.renderOrder = 25;
       line.frustumCulled = false;
       this.group.add(line);
-      // station marks
-      const step = [10, 20, 50, 100, 200, 500, 1000, 2000].find((x) => al.length / x <= 25) || 5000;
-      const first = Math.ceil(al.station0 / step) * step;
+      // station marks (none when the interval is 0: only the line)
+      const step = this.interval === 'auto'
+        ? [10, 20, 50, 100, 200, 500, 1000, 2000].find((x) => al.length / x <= 25) || 5000
+        : Number(this.interval);
       const ticks = [];
-      const half = Math.max(1, step / 40);
-      for (let st = first; st <= al.station0 + al.length + 1e-6; st += step) {
+      if (step > 0) {
+      const first = Math.ceil((al.station0 - 1e-6) / step) * step;
+      const count = Math.floor((al.station0 + al.length + 1e-6 - first) / step) + 1;
+      // very many marks: keep every mark as a tick, but label only every n-th one
+      const labelEvery = Math.max(1, Math.ceil(count / 1500));
+      const half = Math.min(Math.max(0.25, step / 40), 25);
+      for (let i = 0; i < count && i < 20000; i++) {
+        const st = first + i * step;
         const s = st - al.station0;
         const p = pointAt(al, s);
         const z = zOf(s);
         const nx = -p.dy, ny = p.dx; // left normal
         ticks.push(this.viewer.fromIfc(p.x + nx * half, p.y + ny * half, z), this.viewer.fromIfc(p.x - nx * half, p.y - ny * half, z));
+        if (i % labelEvery) continue;
         const el = document.createElement('div');
         el.className = 'm-label align';
         el.textContent = formatStation(st, this.format);
         this.layer.append(el);
         this.labels.push({ el, at: this.viewer.fromIfc(p.x + nx * half * 1.5, p.y + ny * half * 1.5, z) });
+      }
       }
       if (ticks.length) {
         const tg = new THREE.BufferGeometry().setFromPoints(ticks);

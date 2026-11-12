@@ -67,12 +67,24 @@ export async function loadIfcFile(file, opts = {}) {
 
   const schema = api.GetModelSchema(modelID);
 
+  // Geometry prepared earlier for exactly this file (project cache): skip the slow geometry step.
+  const cache = opts.geometryCache || null;
+  let cached = null;
+  if (cache) {
+    onProgress(t('load.cached', { name }), 0.3);
+    try { cached = await cache.get(); } catch { cached = null; }
+  }
+  let merged, spaceIds, coordMatrix;
+  if (cached && cached.schema === schema) {
+    ({ buckets: merged, spaceIds, coordMatrix } = cached);
+  } else {
+  cached = null; // nothing usable stored
   onProgress(t('load.geometry', { name }), 0.3);
   await nextFrame();
 
   // Grupper alle trekanter efter farve, så hver model kun bliver få draw calls.
   const buckets = new Map();
-  const spaceIds = new Set();
+  spaceIds = new Set();
   // Many elements share the same geometry (type geometry / mapped items): read it once.
   const geomCache = new Map();
   let cacheBytes = 0;
@@ -166,7 +178,7 @@ export async function loadIfcFile(file, opts = {}) {
   onProgress(t('load.building', { name }), 0.75);
   await nextFrame();
 
-  const merged = [];
+  merged = [];
   for (const b of buckets.values()) {
     merged.push({
       color: b.color,
@@ -179,13 +191,18 @@ export async function loadIfcFile(file, opts = {}) {
     b.pos = b.nor = b.idx = null; // free the chunks of this bucket before merging the next
   }
 
-  const coordMatrix = new THREE.Matrix4().fromArray(api.GetCoordinationMatrix(modelID));
+  coordMatrix = new THREE.Matrix4().fromArray(api.GetCoordinationMatrix(modelID));
+  // save for next time (in the background)
+  }
 
   const model = new IfcModel({ name, api, modelID, buckets: merged, schema, fileSize, coordMatrix, spaceIds, sourceBlob });
+  model.fromCache = !!cached;
 
   onProgress(t('load.structure', { name }), 0.9);
   await nextFrame();
-  await model.loadStructure();
+  await model.loadStructure(cached?.tree || null);
+  // save geometry and structure for next time (in the background)
+  if (cache && !cached) { const g = { buckets: merged, spaceIds, coordMatrix, schema, tree: model.tree }; setTimeout(() => cache.put(g), 1500); }
 
   onProgress(t('load.done'), 1);
   return model;

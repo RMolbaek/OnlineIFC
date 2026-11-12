@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 // OnlineIFC – user interface.
 import { Viewer } from './viewer.js';
 import { loadIfcFile } from './ifc.js';
@@ -9,6 +10,9 @@ import { WalkMode } from './walk.js';
 import { ViewsPanel } from './views.js';
 import { QtoTable } from './qto.js';
 import { mergeIfcBlobs } from './merge.js';
+import { ContextMenu } from './contextmenu.js';
+import { renderVersion } from './version.js';
+import { ProjectManager } from './projects.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -133,15 +137,19 @@ async function openFiles(files) {
   }
 }
 
-async function openIfcFiles(list) {
+async function openIfcFiles(list, keys = null) {
   const before = viewer.models.length;
   await withLoading(async (progress) => {
     for (let i = 0; i < list.length; i++) {
       const file = list[i];
       const prefix = list.length > 1 ? `(${i + 1}/${list.length}) ` : '';
       try {
-        const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length) });
+        // the file's fingerprint finds its stored geometry and links it to the current project
+        let key = keys?.[i] || null;
+        if (!key && projects.enabled) { try { key = await projects.keyOf(file); } catch { key = null; } }
+        const model = await loadIfcFile(file, { onProgress: (msg, frac) => progress(prefix + msg, (i + frac) / list.length), geometryCache: key ? projects.geometryCacheFor(key) : null });
         viewer.addModel(model);
+        if (key) projects.modelAdded(model, file, key);
         try { model.alignments = await readAlignments(model); } catch (e) { console.warn('alignments', e); model.alignments = []; }
         // Build the picking index (BVH) in the background so the first click is instant
         setTimeout(() => { try { model.pickTargets(); } catch { /* built on first pick instead */ } }, 300);
@@ -158,7 +166,11 @@ async function openIfcFiles(list) {
 
 /** Loads IFC bytes (e.g. produced by Python) into the viewer, optionally replacing a model. */
 async function loadBytes(name, data, { replace = null } = {}) {
-  const model = await withLoading((progress) => loadIfcFile({ name, data }, { onProgress: progress }));
+  const blob = data instanceof Blob ? data : new Blob([data]);
+  let key = null;
+  if (projects.enabled) { try { key = await projects.keyOf(blob); } catch { key = null; } }
+  const model = await withLoading((progress) => loadIfcFile({ name, data: blob }, { onProgress: progress, geometryCache: key ? projects.geometryCacheFor(key) : null }));
+  if (key) { if (replace) projects.modelReplaced(replace, model, blob, key); else projects.modelAdded(model, blob, key); }
   if (replace) {
     viewer.replaceModel(replace, model);
     // Express IDs survive the round trip through IfcOpenShell, so the selection can be kept
@@ -189,6 +201,8 @@ function afterModelsChanged() {
   if (idsResults && idsResults.some((e) => !viewer.models.includes(e.model))) { idsResults = null; renderIds(); }
   if (comparison && (!viewer.models.includes(comparison.oldM) || !viewer.models.includes(comparison.newM))) { comparison = null; renderComparison(); }
   $('#welcome').hidden = viewer.models.length > 0;
+  if (!viewer.models.length) renderRecentProjects();
+  renderProjectBar();
   if (!viewer.models.length && mapLayer.visible) { mapLayer.remove(); updateMapUi(); }
   renderAll();
 }
@@ -344,6 +358,44 @@ viewer.addEventListener('pick', ({ hit, originalEvent: e }) => {
   revealInTree(hit.model, hit.id);
 });
 
+// ================================================================= context menu
+// Right click (without dragging) in the 3D view or on a row of the Structure / Classes lists.
+const contextMenu = new ContextMenu({
+  viewer, h, toast, state,
+  select: (map, { activeId = null, model = null } = {}) => {
+    state.selection.clear();
+    state.treeKeys.clear();
+    for (const [m, ids] of map) if (ids.length) state.selection.set(m, new Set(ids));
+    state.active = activeId !== null && model ? { model, id: activeId } : null;
+    applySelection();
+    if (state.active) revealInTree(model, activeId);
+  },
+  refresh: () => { refreshVisibilityUi(); renderStatus(); },
+  showAll: () => showAll(),
+  clearSelection: () => clearSelection(),
+  fitIds: (map) => {
+    if (!map) { viewer.fitBox(viewer.sceneBox()); return; }
+    const box = new THREE.Box3();
+    for (const [m, ids] of map) box.union(m.getBox(ids));
+    if (!box.isEmpty()) viewer.fitBox(box);
+  },
+  setModelVisible: (m, on) => { m.setVisible(on); renderModels(); refreshVisibilityUi(); },
+});
+viewer.addEventListener('context', ({ hit, originalEvent: e }) => {
+  if (measure.mode || state.pickPlaneMode || walk.active) return;
+  contextMenu.openForHit(hit, e.clientX, e.clientY);
+});
+for (const list of [$('#tab-tree'), $('#tab-classes')]) {
+  list.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.node[data-key]');
+    const entry = row && rowRegistry.get(row.dataset.key);
+    if (!entry) return;
+    e.preventDefault();
+    const ids = entry.ids.length ? entry.ids : entry.selfId != null ? [entry.selfId] : [];
+    contextMenu.openForRow({ model: entry.model, ids }, row.querySelector('.lbl')?.textContent || '', e.clientX, e.clientY);
+  });
+}
+
 // ====================================================================== toolbar
 document.addEventListener('click', (e) => {
   const menuBtn = e.target.closest('.menu-btn');
@@ -374,7 +426,19 @@ document.addEventListener('click', (e) => {
       try { localStorage.setItem(THEME_KEY, currentTheme() === 'dark' ? 'light' : 'dark'); } catch { /* ignore */ }
       applyTheme();
     },
-    about: () => $('#about-dialog').showModal(),
+    projects: () => openProjectsDialog(),
+    'project-rename': async () => {
+      if (!projects.current) { await projects.saveNow(); if (!projects.current) return toast(t('proj.off')); }
+      const n = prompt(t('proj.renamePrompt'), projects.current.name);
+      if (n && n.trim()) projects.rename(projects.current.id, n.trim());
+    },
+    'project-new': async () => {
+      if (viewer.models.length && !confirm(t('proj.newConfirm'))) return;
+      await projects.close();
+      $('#projects-dialog').close();
+    },
+    'proj-clear-cache': async () => { await projects.clearGeometryCache(); renderProjectsDialog(); toast(t('proj.cacheCleared'), true); },
+    about: () => { renderVersion($('#about-version'), h); $('#about-dialog').showModal(); },
     'toggle-left': () => setPanelHidden('left', !document.body.classList.contains('hide-left')),
     'toggle-right': () => setPanelHidden('right', !document.body.classList.contains('hide-right')),
     map: () => openMapDialog(),
@@ -1165,15 +1229,28 @@ function renderPlanes() {
     const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: t('planes.active') });
     enabled.addEventListener('change', () => viewer.togglePlane(p, enabled.checked));
     const slider = h('input', { type: 'range', min: String(range.min), max: String(range.max), step: String(step), value: String(viewer.getPlanePos(p)) });
-    const val = h('div', { class: 'val' });
-    const upd = () => { val.textContent = `${viewer.getPlanePos(p).toFixed(3)} m`; };
-    slider.addEventListener('input', () => { viewer.setPlanePos(p, +slider.value); upd(); });
+    // exact position: type it, or step with the arrow buttons / arrow keys in the field
+    const posInput = h('input', { type: 'number', step: 'any', title: t('planes.posTitle') });
+    const val = h('div', { class: 'val' }, posInput, h('span', { text: 'm' }));
+    const upd = () => { posInput.value = viewer.getPlanePos(p).toFixed(3); slider.value = String(viewer.getPlanePos(p)); };
+    const moveTo = (v) => { viewer.setPlanePos(p, v); upd(); };
+    slider.addEventListener('input', () => { viewer.setPlanePos(p, +slider.value); posInput.value = viewer.getPlanePos(p).toFixed(3); });
+    posInput.addEventListener('change', () => { if (Number.isFinite(+posInput.value) && posInput.value !== '') moveTo(+posInput.value); else upd(); });
+    posInput.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); moveTo(viewer.getPlanePos(p) + (e.key === 'ArrowUp' ? 1 : -1) * planeStep()); }
+    });
+    const stepBtn = (dir) => h('button', {
+      class: 'step', text: dir > 0 ? '›' : '‹', title: t(dir > 0 ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) }),
+      onclick: () => moveTo(viewer.getPlanePos(p) + dir * planeStep()),
+    });
     upd();
     const name = p.boxPart ? `${t('planes.boxPart')} ${p.axis === 'y' ? 'Z' : p.axis === 'z' ? 'Y' : 'X'} ${p.boxPart}` : t(AXIS_LABEL[p.axis]);
     list.append(h('div', { class: 'plane-row' },
       enabled,
-      h('span', { class: 'pl-name', text: name }),
+      h('span', { class: 'pl-name', text: name, title: name }),
+      stepBtn(-1),
       slider,
+      stepBtn(1),
       h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
       p.boxPart ? null : h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
       h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
@@ -1181,6 +1258,17 @@ function renderPlanes() {
     ));
   }
 }
+/** Step length (m) for the ‹ › buttons of the section planes; remembered in the browser. */
+function planeStep() {
+  const v = +$('#plane-step').value;
+  return Number.isFinite(v) && v > 0 ? v : 1;
+}
+try { const v = localStorage.getItem('onlineifc.planeStep'); if (v) $('#plane-step').value = v; } catch { /* ignore */ }
+$('#plane-step').addEventListener('change', () => {
+  try { localStorage.setItem('onlineifc.planeStep', String(planeStep())); } catch { /* ignore */ }
+  // only the tooltips change: redrawing the rows here would swallow a click on ‹ › that blurs this field
+  for (const b of $$('.plane-row button.step')) b.title = t(b.textContent === '›' ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) });
+});
 $('#plane-helpers').addEventListener('change', (e) => viewer.setHelpersVisible(e.target.checked));
 $('#plane-fill').addEventListener('change', (e) => viewer.setSectionFill(e.target.checked));
 
@@ -1221,6 +1309,24 @@ for (const b of $$('#measure-modes [data-measure]')) b.addEventListener('click',
 $('#measure-snap').addEventListener('change', (e) => { measure.snapOn = e.target.checked; });
 $('#measure-unit').addEventListener('change', (e) => { measure.unit = e.target.value; measure.refresh(); });
 $('#station-format').addEventListener('change', (e) => { alignmentLayer.format = e.target.value; alignmentLayer.rebuild(); measure.refresh(); });
+
+// Station marks of alignments: automatic, a fixed interval, or off (only the line)
+function applyStationInterval() {
+  const sel = $('#station-interval').value;
+  $('#station-custom-wrap').hidden = sel !== 'custom';
+  let v = sel;
+  if (sel === 'custom') { const c = +$('#station-custom').value; v = Number.isFinite(c) && c > 0 ? c : 'auto'; }
+  alignmentLayer.interval = v === 'auto' ? 'auto' : Number(v);
+  alignmentLayer.rebuild();
+  try { localStorage.setItem('onlineifc.stationInterval', JSON.stringify({ sel, custom: $('#station-custom').value })); } catch { /* ignore */ }
+}
+try {
+  const saved = JSON.parse(localStorage.getItem('onlineifc.stationInterval') || 'null');
+  if (saved) { $('#station-interval').value = saved.sel; $('#station-custom').value = saved.custom; }
+} catch { /* ignore */ }
+$('#station-interval').addEventListener('change', applyStationInterval);
+$('#station-custom').addEventListener('change', applyStationInterval);
+applyStationInterval();
 for (const cb of $$('[data-spot-show]')) {
   cb.checked = !!measure.spotShow[cb.dataset.spotShow];
   cb.addEventListener('change', () => measure.setSpotShow(cb.dataset.spotShow, cb.checked));
@@ -1269,6 +1375,57 @@ const views = new ViewsPanel({
   afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); renderModels(); },
   setXray: (on) => setXray(on),
 });
+
+// ===================================================================== projects
+const projects = new ProjectManager({
+  viewer, views, issues, state, h, toast,
+  clearModels: () => {
+    for (const m of [...viewer.models]) viewer.removeModel(m);
+    state.selection.clear();
+    state.treeKeys.clear();
+    state.active = null;
+    afterModelsChanged();
+  },
+  openFiles: (files, keys) => openIfcFiles(files, keys),
+  afterRestore: () => { updateSpacesUi(); afterModelsChanged(); },
+});
+viewer.addEventListener('modelremoved', ({ model }) => projects.modelRemoved(model));
+projects.addEventListener('change', () => { renderProjectBar(); if (!viewer.models.length) renderRecentProjects(); if ($('#projects-dialog').open) renderProjectsDialog(); });
+
+/** Recent projects on the start screen. */
+async function renderRecentProjects() {
+  const box = $('#recent-projects');
+  if (!projects.enabled) { box.hidden = true; return; }
+  const n = await projects.renderList($('#recent-list'), { limit: 4 });
+  box.hidden = n === 0;
+}
+
+/** The project line at the top of the Models tab. */
+function renderProjectBar() {
+  const bar = $('#project-bar');
+  bar.hidden = !viewer.models.length;
+  if (bar.hidden) return;
+  $('#project-name').textContent = projects.current?.name || t('proj.unsaved');
+  $('#project-status').textContent = projects.statusText();
+}
+
+async function renderProjectsDialog() {
+  $('#proj-enabled').checked = projects.enabled;
+  const n = await projects.renderList($('#proj-list'), { onOpen: () => $('#projects-dialog').close() });
+  $('#proj-empty').hidden = n > 0;
+  const u = await projects.usage();
+  $('#proj-usage').textContent = t('proj.usage', { files: projects.fmtBytes(u.files), geom: projects.fmtBytes(u.geom), free: u.quota ? projects.fmtBytes(u.quota) : '?' });
+}
+
+function openProjectsDialog() {
+  renderProjectsDialog();
+  $('#projects-dialog').showModal();
+}
+$('#proj-enabled').addEventListener('change', (e) => {
+  if (!e.target.checked && !confirm(t('proj.disableConfirm'))) { e.target.checked = true; return; }
+  projects.setEnabled(e.target.checked);
+});
+renderRecentProjects();
 
 // ================================================== ortho, X-ray and storeys
 function setOrtho(on) {
@@ -1393,7 +1550,7 @@ async function exportDrawing() {
   const name = $('#drw-name').value.trim() || 'Section';
   const info = {
     title: name,
-    subtitle: `${viewer.models.filter((m) => m.visible).map((m) => m.name).join(', ')} · ${planeLabel(entry, viewer.planes.indexOf(entry))}`,
+    subtitle: `${planeLabel(entry, viewer.planes.indexOf(entry))} · ${viewer.models.filter((m) => m.visible).map((m) => m.name).join(', ')}`,
     date: new Date().toISOString().slice(0, 10),
   };
   const file = name.replace(/[^\w\-æøåÆØÅäöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || 'section';

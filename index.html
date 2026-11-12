@@ -82,6 +82,18 @@
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-spaces"><span class="mi-icon mi-check" id="spaces-check">☐</span><span class="mi-text"><b data-i18n="mi.spaces"></b><small data-i18n="mi.spacesDesc"></small></span></button>
           <button class="menu-item" data-action="toggle-alignments"><span class="mi-icon mi-check" id="alignments-check">☑</span><span class="mi-text"><b data-i18n="mi.alignments"></b><small data-i18n="mi.alignmentsDesc"></small></span></button>
+          <div class="menu-sub" id="station-row">
+            <label><span data-i18n="mi.stationing"></span>
+              <select id="station-interval" class="sm">
+                <option value="auto" data-i18n="mi.stationAuto"></option>
+                <option value="1">1 m</option><option value="5">5 m</option><option value="10">10 m</option><option value="20">20 m</option>
+                <option value="25">25 m</option><option value="50">50 m</option><option value="100">100 m</option><option value="200">200 m</option>
+                <option value="500">500 m</option><option value="1000">1000 m</option>
+                <option value="custom" data-i18n="mi.stationCustom"></option>
+                <option value="0" data-i18n="mi.stationOff"></option>
+              </select></label>
+            <label id="station-custom-wrap" hidden><input type="number" id="station-custom" min="0.1" step="any" value="15" class="sm" /> m</label>
+          </div>
         </div>
       </div>
 
@@ -143,6 +155,12 @@
           <button class="tab" data-tab="views" data-i18n="tabs.views"></button>
         </nav>
         <section class="tab-body active" id="tab-models">
+          <div class="project-bar" id="project-bar" hidden>
+            <span class="proj-ico">▤</span>
+            <span class="proj-text"><b id="project-name"></b><small class="muted" id="project-status"></small></span>
+            <button class="btn xs" data-action="project-rename" data-i18n="views.rename"></button>
+            <button class="btn xs" data-action="projects" data-i18n="proj.projects"></button>
+          </div>
           <div class="empty-hint" id="models-empty" data-i18n-html="models.empty"></div>
           <div id="model-list"></div>
           <div class="panel-actions" id="model-actions" hidden>
@@ -202,6 +220,10 @@
               <span class="btn primary big" data-i18n="welcome.choose"></span>
               <p class="muted small" data-i18n="welcome.types"></p>
             </label>
+            <div class="recent-projects" id="recent-projects" hidden>
+              <div class="recent-head"><b data-i18n="proj.recent"></b><button class="link" data-action="projects" data-i18n="proj.all"></button></div>
+              <div id="recent-list" class="proj-list"></div>
+            </div>
             <p class="welcome-text" data-i18n="welcome.text"></p>
             <p class="muted small" data-i18n="welcome.local"></p>
           </div>
@@ -211,6 +233,11 @@
               <label class="chk"><input type="checkbox" id="plane-fill" checked /> <span data-i18n="planes.fill"></span></label>
               <label class="chk"><input type="checkbox" id="plane-helpers" checked /> <span data-i18n="planes.helpers"></span></label>
               <button class="link" data-action="clear-planes" data-i18n="planes.clear"></button>
+            </div>
+            <div class="planes-step">
+              <label data-i18n-title="planes.stepTitle"><span data-i18n="planes.step"></span>
+                <input type="number" id="plane-step" min="0.001" step="any" value="1" /> m</label>
+              <span class="muted small" data-i18n="planes.stepHint"></span>
             </div>
             <div id="plane-list"></div>
           </div>
@@ -411,8 +438,23 @@
 
     <dialog id="qto-dialog" class="wide qto-dialog"></dialog>
 
+    <dialog id="projects-dialog" class="wide">
+      <h2 data-i18n="proj.title"></h2>
+      <p class="muted small" data-i18n="proj.intro"></p>
+      <div id="proj-list" class="proj-list"></div>
+      <p class="empty-hint" id="proj-empty" data-i18n="proj.empty" hidden></p>
+      <label class="chk"><input type="checkbox" id="proj-enabled" checked /> <span data-i18n="proj.enabled"></span></label>
+      <p class="muted small" id="proj-usage"></p>
+      <div class="dialog-btns">
+        <button class="btn" data-action="proj-clear-cache" data-i18n="proj.clearCache" data-i18n-title="proj.clearCacheTitle"></button>
+        <button class="btn" data-action="project-new" data-i18n="proj.new"></button>
+        <form method="dialog"><button class="btn primary" data-i18n="common.close"></button></form>
+      </div>
+    </dialog>
+
     <dialog id="about-dialog">
       <h2 data-i18n="about.title"></h2>
+      <div class="about-version" id="about-version"></div>
       <p data-i18n="about.purpose"></p>
       <p data-i18n="about.hobby"></p>
       <p data-i18n-html="about.repo"></p>
@@ -429,6 +471,7 @@
         <tr><td data-i18n="help.scroll"></td><td data-i18n="help.zoom"></td></tr>
         <tr><td data-i18n="help.dblclick"></td><td data-i18n="help.center"></td></tr>
         <tr><td data-i18n="help.ctrlClick"></td><td data-i18n="help.multi"></td></tr>
+        <tr><td data-i18n="help.rightClick"></td><td data-i18n="help.rightClickDo"></td></tr>
         <tr><td>Esc</td><td data-i18n="help.esc"></td></tr>
         <tr><td>F</td><td data-i18n="help.f"></td></tr>
         <tr><td>H</td><td data-i18n="help.h"></td></tr>

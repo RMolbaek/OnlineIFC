@@ -136,7 +136,12 @@ export function applyViewpoint(vp, ctx) {
   for (const cp of vp.clipping || []) {
     const point = viewer.fromIfc(...cp.loc);
     const n = dirFromIfc(viewer, ...cp.dir).normalize();
-    viewer.addPlane('custom', { normal: n, point });
+    // planes along an axis come back as plan / X / Y sections (they keep their name and slider)
+    const axis = ['x', 'y', 'z'].find((k) => Math.abs(n.getComponent('xyz'.indexOf(k))) > 0.9999);
+    if (axis) {
+      const e = viewer.addPlane(axis, { point });
+      if (e.plane.normal.dot(n) > 0) viewer.flipPlane(e); // BCF direction points to the removed side
+    } else viewer.addPlane('custom', { normal: n, point });
   }
   // selection
   ctx.setSelection(resolve(vp.selection || []));
