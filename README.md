@@ -4,7 +4,11 @@ An IFC viewer and editor that runs entirely in the browser. Files are processed 
 
 The interface is in **English**, **Danish**, **German** and **Hindi** (language picker in the top right corner; the choice is remembered). There is a light and a dark theme (moon/sun button).
 
+OnlineIFC is a private project by Rasmus Roien Molbaek. It grows out of the needs met in infrastructure projects: alignments and stationing, cross sections and long profiles, combining the models of several disciplines, and quick checks of metadata.
+
 ## Features
+The toolbar groups the functions: **View**, **Section**, **Visibility**, **Alignment** (stationing, cross sections, long profiles, drive along, draw a line), **Measure**, **Edit** and **Tools** (merge, compare, IDS check, quantity takeoff, Python). On small screens the side panels are drawers over the 3D view.
+
 
 ### Review
 - **Open files** (IFC2x3, IFC4, IFC4x3): drag and drop them anywhere in the window at any time, or click the drop area on the start screen / *Open IFC*. Dropped files are recognised by type: `.ifc` models are added to the view, `.bcf`/`.bcfzip` go to *Issues*, `.ids` opens the IDS check, and `.onlineifc.json` opens a workspace.
@@ -62,19 +66,19 @@ The **Issues** tab creates issues from the current view. The camera, section pla
 - **DXF (R12):** one layer per IFC class, coordinates in metres. Plan sections use the real IFC X/Y coordinates, so they line up with other drawings.
 
 ### Alignments and stationing (IFC4x3)
-Models with `IfcAlignment` show the alignment in 3D with station marks (**Visibility → Show alignments**). The vertical profile is computed from the alignment's vertical segments and the start station from `IfcReferent` / `Pset_Stationing`. Spot measurements show **station**, **lateral offset** (left positive, as in IFC) and the **height above the vertical profile**, and distances show the station range. Stations are written as `km+m` (`1+234.567`) or in metres. Under **Visibility → Stationing** the station marks can be automatic, every 1–1000 m, any other interval, or off (only the line).
+Models with `IfcAlignment` show the alignment in 3D with station marks (**Alignment → Show alignments**). The vertical profile is computed from the alignment's vertical segments and the start station from `IfcReferent` / `Pset_Stationing`. Spot measurements show **station**, **lateral offset** (left positive, as in IFC) and the **height above the vertical profile**, and distances show the station range. Stations are written as `km+m` (`1+234.567`) or in metres. Under **Alignment → Stationing** the station marks can be automatic, every 1–1000 m, any other interval, or off (only the line).
 
-**Section → Cross section at station** adds a section plane perpendicular to the alignment. Type the station (`1+234.5`, `1+234,5` or `1234.5`) in the plane's field, or step along the alignment with ‹ › and the step length; the plane turns with the curves. With several alignments, choose which one the plane follows. The 2D drawing of a station section uses the offset from the alignment as its x axis (right positive, looking towards higher stations) and shows the axis as a dash-dot line with the station (also in DXF, layer `ALIGNMENT_AXIS`). Saved views and BCF viewpoints bring the station plane back.
+**Alignment → Cross section at station** (also in the Section menu) adds a section plane perpendicular to the alignment. Type the station (`1+234.5`, `1+234,5` or `1234.5`) in the plane's field, or step along the alignment with ‹ › and the step length; the plane turns with the curves. With several alignments, choose which one the plane follows. The 2D drawing of a station section uses the offset from the alignment as its x axis (right positive, looking towards higher stations) and shows the axis as a dash-dot line with the station (also in DXF, layer `ALIGNMENT_AXIS`). Saved views and BCF viewpoints bring the station plane back.
 
 Cross sections get letters (A–A, B–B …). In 3D and on plan drawings each one is shown as a classic **section mark**: a dash-dot line across the alignment with arrows in the viewing direction and the letter at both ends. Plan drawings also show the alignment axis with station ticks inside the drawing, and a cross section at a station does not cut the plan. In the 2D drawing dialog of a station plane, **Series** writes one PDF page per station (from, to, every x m). All pages use the same scale and extent, with the axis at the same place.
 
 **Section window:** the ▣ button of a section plane opens a window with the live 2D cut of that plane, next to the 3D view. There you step through the sections with ‹ ›, the arrow keys or a typed station, and set the step length. The model shows the section mark of the current cut at the same time. The window has a grid (offset from the axis and height), zoom (wheel), pan (drag), *Fit* (`F`), and shows the coordinates under the cursor. ⧉ pops it out into a browser window of its own, e.g. on a second screen, and closing that window puts it back.
 
 ### Long profile
-**Section → Long profile** unrolls the model along an alignment or along a **line you draw**. Choose *Draw a new line*, click points in the view (on elements, or at the height of the last point), then press Enter or double click. Backspace removes the last point and Esc cancels. The visible elements are cut with the vertical surface that follows the path, so the drawing has the station along and the height up. You set the range (from–to station) and the height exaggeration (1–50×). The red line is the vertical profile of the alignment, or the heights of the clicked points of a drawn line. Station and height grid lines are chosen for the paper scale, and the profile heights are written under the stations. The profile is previewed in the dialog and exported as PDF, SVG or DXF (DXF heights are exaggerated like the drawing). Drawn lines also work for cross sections at a station and for driving, and projects remember them.
+**Alignment → Long profile** unrolls the model along an alignment or along a **line you draw**. Choose *Draw a new line*, click points in the view (on elements, or at the height of the last point), then press Enter or double click. Backspace removes the last point and Esc cancels. The visible elements are cut with the vertical surface that follows the path, so the drawing has the station along and the height up. You set the range (from–to station) and the height exaggeration (1–50×). The red line is the vertical profile of the alignment, or the heights of the clicked points of a drawn line. Station and height grid lines are chosen for the paper scale, and the profile heights are written under the stations. The profile is previewed in the dialog and exported as PDF, SVG or DXF (DXF heights are exaggerated like the drawing). Drawn lines also work for cross sections at a station and for driving, and projects remember them.
 
 ### Go to station / drive along
-**View → Go to station / drive along** puts the camera at eye height on an alignment (or a drawn line), looking ahead. Type a station and press Enter (↑/↓ step), or press ▶ to drive at 5–200 km/h. The camera follows the curves and the vertical profile, and ⇄ changes the direction. Dragging the view or pressing Esc pauses.
+**Alignment → Go to station / drive along** puts the camera at eye height on an alignment (or a drawn line), looking ahead. Type a station and press Enter (↑/↓ step), or press ▶ to drive at 5–200 km/h. The camera follows the curves and the vertical profile, and ⇄ changes the direction. Dragging the view or pressing Esc pauses.
 
 ### Measure
 **Measure** (toolbar or `M`) opens the measuring panel with three tools:
@@ -96,7 +100,7 @@ Turn on **Edit** (toolbar, properties panel or the `E` key):
 - Every model card shows the list of changes. **Download IFC** saves the edited file (`*_edited.ifc`).
 
 ### Merge models
-**Merge** combines two or more loaded models into a single IFC file (the same result as `ifcpatch` *MergeProjects*). The first model keeps its header, project, units and coordinate system; the projects of the others are replaced by it. Sites, buildings, storeys and other spatial elements with the same GlobalId in several models are combined into one, and their repeated relations are dropped. The merge works directly on the STEP text, streamed in chunks, so it is fast and needs little more memory than the files themselves (about 370 MB in 30 s in a test). The result opens in the viewer and can be downloaded. The models must use the same IFC schema. The merged file takes the length unit of the first model: a model whose unit was corrected is therefore not put first, and models in really different units trigger a warning. Tick *Replace the source models* for very large models: the sources are removed before the merged model is loaded, which saves memory.
+**Tools → Merge models** combines two or more loaded models into a single IFC file (the same result as `ifcpatch` *MergeProjects*). The first model keeps its header, project, units and coordinate system; the projects of the others are replaced by it. Sites, buildings, storeys and other spatial elements with the same GlobalId in several models are combined into one, and their repeated relations are dropped. The merge works directly on the STEP text, streamed in chunks, so it is fast and needs little more memory than the files themselves (about 370 MB in 30 s in a test). The result opens in the viewer and can be downloaded. The models must use the same IFC schema. The merged file takes the length unit of the first model: a model whose unit was corrected is therefore not put first, and models in really different units trigger a warning. Tick *Replace the source models* for very large models: the sources are removed before the merged model is loaded, which saves memory.
 
 In Python scripts, `app.merge(files)` / `merge_models(files)` merges with IfcOpenShell. Files leave Python by being written straight to the in-memory file system (not as one big string), but IfcOpenShell needs roughly 7× the file size in memory and the browser limits Python to 4 GB, so use the *Merge* button for large models.
 
@@ -141,6 +145,11 @@ Run with **Ctrl+Enter**. The script is saved in the browser. The *Examples* menu
 | Clear selection | Esc |
 
 ## Development
+Notes on performance:
+- The 3D view is drawn on demand: while the camera moves, shortly after any input or `viewer.invalidate()`, and otherwise twice a second. An idle view costs almost no GPU time.
+- The build puts web-ifc and three.js in files of their own, so an update of the app only re-downloads the small application file. The code editor is loaded when the Python panel is first opened.
+- `src/style.css` is organised as tokens, base controls (`.btn`, fields, `.float` panels) and feature sections; new UI should use those instead of local styles.
+
 
 ```bash
 npm install
