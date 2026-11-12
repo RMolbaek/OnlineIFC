@@ -19,11 +19,12 @@ export function planeAxes(entry) {
  * Coordinates are 2D in metres: plan sections use real IFC X/Y, vertical sections use
  * (distance along the section, IFC Z).
  */
-export function computeSection(viewer, entry) {
+export function computeSection(viewer, entry, { marks = [] } = {}) {
   const ax = planeAxes(entry);
   const plane = entry.plane.clone();
   plane.constant += 1e-7; // avoid vertices exactly on the plane
-  const others = viewer.planes.filter((p) => p.enabled && p !== entry).map((p) => p.plane);
+  // in plans, cross sections at stations are shown as section marks, they do not clip the plan
+  const others = viewer.planes.filter((p) => p.enabled && p !== entry && !(ax.horizontal && p.station)).map((p) => p.plane);
   const to2d = (p) => {
     if (ax.horizontal) { const q = viewer.toIfc(p); return [q.x, q.y]; }
     const q = viewer.toIfc(p);
@@ -92,17 +93,256 @@ export function computeSection(viewer, entry) {
     }
   }
   // cross section at a station: the alignment axis (offset 0) is part of the drawing
-  let axis = null;
+  // marks may depend on the extent of the cut (e.g. the part of an alignment inside the plan)
+  if (typeof marks === 'function') marks = Number.isFinite(bounds.minX) ? marks({ ...bounds }) : [];
+  const out = [...marks];
   if (entry.station && Number.isFinite(bounds.minX)) {
-    const q = viewer.toIfc(ax.origin);
-    axis = { x: 0, z: q.z, label: entry.stationLabel || '' };
     bounds.minX = Math.min(bounds.minX, 0); bounds.maxX = Math.max(bounds.maxX, 0);
+    const pad = 0.06 * (bounds.maxY - bounds.minY || 1);
+    out.push({ line: [[0, bounds.minY - pad], [0, bounds.maxY + pad]], color: AXIS_COLOR, dash: 'dashdot', layer: 'ALIGNMENT_AXIS' });
+    out.push({ text: entry.stationLabel || '', at: [0, bounds.maxY + pad], dx: 1.2, dy: -1, size: 3, color: AXIS_COLOR, layer: 'ALIGNMENT_AXIS' });
   }
-  return { layers, bounds, axes: ax, axis };
+  // marks in plans (e.g. section marks) widen the drawing
+  if (ax.horizontal && Number.isFinite(bounds.minX)) {
+    for (const mk of marks) for (const p of mk.line || (mk.arrow ? [mk.arrow] : [mk.at])) {
+      bounds.minX = Math.min(bounds.minX, p[0]); bounds.maxX = Math.max(bounds.maxX, p[0]);
+      bounds.minY = Math.min(bounds.minY, p[1]); bounds.maxY = Math.max(bounds.maxY, p[1]);
+    }
+  }
+  return { layers, bounds, axes: ax, marks: out };
+}
+
+export const AXIS_COLOR = '#c0392b';
+
+// ----------------------------------------------------------- long profile
+const niceStep = (range, maxCount, steps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]) =>
+  steps.find((x) => range / x <= maxCount) || steps[steps.length - 1];
+
+/**
+ * Long profile along a path (an alignment or a drawn line): the visible elements are cut with
+ * the vertical surface that follows the path, and unrolled. Drawing coordinates: x = station,
+ * y = height × exag. path: {poly: [[x, y]] (IFC), cum, length, station0, name}; heightOf(s) gives
+ * the profile line of the path (or null). opts: {from, to (distance along), exag, fmt(station)}.
+ */
+export function computeProfile(viewer, path, heightOf, { from = 0, to = path.length, exag = 1, fmt = (st) => st.toFixed(1) } = {}) {
+  const s0 = Math.max(0, Math.min(from, to)), s1 = Math.min(path.length, Math.max(from, to));
+  const { poly, cum } = path;
+  // segments of the path inside the range
+  const segs = [];
+  for (let k = 1; k < poly.length; k++) {
+    if (cum[k] < s0 || cum[k - 1] > s1) continue;
+    const a = poly[k - 1], b = poly[k];
+    const L = cum[k] - cum[k - 1];
+    if (L < 1e-9) continue;
+    const ux = (b[0] - a[0]) / L, uy = (b[1] - a[1]) / L;
+    segs.push({ a, c0: cum[k - 1], L, ux, uy, nx: -uy, ny: ux, minX: Math.min(a[0], b[0]), maxX: Math.max(a[0], b[0]), minY: Math.min(a[1], b[1]), maxY: Math.max(a[1], b[1]) });
+  }
+  // grid of the segments for a fast lookup by the triangles' extent
+  let gx0 = Infinity, gy0 = Infinity, gx1 = -Infinity, gy1 = -Infinity;
+  for (const g of segs) { gx0 = Math.min(gx0, g.minX); gy0 = Math.min(gy0, g.minY); gx1 = Math.max(gx1, g.maxX); gy1 = Math.max(gy1, g.maxY); }
+  const cell = Math.max(2, Math.hypot(gx1 - gx0, gy1 - gy0) / 400);
+  const grid = new Map();
+  const ckey = (i, j) => i * 1000003 + j;
+  segs.forEach((g, idx) => {
+    for (let i = Math.floor((g.minX - gx0) / cell); i <= Math.floor((g.maxX - gx0) / cell); i++) {
+      for (let j = Math.floor((g.minY - gy0) / cell); j <= Math.floor((g.maxY - gy0) / cell); j++) {
+        const kk = ckey(i, j);
+        if (!grid.has(kk)) grid.set(kk, []);
+        grid.get(kk).push(idx);
+      }
+    }
+  });
+
+  const layers = new Map();
+  const bounds = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+  const inv = viewer.referenceMatrix ? viewer.referenceMatrix.clone().invert() : new THREE.Matrix4();
+  const v = new THREE.Vector3();
+  const X = new Float64Array(9);
+  const stamp = new Int32Array(segs.length);
+  let tri = 0;
+  for (const m of viewer.models) {
+    if (!m.visible || !segs.length) continue;
+    m.group.updateMatrixWorld(true);
+    const M = inv.clone().multiply(m.group.matrixWorld);
+    const modelCol = m.overrideColor ? `#${m.overrideColor.getHexString()}` : null;
+    for (const b of m.buckets) {
+      const P = b.positions, I = b.index;
+      const origCol = `#${b.color.getHexString()}`;
+      for (const it of b.items) {
+        if (m.hidden.has(it.id) || (m.elementOpacity.get(it.id) ?? 1) < 0.1) continue;
+        let pieces = null;
+        for (let k = it.start; k + 2 < it.start + it.count; k += 3) {
+          for (let j = 0; j < 3; j++) {
+            const vi = I[k + j] * 3;
+            v.set(P[vi], P[vi + 1], P[vi + 2]).applyMatrix4(M);
+            X[j * 3] = v.x; X[j * 3 + 1] = -v.z; X[j * 3 + 2] = v.y; // three -> IFC
+          }
+          const tx0 = Math.min(X[0], X[3], X[6]), tx1 = Math.max(X[0], X[3], X[6]);
+          const ty0 = Math.min(X[1], X[4], X[7]), ty1 = Math.max(X[1], X[4], X[7]);
+          if (tx1 < gx0 || tx0 > gx1 || ty1 < gy0 || ty0 > gy1) continue;
+          tri++;
+          for (let i = Math.floor((tx0 - gx0) / cell); i <= Math.floor((tx1 - gx0) / cell); i++) {
+            for (let j = Math.floor((ty0 - gy0) / cell); j <= Math.floor((ty1 - gy0) / cell); j++) {
+              const list = grid.get(ckey(i, j));
+              if (!list) continue;
+              for (const si of list) {
+                if (stamp[si] === tri) continue;
+                stamp[si] = tri;
+                const g = segs[si];
+                const d = [0, 1, 2].map((q) => (X[q * 3] - g.a[0]) * g.nx + (X[q * 3 + 1] - g.a[1]) * g.ny + 1e-7);
+                if ((d[0] > 0 && d[1] > 0 && d[2] > 0) || (d[0] < 0 && d[1] < 0 && d[2] < 0)) continue;
+                const cut = [];
+                for (let q = 0; q < 3; q++) {
+                  const q2 = (q + 1) % 3;
+                  if ((d[q] > 0) !== (d[q2] > 0)) {
+                    const f = d[q] / (d[q] - d[q2]);
+                    const x = X[q * 3] + (X[q2 * 3] - X[q * 3]) * f, y = X[q * 3 + 1] + (X[q2 * 3 + 1] - X[q * 3 + 1]) * f, z = X[q * 3 + 2] + (X[q2 * 3 + 2] - X[q * 3 + 2]) * f;
+                    cut.push([(x - g.a[0]) * g.ux + (y - g.a[1]) * g.uy, z]); // [distance along the segment, z]
+                  }
+                }
+                if (cut.length !== 2) continue;
+                // keep the part over this segment and inside the range
+                let [p, q] = cut[0][0] <= cut[1][0] ? cut : [cut[1], cut[0]];
+                const lo = Math.max(0, s0 - g.c0), hi = Math.min(g.L, s1 - g.c0);
+                if (q[0] < lo || p[0] > hi) continue;
+                const lerp = (A, B, t) => [t, A[1] + ((B[1] - A[1]) * (t - A[0])) / (B[0] - A[0] || 1)];
+                if (p[0] < lo) p = lerp(p, q, lo);
+                if (q[0] > hi) q = lerp(p, q, hi);
+                const A2 = [g.c0 + p[0], p[1] * exag], B2 = [g.c0 + q[0], q[1] * exag];
+                if (Math.hypot(A2[0] - B2[0], A2[1] - B2[1]) < 1e-6) continue;
+                (pieces ||= []).push([A2, B2]);
+                for (const pt of [A2, B2]) {
+                  bounds.minX = Math.min(bounds.minX, pt[0]); bounds.maxX = Math.max(bounds.maxX, pt[0]);
+                  bounds.minY = Math.min(bounds.minY, pt[1]); bounds.maxY = Math.max(bounds.maxY, pt[1]);
+                }
+              }
+            }
+          }
+        }
+        if (!pieces) continue;
+        const cls = m.typeName(it.id) || 'IfcElement';
+        if (!layers.has(cls)) layers.set(cls, { segments: [], elements: 0 });
+        const L = layers.get(cls);
+        L.elements++;
+        const { loops, open } = stitch(pieces);
+        const own = m.elementColor.get(it.id);
+        const col = { original: origCol, shown: own !== undefined ? `#${own.toString(16).padStart(6, '0')}` : modelCol || origCol };
+        (L.loops ||= []).push(...loops);
+        (L.loopCols ||= []).push(...loops.map(() => col));
+        (L.open ||= []).push(...open);
+        (L.openCols ||= []).push(...open.map(() => col));
+        L.segments.push(...pieces);
+      }
+    }
+  }
+
+  // profile line of the path
+  const marks = [];
+  const line = [];
+  const n = Math.min(2000, Math.max(50, Math.ceil((s1 - s0) / 2)));
+  for (let i = 0; i <= n; i++) {
+    const s = s0 + ((s1 - s0) * i) / n;
+    const z = heightOf(s);
+    if (z === null || !Number.isFinite(z)) continue;
+    line.push([s, z * exag]);
+  }
+  for (const p of line) { bounds.minY = Math.min(bounds.minY, p[1]); bounds.maxY = Math.max(bounds.maxY, p[1]); }
+  bounds.minX = Math.min(bounds.minX, s0); bounds.maxX = Math.max(bounds.maxX, s1);
+  if (!Number.isFinite(bounds.minY)) { bounds.minY = 0; bounds.maxY = 1; }
+  // grid of stations and heights; chosen when the scale on paper is known (marksFor)
+  const zLo = bounds.minY / exag, zHi = Math.max(bounds.maxY / exag, zLo + 0.5);
+  const yPad = (zHi - zLo) * exag * 0.06;
+  const y0 = zLo * exag - yPad, y1 = zHi * exag + yPad;
+  const band = (y1 - y0) * 0.06;
+  if (line.length > 1) marks.push({ line, color: AXIS_COLOR, w: 0.35, layer: 'PROFILE_LINE' });
+  bounds.minY = y0 - band; bounds.maxY = y1;
+  const marksFor = (lay) => {
+    const GRID = '#9aa0a6', layer = 'PROFILE_GRID', out = [];
+    // mm on paper per metre of drawing; without a layout (DXF) about 12 stations and 8 heights
+    const mmPerM = lay ? 1000 / lay.scale : null;
+    const sStep = mmPerM ? ([0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000].find((x) => x * mmPerM >= 24) || 5000) : niceStep(Math.max(s1 - s0, 1), 12);
+    const hStep = mmPerM ? [0.01, 0.02, 0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5, 10, 20, 50, 100].find((x) => x * exag * mmPerM >= 8) || 100 : niceStep(Math.max(zHi - zLo, 0.5), 8);
+    const dec = hStep < 0.1 ? 2 : hStep < 1 ? 1 : 0;
+    for (let h = Math.ceil(zLo / hStep - 1e-9) * hStep; h <= zHi + 1e-9; h += hStep) {
+      out.push({ line: [[s0, h * exag], [s1, h * exag]], color: GRID, w: 0.12, dash: 'dot', layer });
+      out.push({ text: h.toFixed(dec), at: [s0, h * exag], dx: -1.5, dy: 0.9, size: 2.4, anchor: 'end', color: '#555555', layer });
+    }
+    const st0 = path.station0 + s0, st1 = path.station0 + s1;
+    for (let st = Math.ceil(st0 / sStep - 1e-9) * sStep; st <= st1 + 1e-6; st += sStep) {
+      const s = st - path.station0;
+      out.push({ line: [[s, y0 - band], [s, y1]], color: GRID, w: 0.12, dash: 'dot', layer });
+      out.push({ text: fmt(st), at: [s, y0 - band], dy: 3.2, size: 2.4, anchor: 'middle', color: '#333333', layer });
+      const z = heightOf(s);
+      if (z !== null && Number.isFinite(z)) out.push({ text: z.toFixed(2), at: [s, y0 - band], dy: 6.4, size: 2.2, anchor: 'middle', color: AXIS_COLOR, layer });
+    }
+    out.push({ line: [[s0, y0 - band], [s1, y0 - band]], color: '#333333', w: 0.25, layer });
+    return out;
+  };
+  return { layers, bounds, axes: null, marks, marksFor, profile: true };
+}
+const DASH = { dashdot: [6, 1.5, 1, 1.5], dash: [3, 2], dot: [0.6, 1.2] };
+const dashOf = (d) => (Array.isArray(d) ? d : DASH[d]) || null;
+
+/**
+ * Annotation marks of a drawing, coordinates in drawing metres, sizes in paper mm:
+ *   {line: [[x, y], ...], color, w, dash: 'dashdot'|'dash'|'dot'|[mm...], closed, fill, layer}
+ *   {arrow: [x, y], dir: [dx, dy], size, color, layer}    stub with an arrowhead, pointing along dir
+ *   {text, at: [x, y], dx, dy, size, color, anchor: 'start'|'middle'|'end', bold, layer}
+ */
+function arrowShape(lay, mk) {
+  const [bx, by] = lay.map(mk.arrow);
+  let vx = mk.dir[0], vy = -mk.dir[1];
+  const L = Math.hypot(vx, vy) || 1; vx /= L; vy /= L;
+  const sz = mk.size ?? 5;
+  const stubEnd = [bx + vx * sz * 0.55, by + vy * sz * 0.55];
+  const tip = [bx + vx * sz, by + vy * sz];
+  const px = -vy, py = vx, hw = sz * 0.28;
+  return { stub: [[bx, by], stubEnd], head: [tip, [stubEnd[0] + px * hw, stubEnd[1] + py * hw], [stubEnd[0] - px * hw, stubEnd[1] - py * hw]] };
+}
+const textX = (x, mk) => { const w = textW(String(mk.text), mk.size ?? 3, mk.bold); return mk.anchor === 'middle' ? x - w / 2 : mk.anchor === 'end' ? x - w : x; };
+
+const allMarks = (section, lay) => [...(section.marksFor?.(lay) || []), ...(section.marks || [])];
+
+function marksSvg(section, lay) {
+  const out = [];
+  for (const mk of allMarks(section, lay)) {
+    const col = mk.color || '#000';
+    if (mk.line) {
+      const pts = mk.line.map((p) => lay.map(p));
+      const d = dashOf(mk.dash);
+      out.push(`<path d="M${pts.map((p) => p.map(f2).join(' ')).join('L')}${mk.closed ? 'Z' : ''}" fill="${mk.fill || 'none'}" stroke="${col}" stroke-width="${mk.w ?? 0.25}" stroke-linecap="round"${d ? ` stroke-dasharray="${d.join(' ')}"` : ''}/>`);
+    } else if (mk.arrow) {
+      const a = arrowShape(lay, mk);
+      out.push(`<path d="M${a.stub.map((p) => p.map(f2).join(' ')).join('L')}" stroke="${col}" stroke-width="${mk.w ?? 0.7}" fill="none"/><path d="M${a.head.map((p) => p.map(f2).join(' ')).join('L')}Z" fill="${col}" stroke="none"/>`);
+    } else if (mk.text !== undefined) {
+      const [x, y] = lay.map(mk.at);
+      out.push(`<text x="${f2(x + (mk.dx || 0))}" y="${f2(y + (mk.dy || 0))}" font-family="Helvetica, Arial, sans-serif" font-size="${mk.size ?? 3}"${mk.bold ? ' font-weight="bold"' : ''} text-anchor="${mk.anchor || 'start'}" fill="${col}">${escXml(mk.text)}</text>`);
+    }
+  }
+  return out.join('\n');
+}
+
+function marksPdf(section, lay, P, k, rgb) {
+  const c = [];
+  for (const mk of allMarks(section, lay)) {
+    const col = rgb(mk.color || '#000000');
+    if (mk.line) {
+      const pts = mk.line.map((p) => lay.map(p));
+      const d = dashOf(mk.dash);
+      c.push(`q ${col} RG ${mk.fill ? `${rgb(mk.fill)} rg ` : ''}${((mk.w ?? 0.25) * k).toFixed(3)} w ${d ? `[${d.map((v) => (v * k).toFixed(2)).join(' ')}] 0 d ` : ''}${P(...pts[0])} m ${pts.slice(1).map((p) => `${P(...p)} l`).join(' ')}${mk.closed ? ' h' : ''} ${mk.fill ? 'B' : 'S'} Q`);
+    } else if (mk.arrow) {
+      const a = arrowShape(lay, mk);
+      c.push(`q ${col} RG ${col} rg ${((mk.w ?? 0.7) * k).toFixed(3)} w ${P(...a.stub[0])} m ${P(...a.stub[1])} l S ${P(...a.head[0])} m ${P(...a.head[1])} l ${P(...a.head[2])} l h f Q`);
+    } else if (mk.text !== undefined) {
+      const [x, y] = lay.map(mk.at);
+      c.push(`q ${col} rg BT /${mk.bold ? 'F2' : 'F1'} ${((mk.size ?? 3) * k).toFixed(2)} Tf ${P(textX(x + (mk.dx || 0), mk), y + (mk.dy || 0))} Td (${pdfStr(mk.text)}) Tj ET Q`);
+    }
+  }
+  return c;
 }
 
 /** Joins segments into closed loops and open polylines (endpoints matched within 0.1 mm). */
-function stitch(segs) {
+export function stitch(segs) {
   const key = (p) => `${Math.round(p[0] * 1e4)},${Math.round(p[1] * 1e4)}`;
   const adj = new Map();
   segs.forEach((s, i) => {
@@ -257,7 +497,8 @@ function titleLines(info, lay, opts = {}) {
   const sub = wrap(String(info.subtitle ?? ''), 3.2, maxW, 2);
   const lines = [{ text: fit(String(info.title ?? ''), 5, maxW, true), size: 5, bold: true, y: 7 }];
   sub.forEach((t, i) => lines.push({ text: t, size: 3.2, y: 11.8 + i * 3.8 }));
-  lines.push({ text: fit(`1:${lay.scale}  ·  ${info.date}  ·  OnlineIFC`, 3, maxW), size: 3, y: sub.length > 1 ? 20.2 : 18.5 });
+  const scaleText = info.exag && info.exag !== 1 ? `1:${lay.scale} / 1:${+(lay.scale / info.exag).toFixed(2)} (${info.exag}×)` : `1:${lay.scale}`;
+  lines.push({ text: fit(`${scaleText}  ·  ${info.date}  ·  OnlineIFC`, 3, maxW), size: 3, y: sub.length > 1 ? 20.2 : 18.5 });
   return lines;
 }
 
@@ -289,13 +530,7 @@ export function toSvg(section, lay, info, opts) {
     if (L.open.length) out.push(`<path d="${L.open.map((l) => path(l, false)).join('')}" fill="none"/>`);
     out.push('</g>');
   }
-  if (section.axis) {
-    // alignment axis: dash-dot line over the drawing height, with the station
-    const b = section.bounds;
-    const [x, y0] = lay.map([0, b.maxY]); const [, y1] = lay.map([0, b.minY]);
-    out.push(`<g stroke="#c0392b" stroke-width="0.25" fill="#c0392b"><line x1="${f2(x)}" y1="${f2(y0 - 4)}" x2="${f2(x)}" y2="${f2(y1 + 4)}" stroke-dasharray="6 1.5 1 1.5"/>` +
-      `<text x="${f2(x + 1.2)}" y="${f2(y0 - 5)}" font-family="Helvetica, Arial, sans-serif" font-size="3" stroke="none">${escXml(section.axis.label)}</text></g>`);
-  }
+  out.push(marksSvg(section, lay));
   // frame, title and scale bar
   const m = lay.margin;
   out.push(`<rect x="${m / 2}" y="${m / 2}" width="${lay.W - m}" height="${lay.H - m}" fill="none" stroke="#000" stroke-width="0.5"/>`);
@@ -342,6 +577,31 @@ function legendSvg(section, lay, ty, opts) {
 
 /** Minimal PDF 1.4 with vector paths, Helvetica text and an optional JPEG background. */
 export function toPdf(section, lay, info, opts) {
+  return toPdfPages([{ section, lay, info, opts }]);
+}
+
+/** Several drawings in one PDF, one page each: pages [{section, lay, info, opts}]. */
+export function toPdfPages(pages) {
+  const objs = [];
+  objs.push('<< /Type /Catalog /Pages 2 0 R >>');
+  objs.push(null); // pages, filled in below
+  objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+  objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+  const kids = [];
+  for (const pg of pages) {
+    const { content, W, Hpt, img } = pdfPage(pg.section, pg.lay, pg.info, pg.opts);
+    const pageNo = objs.length + 1;
+    kids.push(`${pageNo} 0 R`);
+    const imgNo = pageNo + 2;
+    objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${Hpt.toFixed(2)}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${img ? ` /XObject << /Im1 ${imgNo} 0 R >> /ExtGState << /GS1 << /ca 0.55 >> >>` : ''} >> /Contents ${pageNo + 1} 0 R >>`);
+    objs.push({ dict: `<< /Length ${latin1Length(content)} >>`, stream: content });
+    if (img) objs.push({ dict: `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`, bin: img.bytes });
+  }
+  objs[1] = `<< /Type /Pages /Kids [${kids.join(' ')}] /Count ${kids.length} >>`;
+  return pdfBytes(objs, pages[0]?.info?.title);
+}
+
+function pdfPage(section, lay, info, opts) {
   const k = 72 / 25.4; // mm -> pt
   const Hpt = lay.H * k;
   const P = (x, y) => `${(x * k).toFixed(2)} ${(Hpt - y * k).toFixed(2)}`;
@@ -381,12 +641,7 @@ export function toPdf(section, lay, info, opts) {
       c.push(`${P(...pts[0])} m ${pts.slice(1).map((p) => `${P(...p)} l`).join(' ')} S`);
     }
   }
-  if (section.axis) {
-    const b = section.bounds;
-    const [x, y0] = lay.map([0, b.maxY]); const [, y1] = lay.map([0, b.minY]);
-    c.push(`q 0.753 0.224 0.169 RG 0.753 0.224 0.169 rg ${(0.25 * k).toFixed(3)} w [${[6, 1.5, 1, 1.5].map((v) => (v * k).toFixed(2)).join(' ')}] 0 d ${P(x, y0 - 4)} m ${P(x, y1 + 4)} l S Q`);
-    c.push(`q 0.753 0.224 0.169 rg BT /F1 ${(3 * k).toFixed(2)} Tf ${P(x + 1.2, y0 - 5)} Td (${pdfStr(section.axis.label)}) Tj ET Q`);
-  }
+  c.push(...marksPdf(section, lay, P, k, rgb));
   const m = lay.margin;
   const ty = lay.H - m / 2 - lay.title;
   c.push(`0 0 0 RG ${(0.5 * k).toFixed(3)} w ${P(m / 2, lay.H - m / 2)} ${((lay.W - m) * k).toFixed(2)} ${((lay.H - m) * k).toFixed(2)} re S`);
@@ -403,18 +658,10 @@ export function toPdf(section, lay, info, opts) {
   for (let q = 0; q <= 4; q++) c.push(text(x0 + q * segMm - 1, y + 6, 2.5, `${+(q * step).toFixed(2)}`));
   c.push(text(x0 + 4 * segMm + 3, y + 2, 2.5, 'm'));
   const content = c.join('\n');
+  return { content, W: (lay.W * k).toFixed(2), Hpt, img: opts.background?.jpeg || null };
+}
 
-  const objs = [];
-  const W = (lay.W * k).toFixed(2);
-  const img = opts.background?.jpeg;
-  objs.push('<< /Type /Catalog /Pages 2 0 R >>');
-  objs.push('<< /Type /Pages /Kids [3 0 R] /Count 1 >>');
-  objs.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${Hpt.toFixed(2)}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >>${img ? ' /XObject << /Im1 7 0 R >> /ExtGState << /GS1 << /ca 0.55 >> >>' : ''} >> /Contents 6 0 R >>`);
-  objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
-  objs.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
-  objs.push({ dict: `<< /Length ${latin1Length(content)} >>`, stream: content });
-  if (img) objs.push({ dict: `<< /Type /XObject /Subtype /Image /Width ${img.width} /Height ${img.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${img.bytes.length} >>`, bin: img.bytes });
-
+function pdfBytes(objs, title) {
   const parts = [];
   let len = 0;
   const push = (x) => { const b = typeof x === 'string' ? latin1(x) : x; parts.push(b); len += b.length; };
@@ -431,7 +678,7 @@ export function toPdf(section, lay, info, opts) {
   });
   const xref = len;
   push(`xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`);
-  push(`trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info << /Producer (OnlineIFC) /Title (${pdfStr(String(info.title).replace(/[–—]/g, '-').replace(/[^\x20-\xff]/g, '?'))}) >> >>\nstartxref\n${xref}\n%%EOF\n`);
+  push(`trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info << /Producer (OnlineIFC) /Title (${pdfStr(String(title ?? '').replace(/[–—]/g, '-').replace(/[^\x20-\xff]/g, '?'))}) >> >>\nstartxref\n${xref}\n%%EOF\n`);
   const out = new Uint8Array(len);
   let o = 0;
   for (const p of parts) { out.set(p, o); o += p.length; }
@@ -459,13 +706,15 @@ export function toDxf(section, info) {
   const g = (code, val) => { L.push(String(code), String(val)); };
   const layerName = (cls) => cls.replace(/[^A-Za-z0-9_-]/g, '_').toUpperCase();
   const aci = [1, 5, 3, 6, 30, 4, 140, 40, 160, 210];
+  const dxfMarks = allMarks(section, null);
+  const markLayers = [...new Set(dxfMarks.map((mk) => mk.layer || 'ANNOTATION'))];
   g(0, 'SECTION'); g(2, 'HEADER'); g(9, '$ACADVER'); g(1, 'AC1009');
   g(9, '$EXTMIN'); g(10, section.bounds.minX); g(20, section.bounds.minY);
   g(9, '$EXTMAX'); g(10, section.bounds.maxX); g(20, section.bounds.maxY);
   g(0, 'ENDSEC');
-  g(0, 'SECTION'); g(2, 'TABLES'); g(0, 'TABLE'); g(2, 'LAYER'); g(70, section.layers.size + 1 + (section.axis ? 1 : 0));
+  g(0, 'SECTION'); g(2, 'TABLES'); g(0, 'TABLE'); g(2, 'LAYER'); g(70, section.layers.size + 1 + markLayers.length);
   g(0, 'LAYER'); g(2, '0'); g(70, 0); g(62, 7); g(6, 'CONTINUOUS');
-  if (section.axis) { g(0, 'LAYER'); g(2, 'ALIGNMENT_AXIS'); g(70, 0); g(62, 1); g(6, 'CONTINUOUS'); }
+  for (const ml of markLayers) { g(0, 'LAYER'); g(2, ml); g(70, 0); g(62, 1); g(6, 'CONTINUOUS'); }
   let i = 0;
   for (const [cls] of section.layers) { g(0, 'LAYER'); g(2, layerName(cls)); g(70, 0); g(62, aci[i++ % aci.length]); g(6, 'CONTINUOUS'); }
   g(0, 'ENDTAB'); g(0, 'ENDSEC');
@@ -480,10 +729,23 @@ export function toDxf(section, info) {
     for (const l of layer.loops) poly(ln, l, true);
     for (const l of layer.open) poly(ln, l, false);
   }
-  if (section.axis) {
-    const b = section.bounds, pad = 0.05 * (b.maxY - b.minY || 1);
-    poly('ALIGNMENT_AXIS', [[0, b.minY - pad], [0, b.maxY + pad]], false);
-    g(0, 'TEXT'); g(8, 'ALIGNMENT_AXIS'); g(10, 0.05); g(20, b.maxY + pad); g(40, 0.2); g(1, section.axis.label.replace(/[^\x20-\x7E]/g, '?'));
+  const ascii = (x) => String(x).replace(/[–—]/g, '-').replace(/[^\x20-\x7E]/g, '?');
+  for (const mk of dxfMarks) {
+    const ln = mk.layer || 'ANNOTATION';
+    if (mk.line) poly(ln, mk.line, !!mk.closed);
+    else if (mk.arrow) {
+      // the arrow in drawing units: about 1 % of the drawing width
+      const b = section.bounds, sz = (mk.size ?? 5) * Math.max(b.maxX - b.minX, b.maxY - b.minY) / 300;
+      const [vx, vy] = mk.dir, L = Math.hypot(vx, vy) || 1, ux = vx / L, uy = vy / L;
+      const tip = [mk.arrow[0] + ux * sz, mk.arrow[1] + uy * sz], base = [mk.arrow[0] + ux * sz * 0.55, mk.arrow[1] + uy * sz * 0.55];
+      poly(ln, [mk.arrow, base], false);
+      poly(ln, [tip, [base[0] - uy * sz * 0.28, base[1] + ux * sz * 0.28], [base[0] + uy * sz * 0.28, base[1] - ux * sz * 0.28]], true);
+    } else if (mk.text !== undefined) {
+      const b = section.bounds, h = (mk.size ?? 3) * Math.max(b.maxX - b.minX, b.maxY - b.minY) / 300;
+      g(0, 'TEXT'); g(8, ln); g(10, mk.at[0]); g(20, mk.at[1]); g(40, h.toFixed(4));
+      if (mk.anchor === 'middle' || mk.anchor === 'end') { g(72, mk.anchor === 'middle' ? 1 : 2); g(11, mk.at[0]); g(21, mk.at[1]); }
+      g(1, ascii(mk.text));
+    }
   }
   g(0, 'TEXT'); g(8, '0'); g(10, section.bounds.minX); g(20, section.bounds.minY - 1); g(40, 0.25); g(1, `${info.title} - ${info.subtitle}`.replace(/[^\x20-\x7E]/g, '?'));
   g(0, 'ENDSEC'); g(0, 'EOF');

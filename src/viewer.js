@@ -592,6 +592,7 @@ export class Viewer extends EventTarget {
   setHelpersVisible(v) { this.showPlaneHelpers = v; this.#updateClipping(); }
 
   #updateClipping() {
+    this.dispatchEvent(new Event('planeschanged'));
     this.renderer.clippingPlanes = this.planes.filter((p) => p.enabled).map((p) => p.plane);
     sectionFill.active.value = this.renderer.clippingPlanes.length && this.sectionFillOn !== false ? 1 : 0;
     for (const p of this.planes) this.#updateHelper(p);

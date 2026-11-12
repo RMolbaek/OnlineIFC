@@ -635,7 +635,6 @@ dialog .qto-table td:first-child { color: var(--text); }
 #projects-dialog { width: 640px; max-width: 96vw; }
 #projects-dialog .proj-list { max-height: 52vh; overflow: auto; margin-bottom: 8px; }
 #projects-dialog .dialog-btns form { margin: 0; }
-.card-row.unit-fixed select { border-color: var(--accent); }
 
 /* cross section at a station: alignment name on its own line */
 .plane-row.station { grid-template-columns: auto auto 1fr auto auto auto auto; }
@@ -643,3 +642,21 @@ dialog .qto-table td:first-child { color: var(--text); }
 .plane-row.station select.pl-name { font-weight: 400; padding: 2px 4px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--text); }
 .plane-row.station .val { grid-column: 1 / -1; }
 .plane-row.station .val input { width: 110px; font-size: 12px; }
+.m-label.section-mark { background: #c0392b; color: #fff; font-weight: 700; font-size: 13px; min-width: 18px; text-align: center; border-radius: 4px; padding: 1px 5px; }
+
+/* ---------- long profile, series, drive ---------- */
+#profile-dialog { width: 960px; max-width: 96vw; }
+.prof-row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+.prof-row .field { flex: 1; min-width: 220px; }
+.prof-grid { grid-template-columns: repeat(3, 1fr); align-items: end; }
+.prof-fill { align-self: center; }
+.prof-preview { margin: 10px 0; border: 1px solid var(--border); border-radius: 8px; background: #fff; min-height: 120px; max-height: 46vh; overflow: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.prof-preview img { width: 100%; height: auto; display: block; }
+fieldset.series { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; margin: 8px 0; }
+.tool-hint { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: 6px 12px; font-size: 12.5px; box-shadow: 0 4px 14px rgba(0,0,0,.15); max-width: 80%; text-align: center; }
+.drive-panel { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 6px 10px; box-shadow: 0 4px 14px rgba(0,0,0,.15); font-size: 12.5px; max-width: calc(100% - 20px); }
+.drive-panel select, .drive-panel input { font-size: 12.5px; padding: 2px 4px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel); color: var(--text); }
+.drive-panel #drive-station { width: 96px; font-variant-numeric: tabular-nums; }
+.drive-panel #drive-eye { width: 52px; }
+.drive-panel #drive-path { max-width: 180px; }
+body.line-drawing #viewport canvas { cursor: crosshair; }
