@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # all history and tags: the version in the About dialog comes from the latest release tag
       - uses: actions/setup-node@v4
         with:
           node-version: 22

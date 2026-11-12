@@ -609,3 +609,7 @@ dialog .qto-table td:first-child { color: var(--text); }
 .ctx-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ctx-item kbd { font-size: 10.5px; color: var(--muted); }
 .ctx-sep { height: 1px; background: var(--border); margin: 4px 2px; }
+
+.about-version { border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); padding: 8px 10px; margin: 4px 0 10px; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.about-version a { color: var(--accent); }
+.about-update { margin-top: 4px; color: #b35c00; font-weight: 600; }

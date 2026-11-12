@@ -11,6 +11,7 @@ import { ViewsPanel } from './views.js';
 import { QtoTable } from './qto.js';
 import { mergeIfcBlobs } from './merge.js';
 import { ContextMenu } from './contextmenu.js';
+import { renderVersion } from './version.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -414,7 +415,7 @@ document.addEventListener('click', (e) => {
       try { localStorage.setItem(THEME_KEY, currentTheme() === 'dark' ? 'light' : 'dark'); } catch { /* ignore */ }
       applyTheme();
     },
-    about: () => $('#about-dialog').showModal(),
+    about: () => { renderVersion($('#about-version'), h); $('#about-dialog').showModal(); },
     'toggle-left': () => setPanelHidden('left', !document.body.classList.contains('hide-left')),
     'toggle-right': () => setPanelHidden('right', !document.body.classList.contains('hide-right')),
     map: () => openMapDialog(),

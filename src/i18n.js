@@ -501,6 +501,13 @@ const en = {
   'ctx.layersHint': 'Click to turn a layer off / on',
   'help.rightClick': 'Right click (without dragging)',
   'help.rightClickDo': 'Menu: hide / show only by element, class, layer, storey or model',
+  'about.version': 'Version',
+  'about.versionAhead': '{release} + {n} changes',
+  'about.checking': 'Checking the latest release on GitHub …',
+  'about.latestRelease': 'Latest release on GitHub',
+  'about.updateAvailable': 'A newer version is available – reload the page (Ctrl+Shift+R).',
+  'about.releasesOffline': 'The latest release could not be checked (offline?).',
+  'about.releasesLink': 'All releases',
 };
 
 const da = {
@@ -994,6 +1001,13 @@ const da = {
   'ctx.layersHint': 'Klik for at slukke / tænde et lag',
   'help.rightClick': 'Højreklik (uden at trække)',
   'help.rightClickDo': 'Menu: skjul / vis kun efter element, klasse, lag, etage eller model',
+  'about.version': 'Version',
+  'about.versionAhead': '{release} + {n} ændringer',
+  'about.checking': 'Tjekker seneste release på GitHub …',
+  'about.latestRelease': 'Seneste release på GitHub',
+  'about.updateAvailable': 'Der er en nyere version – genindlæs siden (Ctrl+Shift+R).',
+  'about.releasesOffline': 'Seneste release kunne ikke tjekkes (offline?).',
+  'about.releasesLink': 'Alle releases',
 };
 
 const de = {
@@ -1487,6 +1501,13 @@ const de = {
   'ctx.layersHint': 'Klicken, um einen Layer aus- / einzuschalten',
   'help.rightClick': 'Rechtsklick (ohne Ziehen)',
   'help.rightClickDo': 'Menü: ausblenden / nur zeigen nach Element, Klasse, Layer, Geschoss oder Modell',
+  'about.version': 'Version',
+  'about.versionAhead': '{release} + {n} Änderungen',
+  'about.checking': 'Neuestes Release auf GitHub wird geprüft …',
+  'about.latestRelease': 'Neuestes Release auf GitHub',
+  'about.updateAvailable': 'Eine neuere Version ist verfügbar – Seite neu laden (Strg+Umschalt+R).',
+  'about.releasesOffline': 'Das neueste Release konnte nicht geprüft werden (offline?).',
+  'about.releasesLink': 'Alle Releases',
 };
 
 const hi = {
@@ -1914,6 +1935,13 @@ const hi = {
   'ctx.layersHint': 'लेयर बंद / चालू करने के लिए क्लिक करें',
   'help.rightClick': 'राइट क्लिक (बिना खींचे)',
   'help.rightClickDo': 'मेनू: तत्व, क्लास, लेयर, मंज़िल या मॉडल के अनुसार छिपाएँ / केवल दिखाएँ',
+  'about.version': 'संस्करण',
+  'about.versionAhead': '{release} + {n} बदलाव',
+  'about.checking': 'GitHub पर नवीनतम रिलीज़ जाँची जा रही है …',
+  'about.latestRelease': 'GitHub पर नवीनतम रिलीज़',
+  'about.updateAvailable': 'नया संस्करण उपलब्ध है – पेज फिर से लोड करें (Ctrl+Shift+R)।',
+  'about.releasesOffline': 'नवीनतम रिलीज़ जाँची नहीं जा सकी (ऑफ़लाइन?)।',
+  'about.releasesLink': 'सभी रिलीज़',
 };
 
 const DICTS = { en, da, de, hi };
