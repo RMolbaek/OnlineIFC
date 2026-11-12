@@ -21,6 +21,10 @@ export class Viewer extends EventTarget {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.05, 20000);
     this.camera.position.set(20, 15, 20);
+    this.perspCamera = this.camera;
+    this.orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, -1000, 1000);
+    this.isOrtho = false;
+    this.orthoHeight = 20; // visible height in metres in orthographic mode
 
     this.controls = new OrbitControls(this.camera, renderer.domElement);
     this.controls.enableDamping = true;
@@ -89,8 +93,57 @@ export class Viewer extends EventTarget {
     const w = this.container.clientWidth || 1;
     const h = this.container.clientHeight || 1;
     this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
-    this.camera.updateProjectionMatrix();
+    this.perspCamera.aspect = w / h;
+    this.perspCamera.updateProjectionMatrix();
+    this.#updateOrthoFrustum();
+  }
+
+  /** Field of view of the perspective camera (also used to size the orthographic view). */
+  get fov() { return this.perspCamera.fov; }
+
+  #updateOrthoFrustum() {
+    const c = this.orthoCamera;
+    const aspect = (this.container.clientWidth || 1) / (this.container.clientHeight || 1);
+    const h = this.orthoHeight / 2;
+    c.left = -h * aspect; c.right = h * aspect; c.top = h; c.bottom = -h;
+    const r = Math.max(this.sceneRadius * 20, 2000);
+    c.near = -r; c.far = r; // negative near: nothing is clipped behind the camera
+    c.zoom = 1;
+    c.updateProjectionMatrix();
+  }
+
+  /** Switches between perspective and orthographic (parallel) projection, keeping the view. */
+  setOrthographic(on) {
+    if (on === this.isOrtho) return;
+    const from = this.camera;
+    const to = on ? this.orthoCamera : this.perspCamera;
+    const target = this.controls.target;
+    const tan = Math.tan((this.fov * Math.PI) / 360);
+    to.position.copy(from.position);
+    to.quaternion.copy(from.quaternion);
+    to.up.copy(from.up);
+    if (on) {
+      this.orthoHeight = Math.max(0.5, 2 * from.position.distanceTo(target) * tan);
+    } else {
+      // place the perspective camera so the model appears the same size
+      const dir = from.position.clone().sub(target).normalize();
+      to.position.copy(target).addScaledVector(dir, Math.max(0.5, this.orthoHeight / (2 * tan)));
+    }
+    this.camera = to;
+    this.controls.object = to;
+    this.isOrtho = on;
+    this.#updateOrthoFrustum();
+    this.controls.update();
+    this.dispatchEvent(new Event('camera'));
+  }
+
+  setOrthoHeight(h) { this.orthoHeight = Math.max(0.02, h); this.#updateOrthoFrustum(); }
+
+  /** Visible height (orthographic) for a bounding size. */
+  #fitOrtho(size) {
+    if (!this.isOrtho) return;
+    this.orthoHeight = Math.max(size, 0.5) * 1.1;
+    this.#updateOrthoFrustum();
   }
 
   // -------------------------------------------------------------- modeller
@@ -149,7 +202,8 @@ export class Viewer extends EventTarget {
     if (box.isEmpty()) return;
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3()).length();
-    const dist = Math.max(size, 0.5) / (2 * Math.tan((this.camera.fov * Math.PI) / 360)) * 1.1;
+    const dist = Math.max(size, 0.5) / (2 * Math.tan((this.fov * Math.PI) / 360)) * 1.1;
+    this.#fitOrtho(size);
     let dir = new THREE.Vector3(1, 0.8, 1).normalize();
     if (keepDirection) {
       dir = this.camera.position.clone().sub(this.controls.target);
@@ -166,7 +220,8 @@ export class Viewer extends EventTarget {
     if (box.isEmpty()) return;
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3()).length();
-    const dist = size / (2 * Math.tan((this.camera.fov * Math.PI) / 360)) * 1.1;
+    const dist = size / (2 * Math.tan((this.fov * Math.PI) / 360)) * 1.1;
+    this.#fitOrtho(size);
     const dirs = {
       top: new THREE.Vector3(0, 1, 0.0001),
       front: new THREE.Vector3(0, 0, 1),
@@ -274,6 +329,7 @@ export class Viewer extends EventTarget {
 
   /** Keeps near/far planes suited to how close the camera is to the model. */
   #updateClip() {
+    if (this.isOrtho) return;
     const d = this.camera.position.distanceTo(this.controls.target);
     const near = Math.min(Math.max(d / 200, 0.002), 5);
     const far = Math.max(this.sceneRadius * 6 + this.camera.position.length() * 2, 1000);
@@ -304,6 +360,19 @@ export class Viewer extends EventTarget {
     if (e.deltaMode === 1) dy *= 16;
     else if (e.deltaMode === 2) dy *= 400;
     dy = Math.max(-300, Math.min(300, dy));
+    if (this.isOrtho) {
+      // orthographic: change the visible height, keeping the point under the cursor in place
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector3(((e.clientX - rect.left) / rect.width) * 2 - 1, -((e.clientY - rect.top) / rect.height) * 2 + 1, 0);
+      const before = ndc.clone().unproject(this.camera);
+      this.orthoHeight = Math.min(Math.max(this.orthoHeight * Math.pow(0.85, -dy / 100), 0.02), this.sceneRadius * 40 + 100);
+      this.#updateOrthoFrustum();
+      const after = ndc.clone().unproject(this.camera);
+      const delta = before.sub(after);
+      this.camera.position.add(delta);
+      this.controls.target.add(delta);
+      return;
+    }
     const hit = this.pick(e.clientX, e.clientY); // also aims this.raycaster at the cursor
     const cam = this.camera.position;
     const ray = this.raycaster.ray;

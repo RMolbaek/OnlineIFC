@@ -5,6 +5,10 @@ import { isSpatialType, KIND_TYPES } from './model.js';
 import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js';
 import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
+import { WalkMode } from './walk.js';
+import { ViewsPanel } from './views.js';
+import { QtoTable } from './qto.js';
+import { mergeIfcBlobs } from './merge.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -35,6 +39,13 @@ const PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#59a14f', '#b07aa1', '#edc948
 
 const viewer = new Viewer($('#viewport'));
 const measure = new MeasureTool(viewer, $('#viewport'));
+const walk = new WalkMode(viewer);
+walk.addEventListener('change', () => {
+  $('#viewport').classList.toggle('walking', walk.active);
+  if (walk.active) { if (measure.mode) setMeasureMode(null); toast(t('msg.walkHelp'), true); }
+  renderStatus();
+});
+walk.addEventListener('speed', () => renderStatus());
 const mapLayer = new MapLayer(viewer);
 const alignmentLayer = new AlignmentLayer(viewer, $('#viewport'));
 measure.alignments = alignmentLayer;
@@ -44,6 +55,9 @@ const state = {
   pickPlaneMode: false,
   spacesVisible: false,
   editMode: false,
+  xray: false,
+  storey: null, // {model, id} of the storey shown alone
+  storeyCut: true, // plan section 1.2 m above the floor of that storey
   treeKeys: new Set(), // tree/class rows selected by the user (for highlighting group rows)
   lastTreeKey: null, // anchor for Shift+click range selection
 };
@@ -96,8 +110,30 @@ async function withLoading(fn) {
 }
 
 async function openFiles(files) {
-  const list = [...files].filter((f) => /\.ifc$/i.test(f.name));
-  if (!list.length) { toast(t('msg.chooseIfc')); return; }
+  const all = [...files];
+  const list = all.filter((f) => /\.ifc$/i.test(f.name));
+  const workspaces = all.filter((f) => /\.json$/i.test(f.name));
+  const bcfs = all.filter((f) => /\.(bcf|bcfzip)$/i.test(f.name));
+  const idss = all.filter((f) => /\.ids$/i.test(f.name) || (/\.xml$/i.test(f.name) && $('#ids-dialog').open));
+  const rest = all.filter((f) => ![list, workspaces, bcfs, idss].some((g) => g.includes(f)));
+  if (rest.length) toast(t('msg.unknownFiles', { names: rest.map((f) => f.name).join(', ') }));
+  if (!list.length && !workspaces.length && !bcfs.length && !idss.length) return;
+  if (list.length) await openIfcFiles(list);
+  for (const w of workspaces) await views.openWorkspace(w);
+  for (const b of bcfs) {
+    await issues.importFile(b);
+    $('.tab[data-tab="issues"]').click();
+  }
+  if (idss.length) {
+    // put the IDS file into the IDS dialog and open it
+    const dt = new DataTransfer();
+    dt.items.add(idss[0]);
+    if (!$('#ids-dialog').open) openIdsDialog();
+    if ($('#ids-dialog').open) $('#ids-file').files = dt.files;
+  }
+}
+
+async function openIfcFiles(list) {
   const before = viewer.models.length;
   await withLoading(async (progress) => {
     for (let i = 0; i < list.length; i++) {
@@ -161,18 +197,34 @@ for (const input of [$('#file-input'), $('#file-input-2')]) {
   input.addEventListener('change', (e) => { openFiles(e.target.files); e.target.value = ''; });
 }
 
-// Drag and drop
-const vp = $('#viewport');
+// Drag and drop: files can be dropped anywhere in the window at any time.
+// Capture phase, so editors (Python, CodeMirror) and dialogs do not swallow dropped files.
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 let dragDepth = 0;
-window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; vp.classList.add('dragging'); });
-window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; vp.classList.remove('dragging'); } });
-window.addEventListener('dragover', (e) => e.preventDefault());
-window.addEventListener('drop', (e) => {
+const endDrag = () => { dragDepth = 0; document.body.classList.remove('dragging'); };
+window.addEventListener('dragenter', (e) => {
+  if (!hasFiles(e)) return;
   e.preventDefault();
-  dragDepth = 0;
-  vp.classList.remove('dragging');
-  if (e.dataTransfer?.files?.length) openFiles(e.dataTransfer.files);
-});
+  dragDepth++;
+  document.body.classList.add('dragging');
+}, true);
+window.addEventListener('dragleave', (e) => {
+  if (!hasFiles(e)) return;
+  if (--dragDepth <= 0 || !e.relatedTarget) endDrag();
+}, true);
+window.addEventListener('dragover', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+}, true);
+window.addEventListener('drop', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  endDrag();
+  if (e.dataTransfer.files.length) openFiles(e.dataTransfer.files);
+}, true);
+window.addEventListener('blur', endDrag);
 
 function download(name, data, type = 'application/octet-stream') {
   const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
@@ -210,6 +262,7 @@ function clearSelection() {
 
 function applySelection() {
   for (const m of viewer.models) m.setSelection(state.selection.get(m) || [], viewer.highlightMaterial);
+  if (state.xray) for (const m of viewer.models) m.setXray(state.selection.get(m) || []);
   for (const el of $$('.node.selected')) el.classList.remove('selected');
   applyTreeSelection();
   if (state.active) treeRegistry.get(`${state.active.model.uid}:${state.active.id}`)?.row.classList.add('selected');
@@ -352,6 +405,11 @@ document.addEventListener('click', (e) => {
     isolate: () => isolateSelected(),
     'show-all': () => showAll(),
     'toggle-spaces': () => toggleSpaces(),
+    'toggle-ortho': () => { if (walk.active) walk.stop(); setOrtho(!viewer.isOrtho); },
+    walk: () => walk.toggle(),
+    qto: () => qto.open(),
+    'toggle-xray': () => setXray(!state.xray),
+    'storey-cut': () => { state.storeyCut = !state.storeyCut; renderStoreyItems(); if (state.storey) showStorey(state.storey); },
     'toggle-alignments': () => {
       if (!viewer.models.some((m) => m.alignments?.length)) return toast(t('aln.none'));
       alignmentLayer.setVisible(!alignmentLayer.visible);
@@ -383,6 +441,7 @@ function toggleMenu(btn) {
   const open = pop.hidden;
   closeMenus();
   if (!open) return;
+  if (pop.dataset.pop === 'view') renderStoreyItems();
   const r = btn.getBoundingClientRect();
   pop.hidden = false;
   pop.style.top = `${r.bottom + 4}px`;
@@ -408,7 +467,7 @@ function dataUrlToBlob(url) {
 function setPickPlaneMode(on) {
   state.pickPlaneMode = on;
   $('[data-action="plane-face"]').classList.toggle('on', on);
-  vp.classList.toggle('picking', on);
+  $('#viewport').classList.toggle('picking', on);
   const hint = $('#mode-hint');
   hint.hidden = !on;
   hint.textContent = t('planes.faceHint');
@@ -483,6 +542,11 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'i' || e.key === 'I') isolateSelected();
   else if (e.key === 'e' || e.key === 'E') setEditMode(!state.editMode);
   else if (e.key === 'm' || e.key === 'M') setMeasureMode(measure.mode ? null : lastMeasureMode);
+  else if ((e.key === 'o' || e.key === 'O') && !e.ctrlKey && !e.metaKey) { if (!walk.active) setOrtho(!viewer.isOrtho); }
+  else if ((e.key === 'w' || e.key === 'W') && !e.ctrlKey && !e.metaKey) walk.toggle();
+  else if ((e.key === 'x' || e.key === 'X') && !e.ctrlKey && !e.metaKey) setXray(!state.xray);
+  else if ((e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey) qto.open();
+  else if (e.key === 'PageUp' || e.key === 'PageDown') { e.preventDefault(); stepStorey(e.key === 'PageUp' ? 1 : -1); }
   else if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); $('#file-input').click(); }
 });
 
@@ -493,12 +557,14 @@ for (const tab of $$('.tab')) {
     for (const b of $$('.tab-body')) b.classList.toggle('active', b.id === `tab-${tab.dataset.tab}`);
     if (tab.dataset.tab === 'filters') filters.render();
     if (tab.dataset.tab === 'issues') issues.render();
+    if (tab.dataset.tab === 'views') views.render();
   });
 }
 
 function renderAll() {
   filters.render();
   issues.render();
+  views.render();
   renderModels();
   renderTree();
   renderClasses();
@@ -513,6 +579,14 @@ function refreshVisibilityUi() {
 }
 
 // ======================================================================= models
+/** File name with line-break opportunities after _ - . (long names without spaces wrap nicely). */
+function breakableName(name) {
+  const out = [];
+  for (const part of name.split(/(?<=[_\-.])/)) out.push(part, document.createElement('wbr'));
+  out.pop();
+  return out;
+}
+
 function renderModels() {
   const list = $('#model-list');
   list.replaceChildren();
@@ -539,7 +613,7 @@ function renderModels() {
       : null;
 
     const card = h('div', { class: 'card' },
-      h('div', { class: 'card-head' }, vis, dot, h('span', { class: 'card-name', title: m.name, text: m.name })),
+      h('div', { class: 'card-head' }, vis, dot, h('span', { class: 'card-name', title: m.name }, breakableName(m.name))),
       h('div', { class: 'card-meta', text: `${m.schema} · ${t('models.elements', { n: fmtNum(m.elementIds.size) })} · ${fmtBytes(m.fileSize)}` }),
       changes,
       h('div', { class: 'card-row' }, h('label', { text: t('models.color') }), colorInput,
@@ -566,9 +640,9 @@ function renderModels() {
   }
 }
 
-function saveIfc(model) {
+async function saveIfc(model) {
   const name = model.changes.length ? model.name.replace(/(\.ifc)?$/i, '_edited.ifc') : model.name;
-  download(name, model.getBytes(), 'application/x-step');
+  download(name, await model.getBytes(), 'application/x-step');
 }
 
 async function exportCsv(model) {
@@ -1166,6 +1240,12 @@ const filters = new FilterPanel({
   refreshVisibility: () => refreshVisibilityUi(),
 });
 
+const qto = new QtoTable({
+  viewer, h, toast, download, state,
+  ensureIndex: () => filters.ensureIndex(),
+  setSelection: (map) => filters.ctx.setSelection(new Map([...map].map(([m, ids]) => [m, ids]))),
+}, $('#qto-dialog'));
+
 // ======================================================================= issues
 const issues = new IssuesPanel({
   viewer, h, toast, download, state,
@@ -1180,6 +1260,107 @@ const issues = new IssuesPanel({
   setSpacesVisible: (v) => { state.spacesVisible = v; updateSpacesUi(); },
   afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); },
 });
+
+const views = new ViewsPanel({
+  viewer, h, toast, download, state, issues,
+  root: $('#views'),
+  setSelection: (map) => issues.ctx.setSelection(map),
+  setSpacesVisible: (v) => issues.ctx.setSpacesVisible(v),
+  afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); renderModels(); },
+  setXray: (on) => setXray(on),
+});
+
+// ================================================== ortho, X-ray and storeys
+function setOrtho(on) {
+  viewer.setOrthographic(on);
+  if (!$('#ortho-check')) return;
+  $('#ortho-check').textContent = on ? '☑' : '☐';
+  renderStatus();
+}
+
+function setXray(on) {
+  state.xray = on;
+  for (const m of viewer.models) m.setXray(on ? state.selection.get(m) || [] : null);
+  $('#xray-check').textContent = on ? '☑' : '☐';
+  if (on && !state.selection.size) toast(t('msg.xrayHint'), true);
+  renderStatus();
+}
+
+/** All storeys of all models, sorted by elevation: [{model, id, name, elevation}] */
+function allStoreys() {
+  const out = [];
+  for (const m of viewer.models) {
+    const walk = (n) => {
+      if (m.typeName(n.expressID) === 'IfcBuildingStorey') {
+        const line = m.api.GetLine(m.modelID, n.expressID, false);
+        const ev = line?.Elevation;
+        const v = ev && typeof ev === 'object' ? Number(ev._representationValue ?? ev.value) : NaN;
+        out.push({ model: m, id: n.expressID, node: n, name: m.label(n.expressID), elevation: Number.isFinite(v) ? v * (m.lengthScale || 1) : null });
+      }
+      for (const c of n.children || []) walk(c);
+    };
+    if (m.tree) walk(m.tree);
+  }
+  return out.sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0));
+}
+
+function renderStoreyItems() {
+  const box = $('#storey-items');
+  const list = allStoreys();
+  const multi = viewer.models.length > 1;
+  const item = (label, sub, onclick, active = false) => {
+    const b = h('button', { class: `menu-item small-item${active ? ' active' : ''}` },
+      h('span', { class: 'mi-icon', text: active ? '●' : '' }),
+      h('span', { class: 'mi-text' }, h('b', { text: label }), sub ? h('small', { text: sub }) : null));
+    b.addEventListener('click', () => { closeMenus(); onclick(); });
+    return b;
+  };
+  const items = [];
+  if (!list.length) items.push(h('div', { class: 'menu-empty', text: t('mi.noStoreys') }));
+  else {
+    items.push(item(t('mi.allStoreys'), null, () => showStorey(null), !state.storey));
+    for (const st of [...list].reverse()) {
+      const sub = [st.elevation !== null ? `${st.elevation >= 0 ? '+' : ''}${st.elevation.toFixed(2)} m` : null, multi ? st.model.name : null].filter(Boolean).join(' · ');
+      items.push(item(st.name, sub, () => showStorey(st), state.storey?.id === st.id && state.storey?.model === st.model));
+    }
+    const cut = h('button', { class: 'menu-item small-item' }, h('span', { class: 'mi-icon mi-check', text: state.storeyCut ? '☑' : '☐' }),
+      h('span', { class: 'mi-text' }, h('b', { text: t('mi.storeyCut') }), h('small', { text: t('mi.storeyCutDesc') })));
+    cut.addEventListener('click', (e) => { e.stopPropagation(); state.storeyCut = !state.storeyCut; renderStoreyItems(); if (state.storey) showStorey(state.storey); });
+    items.push(cut);
+  }
+  box.replaceChildren(...items);
+}
+
+let storeyPlane = null;
+function showStorey(st) {
+  if (storeyPlane) { viewer.removePlane(storeyPlane); storeyPlane = null; }
+  state.storey = st ? { model: st.model, id: st.id } : null;
+  if (!st) {
+    showAll();
+    renderPlanes();
+    return;
+  }
+  const ids = descendantIds(st.model, st.node);
+  for (const m of viewer.models) m.isolate(m === st.model ? ids : []);
+  if (state.storeyCut && st.elevation !== null) {
+    storeyPlane = viewer.addPlane('y');
+    const y = viewer.fromIfc(0, 0, st.elevation + 1.2).y;
+    viewer.setPlanePos(storeyPlane, y);
+  }
+  refreshVisibilityUi();
+  renderPlanes();
+  const b = st.model.getBox(ids);
+  if (!b.isEmpty()) viewer.fitBox(b);
+  toast(t('msg.storeyShown', { name: st.name }), true);
+}
+
+function stepStorey(dir) {
+  const list = allStoreys();
+  if (!list.length) return;
+  let i = state.storey ? list.findIndex((x) => x.id === state.storey.id && x.model === state.storey.model) : -1;
+  i = i < 0 ? (dir > 0 ? 0 : list.length - 1) : Math.min(list.length - 1, Math.max(0, i + dir));
+  showStorey(list[i]);
+}
 
 // ====================================================================== drawing
 function planeLabel(p, i) {
@@ -1202,7 +1383,7 @@ async function exportDrawing() {
   if (!entry) return;
   const format = $('#drw-format').value;
   const scaleVal = $('#drw-scale').value;
-  const opts = { paper: $('#drw-paper').value, scale: scaleVal === 'fit' ? 'fit' : +scaleVal, fill: $('#drw-fill').checked, mono: $('#drw-mono').checked };
+  const opts = { paper: $('#drw-paper').value, scale: scaleVal === 'fit' ? 'fit' : +scaleVal, fill: $('#drw-fill').checked, mono: $('#drw-colors').value === 'mono', colors: $('#drw-colors').value };
   $('#drawing-dialog').close();
   let section;
   try {
@@ -1531,20 +1712,34 @@ async function runMerge() {
   const replace = $('#merge-replace').checked;
   const dl = $('#merge-download').checked;
   $('#merge-dialog').close();
-  const keys = models.map((m) => String(m.uid));
-  const code = `_merged = merge_models([_files[k] for k in ${JSON.stringify(keys)}])
-print("${t('merge.done')}:", len(_merged.by_type("IfcProduct")), "IfcProduct")
-app.add_model(_merged, ${JSON.stringify(name)})
-${dl ? `app.download(_merged, ${JSON.stringify(name)})` : ''}
-del _merged`;
-  const ok = await python.runCode(code, { title: t('merge.running'), show: true });
-  if (ok && replace) {
+  // Streamed merge on the STEP text (merge.js): fast and needs little memory, also for large models
+  let res;
+  try {
+    const sources = [];
+    for (const m of models) sources.push({ name: m.name, blob: m.changes.length || !m.sourceBlob ? new Blob([await m.getBytes()]) : m.sourceBlob });
+    res = await withLoading((progress) => mergeIfcBlobs(sources, (f, file) => progress(t('merge.progress', { name: file || '' }), f)));
+  } catch (e) {
+    console.error(e);
+    toast(t('merge.failed', { error: e.message || e }));
+    return;
+  }
+  if (dl) download(name, res.blob, 'application/x-step');
+  // remove the source models first, so their memory is free before the merged model is loaded
+  if (replace) {
     for (const m of models) {
       state.selection.delete(m);
       if (state.active?.model === m) state.active = null;
       viewer.removeModel(m);
     }
     afterModelsChanged();
+  }
+  try {
+    await loadBytes(name, res.blob);
+    viewer.fitAll();
+    toast(t('merge.doneMsg', { n: models.length, entities: fmtNum(res.entities), combined: res.combined }), true);
+  } catch (e) {
+    console.error(e);
+    toast(t('msg.loadFailed', { name, error: e.message || e }));
   }
 }
 
@@ -1566,7 +1761,8 @@ const python = new PythonPanel({
         await loadBytes(a.name, a.bytes);
         viewer.fitAll();
       } else if (a.kind === 'download') {
-        download(a.name, a.text, /\.csv$/i.test(a.name) ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8');
+        if (a.bytes) download(a.name, a.bytes, 'application/x-step');
+        else download(a.name, a.text, /\.csv$/i.test(a.name) ? 'text/csv;charset=utf-8' : 'text/plain;charset=utf-8');
       } else if (a.kind === 'select') {
         state.selection.clear();
         state.active = null;
@@ -1599,6 +1795,10 @@ function renderStatus() {
     sel ? t('status.selected', { n: fmtNum(sel) }) : null,
     viewer.planes.length ? t('status.sections', { n: viewer.planes.length }) : null,
     state.editMode ? t('status.editMode') : null,
+    viewer.isOrtho ? t('status.ortho') : null,
+    walk.active ? t('status.walk', { speed: walk.speed.toFixed(1) }) : null,
+    state.xray ? t('status.xray') : null,
+    state.storey ? t('status.storey', { name: state.storey.model.label(state.storey.id) }) : null,
     measure.mode ? t(`measure.${measure.mode}`) : null,
   ].filter(Boolean).join('  ·  ');
 }
@@ -1623,4 +1823,18 @@ window.addEventListener('beforeunload', (e) => {
 renderAll();
 
 // For debugging in the console
-window.onlineIfc = { viewer, state, openFiles, python, measure };
+// ================================================================ installable app
+// Files opened with the installed app (file handler in the manifest)
+if ('launchQueue' in window) {
+  window.launchQueue.setConsumer(async (params) => {
+    if (!params.files?.length) return;
+    const files = await Promise.all(params.files.map((fh) => fh.getFile()));
+    openFiles(files);
+  });
+}
+// Service worker: offline use and fast start (only in the built app, not in the dev server)
+if (import.meta.env.PROD && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('service worker', e)));
+}
+
+window.onlineIfc = { viewer, state, openFiles, python, measure, views, walk };
