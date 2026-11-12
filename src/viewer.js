@@ -152,16 +152,38 @@ export class Viewer extends EventTarget {
     // så de ligger korrekt i forhold til den (federering).
     if (!this.referenceMatrix) {
       this.referenceMatrix = model.coordMatrix.clone();
-      model.group.matrix.identity();
-    } else {
-      const inv = model.coordMatrix.clone().invert();
-      model.group.matrix.copy(this.referenceMatrix).multiply(inv);
+      this.referenceModel = model;
     }
-    model.group.matrixWorldNeedsUpdate = true;
+    this.#place(model);
     this.models.push(model);
     this.modelRoot.add(model.group);
     model.setSelection([], this.highlightMaterial);
     this.#updateSceneRadius();
+  }
+
+  /** Group matrix of a model: from its own coordinates into those of the reference model. */
+  #place(model) {
+    const f = model.unitFix || 1;
+    const mat = model.group.matrix.copy(this.referenceMatrix).multiply(model.coordMatrix.clone().invert());
+    if (f !== 1) mat.multiply(new THREE.Matrix4().makeScale(f, f, f));
+    model.group.matrixWorldNeedsUpdate = true;
+  }
+
+  /**
+   * Corrects the length unit of a model (f = 1000: the file says millimetres but the coordinates are
+   * metres). When the model defines the coordinate system, the other models are placed again.
+   */
+  setUnitFix(model, f) {
+    model.setUnitFix(f);
+    if (model === this.referenceModel) {
+      this.referenceMatrix = model.coordMatrix.clone();
+      for (const m of this.models) this.#place(m);
+    } else {
+      this.#place(model);
+    }
+    this.modelRoot.updateMatrixWorld(true);
+    this.#updateSceneRadius();
+    this.dispatchEvent(Object.assign(new Event('modelmoved'), { model }));
   }
 
   #updateSceneRadius() {
@@ -172,6 +194,8 @@ export class Viewer extends EventTarget {
   /** Swaps a model for a new version of it (e.g. after a Python script), keeping its position in the list and its look. */
   replaceModel(oldModel, newModel) {
     const idx = this.models.indexOf(oldModel);
+    if (oldModel.unitFix !== 1) newModel.setUnitFix(oldModel.unitFix);
+    if (oldModel === this.referenceModel) this.referenceModel = newModel;
     this.addModel(newModel);
     this.models.pop();
     this.models.splice(idx < 0 ? this.models.length : idx, 0, newModel);
@@ -184,7 +208,7 @@ export class Viewer extends EventTarget {
   removeModel(model) {
     this.models = this.models.filter((m) => m !== model);
     model.dispose();
-    if (!this.models.length) this.referenceMatrix = null;
+    if (!this.models.length) { this.referenceMatrix = null; this.referenceModel = null; }
     this.#updateSceneRadius();
     this.dispatchEvent(Object.assign(new Event('modelremoved'), { model }));
   }
@@ -333,7 +357,10 @@ export class Viewer extends EventTarget {
     if (this.isOrtho) return;
     const d = this.camera.position.distanceTo(this.controls.target);
     const near = Math.min(Math.max(d / 200, 0.002), 5);
-    const far = Math.max(this.sceneRadius * 6 + this.camera.position.length() * 2, 1000);
+    // Far plane: the whole scene, but no more than 200 000 × the near plane (the depth buffer loses
+    // precision when the two are too far apart – models far from each other would flicker or vanish
+    // when zooming in on one of them).
+    const far = Math.min(Math.max(this.sceneRadius * 6 + this.camera.position.length() * 2, 1000), Math.max(near * 2e5, 1000));
     if (Math.abs(near - this.camera.near) / this.camera.near > 0.15 || Math.abs(far - this.camera.far) / this.camera.far > 0.15) {
       this.camera.near = near;
       this.camera.far = far;
@@ -350,6 +377,22 @@ export class Viewer extends EventTarget {
     this.camera.getWorldDirection(dir);
     const depth = point.clone().sub(this.camera.position).dot(dir);
     if (depth > 1e-4) this.controls.target.copy(this.camera.position).addScaledVector(dir, depth);
+  }
+
+  /** Distance along `ray` to the depth of the nearest geometry within ~80 px of the cursor (or null). */
+  #nearbyDepth(x, y, ray) {
+    for (const r of [10, 25, 50, 80]) {
+      let best = null;
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        const h = this.pick(x + Math.cos(a) * r, y + Math.sin(a) * r);
+        if (!h) continue;
+        const t = h.point.clone().sub(ray.origin).dot(ray.direction);
+        if (t > 0 && (best === null || t < best)) best = t;
+      }
+      if (best !== null) return best;
+    }
+    return null;
   }
 
   /** Wheel zoom: moves towards the point under the cursor, so you can zoom all the way in. */
@@ -376,11 +419,15 @@ export class Viewer extends EventTarget {
     }
     const hit = this.pick(e.clientX, e.clientY); // also aims this.raycaster at the cursor
     const cam = this.camera.position;
-    const ray = this.raycaster.ray;
+    const ray = this.raycaster.ray.clone();
     let P;
     if (hit) P = hit.point;
     else {
-      const d = Math.max(cam.distanceTo(this.controls.target), this.sceneRadius * 0.05, 0.5);
+      // Nothing under the cursor (thin elements, gaps): zoom towards the depth of the nearest
+      // geometry around the cursor, so the camera does not fly past or through the model.
+      const near = this.#nearbyDepth(e.clientX, e.clientY, ray);
+      const box = this.sceneBox();
+      const d = near ?? Math.max(cam.distanceTo(this.controls.target), box.isEmpty() ? 0 : box.distanceToPoint(cam), 0.5);
       P = ray.at(d, new THREE.Vector3());
     }
     const s = Math.pow(0.85, -dy / 100); // < 1 zooms in
@@ -388,7 +435,7 @@ export class Viewer extends EventTarget {
     let dist = toCam.length() * s;
     if (dist < 0.02 && s < 1) {
       // Right at the surface: keep going forward at a small fixed step (lets you pass through)
-      const step = Math.max(this.sceneRadius * 0.002, 0.05);
+      const step = Math.min(Math.max(this.sceneRadius * 0.002, 0.05), 1);
       cam.addScaledVector(ray.direction, step);
       this.controls.target.addScaledVector(ray.direction, step);
       return;

@@ -41,7 +41,7 @@ export async function readAlignments(model) {
     if (!r?.horizontal?.length) continue;
     // horizontal polyline (IFC X/Y), duplicate points removed. With COORDINATE_TO_ORIGIN web-ifc
     // returns the points shifted like the geometry; undo that shift to get real IFC coordinates.
-    const shift = new THREE.Matrix4().fromArray(r.FlatCoordinationMatrix?.length === 16 ? r.FlatCoordinationMatrix : model.coordMatrix.elements).invert();
+    const shift = new THREE.Matrix4().fromArray(r.FlatCoordinationMatrix?.length === 16 ? r.FlatCoordinationMatrix : (model.rawCoordMatrix || model.coordMatrix).elements).invert();
     const v3 = new THREE.Vector3();
     const poly = [];
     for (const seg of r.horizontal) {

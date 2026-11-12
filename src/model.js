@@ -35,6 +35,8 @@ export class IfcModel {
     this.schema = schema;
     this.fileSize = fileSize;
     this.coordMatrix = coordMatrix;
+    this.rawCoordMatrix = coordMatrix.clone(); // as read by web-ifc
+    this.unitFix = 1; // correction of a wrong length unit in the file (1000: "says mm but is m")
     this.spaceIds = spaceIds || new Set();
     this.sourceBlob = sourceBlob || null; // original file (File/Blob, read lazily), used while there are no edits
     this.version = 0; // incremented on every metadata edit
@@ -623,10 +625,26 @@ export class IfcModel {
       this.classes.get(t).push(id);
     }
     this.units = this.#readUnits();
-    this.lengthScale = this.#readLengthScale();
+    this.declaredLengthScale = this.#readLengthScale();
+    this.lengthScale = this.declaredLengthScale * this.unitFix;
     this.georef = this.#readGeoref();
     this.header = this.#readHeader();
   }
+
+  /**
+   * Corrects a wrong length unit: the geometry is scaled by f, the origin moved accordingly.
+   * Called through Viewer.setUnitFix, which places the model again.
+   */
+  setUnitFix(f) {
+    this.unitFix = f;
+    const m = this.rawCoordMatrix.clone();
+    m.elements[12] *= f; m.elements[13] *= f; m.elements[14] *= f;
+    this.coordMatrix = m;
+    if (this.declaredLengthScale !== undefined) this.lengthScale = this.declaredLengthScale * f;
+  }
+
+  /** Metres per length unit as the model is shown (after a unit correction). */
+  get shownLengthScale() { return (this.declaredLengthScale ?? 1) * this.unitFix; }
 
   typeName(id) {
     if (this.typeOf?.has(id)) return this.typeOf.get(id);
