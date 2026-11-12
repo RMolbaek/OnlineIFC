@@ -542,6 +542,11 @@ export class IfcModel {
       const m = matByObject.get(id) ?? matByObject.get(typeOfElement.get(id));
       if (m) put(id, 'attr:Material', m);
     }
+    // Presentation layers ("CAD layers")
+    try {
+      const { byElement } = this.layerIndex();
+      for (const [id, names] of byElement) put(id, 'attr:Layer', names.join(', '));
+    } catch (e) { console.warn('layers', e); }
     await tick(0.7);
 
     // Calculated quantities
@@ -750,6 +755,66 @@ export class IfcModel {
     const de = e / m.mapScale - m.eastings, dn = n / m.mapScale - m.northings;
     const x = (m.a * de + m.b * dn) / m.scale, y = (-m.b * de + m.a * dn) / m.scale;
     return { x: x * this.lengthScale, y: y * this.lengthScale };
+  }
+
+  /**
+   * Presentation layers (IfcPresentationLayerAssignment – the "CAD layers" of the exporting
+   * program): {byElement: Map(id -> [layer names]), byLayer: Map(name -> [ids])}. A layer can be
+   * assigned to a representation, to a representation item, or to the representation of a type
+   * that the element uses through a mapped item. Built on first use and cached.
+   */
+  layerIndex() {
+    if (this._layers && this._layers.version === this.version) return this._layers;
+    const api = this.api, mid = this.modelID;
+    const byElement = new Map(), byLayer = new Map();
+    const layerIds = [];
+    for (const T of [WebIFC.IFCPRESENTATIONLAYERASSIGNMENT, WebIFC.IFCPRESENTATIONLAYERWITHSTYLE]) {
+      if (T === undefined) continue;
+      try { const v = api.GetLineIDsWithType(mid, T); for (let i = 0; i < v.size(); i++) layerIds.push(v.get(i)); } catch { /* type not in schema */ }
+    }
+    if (layerIds.length) {
+      const itemLayers = new Map(); // layered item (representation or item) -> layer names
+      for (const lid of layerIds) {
+        const L = api.GetLine(mid, lid, false);
+        const name = fmtValue(L?.Name) || `#${lid}`;
+        for (const it of L?.AssignedItems || []) {
+          if (!itemLayers.has(it.value)) itemLayers.set(it.value, []);
+          itemLayers.get(it.value).push(name);
+        }
+      }
+      const repCache = new Map();
+      const repLayers = (repId, depth = 0) => {
+        if (repCache.has(repId)) return repCache.get(repId);
+        const out = new Set(itemLayers.get(repId) || []);
+        const rep = api.GetLine(mid, repId, false);
+        for (const it of rep?.Items || []) {
+          for (const n of itemLayers.get(it.value) || []) out.add(n);
+          if (depth < 3 && api.GetLineType(mid, it.value) === WebIFC.IFCMAPPEDITEM) {
+            const mi = api.GetLine(mid, it.value, false);
+            const map = mi?.MappingSource?.value ? api.GetLine(mid, mi.MappingSource.value, false) : null;
+            if (map?.MappedRepresentation?.value) for (const n of repLayers(map.MappedRepresentation.value, depth + 1)) out.add(n);
+          }
+        }
+        const arr = [...out];
+        repCache.set(repId, arr);
+        return arr;
+      };
+      for (const id of this.elementIds) {
+        const line = api.GetLine(mid, id, false);
+        const pds = line?.Representation?.value;
+        if (!pds) continue;
+        const P = api.GetLine(mid, pds, false);
+        const names = new Set();
+        for (const r of P?.Representations || []) for (const n of repLayers(r.value)) names.add(n);
+        if (names.size) byElement.set(id, [...names]);
+      }
+      for (const [id, names] of byElement) for (const n of names) {
+        if (!byLayer.has(n)) byLayer.set(n, []);
+        byLayer.get(n).push(id);
+      }
+    }
+    this._layers = { version: this.version, byElement, byLayer };
+    return this._layers;
   }
 
   /** The storey an element belongs to: {id, name, elevation (m)} or null. */

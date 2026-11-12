@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 // OnlineIFC – user interface.
 import { Viewer } from './viewer.js';
 import { loadIfcFile } from './ifc.js';
@@ -9,6 +10,7 @@ import { WalkMode } from './walk.js';
 import { ViewsPanel } from './views.js';
 import { QtoTable } from './qto.js';
 import { mergeIfcBlobs } from './merge.js';
+import { ContextMenu } from './contextmenu.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -343,6 +345,44 @@ viewer.addEventListener('pick', ({ hit, originalEvent: e }) => {
   select(hit.model, [hit.id], { activeId: hit.id, additive, toggle: additive });
   revealInTree(hit.model, hit.id);
 });
+
+// ================================================================= context menu
+// Right click (without dragging) in the 3D view or on a row of the Structure / Classes lists.
+const contextMenu = new ContextMenu({
+  viewer, h, toast, state,
+  select: (map, { activeId = null, model = null } = {}) => {
+    state.selection.clear();
+    state.treeKeys.clear();
+    for (const [m, ids] of map) if (ids.length) state.selection.set(m, new Set(ids));
+    state.active = activeId !== null && model ? { model, id: activeId } : null;
+    applySelection();
+    if (state.active) revealInTree(model, activeId);
+  },
+  refresh: () => { refreshVisibilityUi(); renderStatus(); },
+  showAll: () => showAll(),
+  clearSelection: () => clearSelection(),
+  fitIds: (map) => {
+    if (!map) { viewer.fitBox(viewer.sceneBox()); return; }
+    const box = new THREE.Box3();
+    for (const [m, ids] of map) box.union(m.getBox(ids));
+    if (!box.isEmpty()) viewer.fitBox(box);
+  },
+  setModelVisible: (m, on) => { m.setVisible(on); renderModels(); refreshVisibilityUi(); },
+});
+viewer.addEventListener('context', ({ hit, originalEvent: e }) => {
+  if (measure.mode || state.pickPlaneMode || walk.active) return;
+  contextMenu.openForHit(hit, e.clientX, e.clientY);
+});
+for (const list of [$('#tab-tree'), $('#tab-classes')]) {
+  list.addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.node[data-key]');
+    const entry = row && rowRegistry.get(row.dataset.key);
+    if (!entry) return;
+    e.preventDefault();
+    const ids = entry.ids.length ? entry.ids : entry.selfId != null ? [entry.selfId] : [];
+    contextMenu.openForRow({ model: entry.model, ids }, row.querySelector('.lbl')?.textContent || '', e.clientX, e.clientY);
+  });
+}
 
 // ====================================================================== toolbar
 document.addEventListener('click', (e) => {

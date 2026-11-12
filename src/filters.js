@@ -10,7 +10,7 @@ const NO_VALUE_COLOR = 0xb4b9bf;
 
 const ATTR_LABEL = {
   'attr:Model': 'csv.model', 'attr:Class': 'prop.class', 'attr:Name': 'csv.name', 'attr:Storey': 'csv.storey', 'attr:Type': 'sec.type',
-  'attr:Material': 'mat.material',
+  'attr:Material': 'mat.material', 'attr:Layer': 'ctx.layer',
 };
 const CALC_LABEL = { 'calc:volume': 'q.volume', 'calc:area': 'q.area', 'calc:planArea': 'q.planArea', 'calc:length': 'q.length', 'calc:width': 'q.width', 'calc:height': 'q.height' };
 const CALC_UNIT = { 'calc:volume': 'm³', 'calc:area': 'm²', 'calc:planArea': 'm²', 'calc:length': 'm', 'calc:width': 'm', 'calc:height': 'm' };
@@ -106,7 +106,7 @@ export class FilterPanel {
       }
     }
     const opt = (k, label) => h('option', { value: k, text: label ?? keyLabel(k), selected: k === value });
-    const attrOrder = ['attr:Class', 'attr:Type', 'attr:Storey', 'attr:Material', 'attr:Name', 'attr:ObjectType', 'attr:PredefinedType', 'attr:Tag', 'attr:Description', 'attr:Model'];
+    const attrOrder = ['attr:Class', 'attr:Type', 'attr:Storey', 'attr:Layer', 'attr:Material', 'attr:Name', 'attr:ObjectType', 'attr:PredefinedType', 'attr:Tag', 'attr:Description', 'attr:Model'];
     const sel = h('select', { class: 'key-select' },
       h('option', { value: '', text: t('flt.chooseProp'), selected: !value }),
       h('optgroup', { label: t('flt.groupAttr') }, attrOrder.filter((k) => keys.has(k)).map((k) => opt(k))),
