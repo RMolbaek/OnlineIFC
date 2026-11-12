@@ -9,7 +9,9 @@ export function planeAxes(entry) {
   let up = horizontal ? new THREE.Vector3(0, 0, -1) : new THREE.Vector3(0, 1, 0); // three: -Z = IFC +Y, Y = IFC Z
   up = up.sub(n.clone().multiplyScalar(n.dot(up))).normalize();
   const right = new THREE.Vector3().crossVectors(n, up).normalize();
-  return { n, up, right, horizontal, origin: entry.plane.coplanarPoint(new THREE.Vector3()) };
+  // station planes: x in the drawing is the offset from the alignment (right positive, looking ahead)
+  const origin = entry.anchor ? entry.plane.projectPoint(entry.anchor, new THREE.Vector3()) : entry.plane.coplanarPoint(new THREE.Vector3());
+  return { n, up, right, horizontal, origin };
 }
 
 /**
@@ -89,7 +91,14 @@ export function computeSection(viewer, entry) {
       }
     }
   }
-  return { layers, bounds, axes: ax };
+  // cross section at a station: the alignment axis (offset 0) is part of the drawing
+  let axis = null;
+  if (entry.station && Number.isFinite(bounds.minX)) {
+    const q = viewer.toIfc(ax.origin);
+    axis = { x: 0, z: q.z, label: entry.stationLabel || '' };
+    bounds.minX = Math.min(bounds.minX, 0); bounds.maxX = Math.max(bounds.maxX, 0);
+  }
+  return { layers, bounds, axes: ax, axis };
 }
 
 /** Joins segments into closed loops and open polylines (endpoints matched within 0.1 mm). */
@@ -280,6 +289,13 @@ export function toSvg(section, lay, info, opts) {
     if (L.open.length) out.push(`<path d="${L.open.map((l) => path(l, false)).join('')}" fill="none"/>`);
     out.push('</g>');
   }
+  if (section.axis) {
+    // alignment axis: dash-dot line over the drawing height, with the station
+    const b = section.bounds;
+    const [x, y0] = lay.map([0, b.maxY]); const [, y1] = lay.map([0, b.minY]);
+    out.push(`<g stroke="#c0392b" stroke-width="0.25" fill="#c0392b"><line x1="${f2(x)}" y1="${f2(y0 - 4)}" x2="${f2(x)}" y2="${f2(y1 + 4)}" stroke-dasharray="6 1.5 1 1.5"/>` +
+      `<text x="${f2(x + 1.2)}" y="${f2(y0 - 5)}" font-family="Helvetica, Arial, sans-serif" font-size="3" stroke="none">${escXml(section.axis.label)}</text></g>`);
+  }
   // frame, title and scale bar
   const m = lay.margin;
   out.push(`<rect x="${m / 2}" y="${m / 2}" width="${lay.W - m}" height="${lay.H - m}" fill="none" stroke="#000" stroke-width="0.5"/>`);
@@ -365,6 +381,12 @@ export function toPdf(section, lay, info, opts) {
       c.push(`${P(...pts[0])} m ${pts.slice(1).map((p) => `${P(...p)} l`).join(' ')} S`);
     }
   }
+  if (section.axis) {
+    const b = section.bounds;
+    const [x, y0] = lay.map([0, b.maxY]); const [, y1] = lay.map([0, b.minY]);
+    c.push(`q 0.753 0.224 0.169 RG 0.753 0.224 0.169 rg ${(0.25 * k).toFixed(3)} w [${[6, 1.5, 1, 1.5].map((v) => (v * k).toFixed(2)).join(' ')}] 0 d ${P(x, y0 - 4)} m ${P(x, y1 + 4)} l S Q`);
+    c.push(`q 0.753 0.224 0.169 rg BT /F1 ${(3 * k).toFixed(2)} Tf ${P(x + 1.2, y0 - 5)} Td (${pdfStr(section.axis.label)}) Tj ET Q`);
+  }
   const m = lay.margin;
   const ty = lay.H - m / 2 - lay.title;
   c.push(`0 0 0 RG ${(0.5 * k).toFixed(3)} w ${P(m / 2, lay.H - m / 2)} ${((lay.W - m) * k).toFixed(2)} ${((lay.H - m) * k).toFixed(2)} re S`);
@@ -441,8 +463,9 @@ export function toDxf(section, info) {
   g(9, '$EXTMIN'); g(10, section.bounds.minX); g(20, section.bounds.minY);
   g(9, '$EXTMAX'); g(10, section.bounds.maxX); g(20, section.bounds.maxY);
   g(0, 'ENDSEC');
-  g(0, 'SECTION'); g(2, 'TABLES'); g(0, 'TABLE'); g(2, 'LAYER'); g(70, section.layers.size + 1);
+  g(0, 'SECTION'); g(2, 'TABLES'); g(0, 'TABLE'); g(2, 'LAYER'); g(70, section.layers.size + 1 + (section.axis ? 1 : 0));
   g(0, 'LAYER'); g(2, '0'); g(70, 0); g(62, 7); g(6, 'CONTINUOUS');
+  if (section.axis) { g(0, 'LAYER'); g(2, 'ALIGNMENT_AXIS'); g(70, 0); g(62, 1); g(6, 'CONTINUOUS'); }
   let i = 0;
   for (const [cls] of section.layers) { g(0, 'LAYER'); g(2, layerName(cls)); g(70, 0); g(62, aci[i++ % aci.length]); g(6, 'CONTINUOUS'); }
   g(0, 'ENDTAB'); g(0, 'ENDSEC');
@@ -456,6 +479,11 @@ export function toDxf(section, info) {
     const ln = layerName(cls);
     for (const l of layer.loops) poly(ln, l, true);
     for (const l of layer.open) poly(ln, l, false);
+  }
+  if (section.axis) {
+    const b = section.bounds, pad = 0.05 * (b.maxY - b.minY || 1);
+    poly('ALIGNMENT_AXIS', [[0, b.minY - pad], [0, b.maxY + pad]], false);
+    g(0, 'TEXT'); g(8, 'ALIGNMENT_AXIS'); g(10, 0.05); g(20, b.maxY + pad); g(40, 0.2); g(1, section.axis.label.replace(/[^\x20-\x7E]/g, '?'));
   }
   g(0, 'TEXT'); g(8, '0'); g(10, section.bounds.minX); g(20, section.bounds.minY - 1); g(40, 0.25); g(1, `${info.title} - ${info.subtitle}`.replace(/[^\x20-\x7E]/g, '?'));
   g(0, 'ENDSEC'); g(0, 'EOF');

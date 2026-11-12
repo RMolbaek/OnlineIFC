@@ -547,6 +547,14 @@ const en = {
   'units.as': 'Read as {unit}',
   'units.fixed': '{name}: the file says {declared}, but the coordinates are in {shown}. It is shown in {shown} – you can change this on the model card.',
   'units.mergeDiffer': 'The models use different length units ({units}). The merged file uses the unit of the first model, so the others will be at the wrong scale. Merge anyway?',
+  'st.menu': 'Cross section at station',
+  'st.menuDesc': 'Perpendicular to the alignment, at a chainage you type (km+m)',
+  'st.label': 'Station',
+  'st.title': 'Station, e.g. 1+234.5 or 1234.5 (m). ‹ › and the arrow keys step by the step length.',
+  'st.bad': 'Not a station: {v}',
+  'st.outside': 'The alignment runs from {from} to {to}',
+  'st.alignment': 'Alignment the cross section follows',
+  'st.axis': 'Axis',
 };
 
 const da = {
@@ -1086,6 +1094,14 @@ const da = {
   'units.as': 'Læs som {unit}',
   'units.fixed': '{name}: filen siger {declared}, men koordinaterne er i {shown}. Den vises i {shown} – du kan ændre det på modelkortet.',
   'units.mergeDiffer': 'Modellerne bruger forskellige længdeenheder ({units}). Den samlede fil bruger den første models enhed, så de andre får forkert skala. Saml alligevel?',
+  'st.menu': 'Tværsnit ved station',
+  'st.menuDesc': 'Vinkelret på linjeføringen, ved en km du skriver (km+m)',
+  'st.label': 'Station',
+  'st.title': 'Station, fx 1+234,5 eller 1234,5 (m). ‹ › og piletasterne flytter med trinlængden.',
+  'st.bad': 'Ikke en station: {v}',
+  'st.outside': 'Linjeføringen går fra {from} til {to}',
+  'st.alignment': 'Linjeføring som tværsnittet følger',
+  'st.axis': 'Akse',
 };
 
 const de = {
@@ -1625,6 +1641,14 @@ const de = {
   'units.as': 'Als {unit} lesen',
   'units.fixed': '{name}: Die Datei gibt {declared} an, die Koordinaten sind aber in {shown}. Es wird in {shown} angezeigt – das lässt sich auf der Modellkarte ändern.',
   'units.mergeDiffer': 'Die Modelle verwenden unterschiedliche Längeneinheiten ({units}). Die zusammengeführte Datei verwendet die Einheit des ersten Modells, die anderen haben dann einen falschen Maßstab. Trotzdem zusammenführen?',
+  'st.menu': 'Querschnitt an Station',
+  'st.menuDesc': 'Senkrecht zur Achse, an einer eingegebenen Station (km+m)',
+  'st.label': 'Station',
+  'st.title': 'Station, z. B. 1+234,5 oder 1234,5 (m). ‹ › und die Pfeiltasten springen um die Schrittweite.',
+  'st.bad': 'Keine Station: {v}',
+  'st.outside': 'Die Achse reicht von {from} bis {to}',
+  'st.alignment': 'Achse, der der Querschnitt folgt',
+  'st.axis': 'Achse',
 };
 
 const hi = {
@@ -2098,6 +2122,14 @@ const hi = {
   'units.as': '{unit} के रूप में पढ़ें',
   'units.fixed': '{name}: फ़ाइल {declared} बताती है, लेकिन निर्देशांक {shown} में हैं। इसे {shown} में दिखाया गया है – आप इसे मॉडल कार्ड पर बदल सकते हैं।',
   'units.mergeDiffer': 'मॉडल अलग-अलग लंबाई इकाइयों ({units}) का उपयोग करते हैं। मिली हुई फ़ाइल पहले मॉडल की इकाई का उपयोग करती है, इसलिए बाकी का पैमाना गलत होगा। फिर भी मिलाएँ?',
+  'st.menu': 'स्टेशन पर क्रॉस सेक्शन',
+  'st.menuDesc': 'एलाइनमेंट के लंबवत, आपके लिखे चेनेज (km+m) पर',
+  'st.label': 'स्टेशन',
+  'st.title': 'स्टेशन, जैसे 1+234.5 या 1234.5 (m)। ‹ › और तीर कुंजियाँ स्टेप लंबाई से आगे-पीछे करती हैं।',
+  'st.bad': 'यह स्टेशन नहीं है: {v}',
+  'st.outside': 'एलाइनमेंट {from} से {to} तक है',
+  'st.alignment': 'वह एलाइनमेंट जिसका क्रॉस सेक्शन अनुसरण करता है',
+  'st.axis': 'अक्ष',
 };
 
 const DICTS = { en, da, de, hi };

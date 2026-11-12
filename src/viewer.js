@@ -522,9 +522,15 @@ export class Viewer extends EventTarget {
     const axisVec = axis === 'custom' ? n.clone().negate() : AXES[axis].clone();
     const entry = { id: this.planeSeq++, axis, axisVec, plane, enabled: true, helper: null };
     this.planes.push(entry);
+    // a free plane that is exactly a cross section of an alignment (e.g. from a saved view)
+    // becomes a station plane again
+    if (axis === 'custom') this.stationResolver?.(entry);
     this.#updateClipping();
     return entry;
   }
+
+  /** After a plane was changed from outside (e.g. moved along an alignment). */
+  updatePlane() { this.#updateClipping(); }
 
   /** Planets position langs dets akse (i meter). */
   getPlanePos(entry) {

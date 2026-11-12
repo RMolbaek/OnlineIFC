@@ -64,6 +64,8 @@ The **Issues** tab creates issues from the current view. The camera, section pla
 ### Alignments and stationing (IFC4x3)
 Models with `IfcAlignment` show the alignment in 3D with station marks (**Visibility → Show alignments**). The vertical profile is computed from the alignment's vertical segments and the start station from `IfcReferent` / `Pset_Stationing`. Spot measurements show **station**, **lateral offset** (left positive, as in IFC) and the **height above the vertical profile**, and distances show the station range. Stations are written as `km+m` (`1+234.567`) or in metres. Under **Visibility → Stationing** the station marks can be automatic, every 1–1000 m, any other interval, or off (only the line).
 
+**Section → Cross section at station** adds a section plane perpendicular to the alignment. Type the station (`1+234.5`, `1+234,5` or `1234.5`) in the plane's field, or step along the alignment with ‹ › and the step length; the plane turns with the curves. With several alignments, choose which one the plane follows. The 2D drawing of a station section uses the offset from the alignment as its x axis (right positive, looking towards higher stations) and shows the axis as a dash-dot line with the station (also in DXF, layer `ALIGNMENT_AXIS`). Saved views and BCF viewpoints bring the station plane back.
+
 ### Measure
 **Measure** (toolbar or `M`) opens the measuring panel with three tools:
 - **Distance:** point to point. *Lock X/Y* keeps the second point on the vertical line through the first point, so only the height (Z) is measured. Shows the distance, the horizontal distance, the height difference (ΔZ), ΔX/ΔY and the slope. Dashed lines show the horizontal and vertical components.

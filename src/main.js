@@ -16,7 +16,7 @@ import { ProjectManager } from './projects.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
-import { readAlignments, AlignmentLayer } from './alignment.js';
+import { readAlignments, AlignmentLayer, pointAt, heightAt, project, formatStation } from './alignment.js';
 import { computeSection, layout, toSvg, toPdf, toDxf, renderBackground, SCALES } from './drawing.js';
 import { runIdsCheck, colorIdsResult, idsCsv, specSummary } from './ids.js';
 import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS } from './compare.js';
@@ -471,6 +471,7 @@ document.addEventListener('click', (e) => {
     return renderPlanes();
   }
   const actions = {
+    'plane-station': () => addStationPlane(),
     fit: () => fitSelection(),
     'fit-all': () => viewer.fitAll(),
     'sel-hide': () => hideSelected({ keepSelection: true }),
@@ -1304,6 +1305,7 @@ function renderPlanes() {
   if (!viewer.planes.length) return;
 
   for (const p of viewer.planes) {
+    if (p.station) { list.append(stationRow(p)); continue; }
     const range = viewer.planeRange(p);
     const step = (range.max - range.min) / 1000;
     const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: t('planes.active') });
@@ -1338,6 +1340,120 @@ function renderPlanes() {
     ));
   }
 }
+// ------------------------------------------------- cross sections at a station
+/** All alignments of the visible models. */
+const allAlignments = () => viewer.models.filter((m) => m.visible).flatMap((m) => m.alignments || []);
+
+/** Point (world) on the alignment and direction of increasing station at distance s. */
+function stationFrame(al, s) {
+  const q = pointAt(al, s);
+  let z = heightAt(al, s);
+  if (z === null) { const box = viewer.sceneBox(); z = box.isEmpty() ? 0 : viewer.toIfc(box.getCenter(new THREE.Vector3())).z; }
+  const P = viewer.fromIfc(q.x, q.y, z);
+  const T = viewer.fromIfc(q.x + q.dx, q.y + q.dy, z).sub(P).normalize();
+  return { P, T };
+}
+
+/**
+ * Makes `entry` the cross section of `al` at distance s (station = station0 + s). sign: +1 keeps
+ * what lies ahead (higher stations), -1 what lies behind; by default the plane keeps its side.
+ */
+function setStationPlane(entry, al, s, sign = null) {
+  s = Math.min(Math.max(s, 0), al.length);
+  const { P, T } = stationFrame(al, s);
+  if (sign === null) sign = entry.station ? (entry.plane.normal.dot(entry.station.T) >= 0 ? 1 : -1) : 1;
+  entry.plane.setFromNormalAndCoplanarPoint(T.clone().multiplyScalar(sign), P);
+  entry.axisVec = T.clone();
+  entry.anchor = P.clone();
+  entry.station = { al, s, T };
+  viewer.updatePlane(entry);
+}
+
+/** Text → station in metres: "1+234.5", "1+234,5", "1234.5" (null if not a number). */
+function parseStation(text) {
+  const v = String(text).trim().replace(/\s+/g, '').replace(',', '.').replace(/^km/i, '');
+  const m = /^(-?)(\d+)\+(\d+(?:\.\d*)?)$/.exec(v);
+  if (m) return (m[1] ? -1 : 1) * (+m[2] * 1000 + +m[3]);
+  return v !== '' && Number.isFinite(+v) ? +v : null;
+}
+
+function addStationPlane() {
+  if (!viewer.models.length) return toast(t('msg.loadFirst'));
+  const list = allAlignments();
+  if (!list.length) return toast(t('aln.none'));
+  // start at the alignment point nearest to the centre of the view
+  const c = viewer.toIfc(viewer.controls.target);
+  let best = null;
+  for (const al of list) { const r = project(al, c); if (!best || r.dist < best.r.dist) best = { al, r }; }
+  const { P, T } = stationFrame(best.al, best.r.s);
+  const entry = viewer.addPlane('custom', { normal: T.clone().negate(), point: P });
+  setStationPlane(entry, best.al, best.r.s, 1);
+  renderPlanes();
+  setTimeout(() => $('.plane-row.station:last-child .val input')?.select(), 0);
+}
+
+// a free plane restored from a view / viewpoint that is a cross section of an alignment
+viewer.stationResolver = (entry) => {
+  const n = entry.plane.normal;
+  if (Math.abs(n.y) > 1e-3) return;
+  for (const al of allAlignments()) {
+    const { poly, cum } = al;
+    const dist = (k) => { const q = viewer.fromIfc(poly[k][0], poly[k][1], 0); q.y = 0; const pl = entry.plane; return n.x * q.x + n.z * q.z + pl.constant; };
+    let d0 = dist(0);
+    for (let k = 1; k < poly.length; k++) {
+      const d1 = dist(k);
+      if ((d0 <= 0) !== (d1 <= 0)) {
+        const s = cum[k - 1] + (cum[k] - cum[k - 1]) * (d0 / (d0 - d1));
+        const { T } = stationFrame(al, s);
+        if (Math.abs(T.dot(n)) > 0.9999) { setStationPlane(entry, al, s, T.dot(n) > 0 ? 1 : -1); return; }
+      }
+      d0 = d1;
+    }
+  }
+};
+
+/** Panel row of a station plane: alignment, ‹ station ›, slider. */
+function stationRow(p) {
+  const st = p.station;
+  const al = st.al;
+  const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: t('planes.active') });
+  enabled.addEventListener('change', () => viewer.togglePlane(p, enabled.checked));
+  const slider = h('input', { type: 'range', min: '0', max: String(al.length), step: String(Math.max(0.01, al.length / 4000)), value: String(st.s) });
+  const posInput = h('input', { type: 'text', inputmode: 'decimal', title: t('st.title'), class: 'station-input' });
+  const upd = () => { posInput.value = formatStation(al.station0 + p.station.s); slider.value = String(p.station.s); };
+  const moveTo = (s) => { setStationPlane(p, p.station.al, s); upd(); };
+  slider.addEventListener('input', () => moveTo(+slider.value));
+  posInput.addEventListener('change', () => {
+    const v = parseStation(posInput.value);
+    if (v === null) { toast(t('st.bad', { v: posInput.value })); return upd(); }
+    const s = v - al.station0;
+    if (s < -0.001 || s > al.length + 0.001) toast(t('st.outside', { from: formatStation(al.station0), to: formatStation(al.station0 + al.length) }));
+    moveTo(s);
+  });
+  posInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); moveTo(p.station.s + (e.key === 'ArrowUp' ? 1 : -1) * planeStep()); }
+  });
+  const stepBtn = (dir) => h('button', {
+    class: 'step', text: dir > 0 ? '›' : '‹', title: t(dir > 0 ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) }),
+    onclick: () => moveTo(p.station.s + dir * planeStep()),
+  });
+  // several alignments: choose which one the plane follows
+  const list = allAlignments();
+  const name = list.length > 1
+    ? h('select', { class: 'pl-name', title: t('st.alignment'), onchange: (e) => { const a = list[+e.target.value]; const r = project(a, viewer.toIfc(p.anchor)); setStationPlane(p, a, r.s); renderPlanes(); } },
+      list.map((a, i) => h('option', { value: String(i), text: a.name, selected: a === al })))
+    : h('span', { class: 'pl-name', text: `${t('st.label')} · ${al.name}`, title: al.name });
+  upd();
+  return h('div', { class: 'plane-row station' },
+    name, enabled,
+    stepBtn(-1), slider, stepBtn(1),
+    h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
+    h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
+    h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
+    h('div', { class: 'val' }, posInput, h('span', { text: 'km' })),
+  );
+}
+
 /** Step length (m) for the ‹ › buttons of the section planes; remembered in the browser. */
 function planeStep() {
   const v = +$('#plane-step').value;
@@ -1601,6 +1717,7 @@ function stepStorey(dir) {
 
 // ====================================================================== drawing
 function planeLabel(p, i) {
+  if (p.station) return `${i + 1}. ${t('st.label')} ${formatStation(p.station.al.station0 + p.station.s)} (${p.station.al.name})`;
   return p.boxPart ? `${t('planes.boxPart')} ${p.axis.toUpperCase()} ${p.boxPart}` : `${i + 1}. ${t(AXIS_LABEL[p.axis])} (${viewer.getPlanePos(p).toFixed(2)} m)`;
 }
 
@@ -1611,7 +1728,7 @@ function openDrawingDialog(plane = null) {
   $('#drw-scale').replaceChildren(h('option', { value: 'fit', text: t('drw.fit') }), ...SCALES.map((sc) => h('option', { value: String(sc), text: `1:${sc}` })));
   const m = viewer.models[0];
   const pSel = plane || planes[0];
-  $('#drw-name').value = `${m ? m.name.replace(/\.ifc$/i, '') : 'Model'} – ${t(AXIS_LABEL[pSel.axis] || 'planes.face')}`;
+  $('#drw-name').value = `${m ? m.name.replace(/\.ifc$/i, '') : 'Model'} – ${pSel.station ? `${t('st.label')} ${formatStation(pSel.station.al.station0 + pSel.station.s)}` : t(AXIS_LABEL[pSel.axis] || 'planes.face')}`;
   // the options chosen last time
   try {
     const saved = JSON.parse(localStorage.getItem(DRW_OPTS) || 'null');
@@ -1644,6 +1761,7 @@ async function exportDrawing() {
   saveDrawingOptions();
   let section;
   try {
+    if (entry.station) entry.stationLabel = `${t('st.axis')} ${formatStation(entry.station.al.station0 + entry.station.s)}`;
     section = await withLoading(async (progress) => { progress(t('drw.cutting'), 0.3); await new Promise((r) => setTimeout(r, 30)); return computeSection(viewer, entry); });
   } catch (e) { console.error(e); return toast(t('drw.failed', { error: e.message || e })); }
   if (!section.layers.size) return toast(t('drw.empty'));
