@@ -36,8 +36,10 @@ export function computeSection(viewer, entry) {
     if (!m.visible) continue;
     m.group.updateMatrixWorld(true);
     const mw = m.group.matrixWorld;
+    const modelCol = m.overrideColor ? `#${m.overrideColor.getHexString()}` : null;
     for (const b of m.buckets) {
       const P = b.positions, I = b.index;
+      const origCol = `#${b.color.getHexString()}`;
       for (const it of b.items) {
         if (m.hidden.has(it.id) || (m.elementOpacity.get(it.id) ?? 1) < 0.1) continue;
         const cls = m.typeName(it.id) || 'IfcElement';
@@ -75,8 +77,13 @@ export function computeSection(viewer, entry) {
           const L = layers.get(cls);
           L.elements++;
           const { loops, open } = stitch(segs);
+          // colours of the element: as in the IFC file, and as currently shown in the viewer
+          const own = m.elementColor.get(it.id);
+          const col = { original: origCol, shown: own !== undefined ? `#${own.toString(16).padStart(6, '0')}` : modelCol || origCol };
           (L.loops ||= []).push(...loops);
+          (L.loopCols ||= []).push(...loops.map(() => col));
           (L.open ||= []).push(...open);
+          (L.openCols ||= []).push(...open.map(() => col));
           L.segments.push(...segs);
         }
       }
@@ -163,6 +170,26 @@ const tint = (hex, f) => {
   return `#${[mix(r), mix(g), mix(b)].map((x) => x.toString(16).padStart(2, '0')).join('')}`;
 };
 
+/** opts.colors: 'class' (a colour per IFC class), 'original' (IFC file), 'shown' (as in the viewer), 'mono' */
+const isModelColors = (opts) => !opts.mono && (opts.colors === 'original' || opts.colors === 'shown');
+
+/** Loops and open lines of a layer grouped by element colour. */
+function groupByColor(L, which) {
+  const groups = new Map();
+  const get = (hex) => { let g = groups.get(hex); if (!g) { g = { loops: [], open: [] }; groups.set(hex, g); } return g; };
+  L.loops.forEach((l, j) => get(L.loopCols?.[j]?.[which] || '#c8c8c8').loops.push(l));
+  L.open.forEach((l, j) => get(L.openCols?.[j]?.[which] || '#c8c8c8').open.push(l));
+  return groups;
+}
+
+/** A darker shade of a colour for the outline (black for very dark colours). */
+function outline(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const f = 0.45;
+  return `#${[r, g, b].map((x) => Math.round(x * f).toString(16).padStart(2, '0')).join('')}`;
+}
+
 // --------------------------------------------------------------- writers
 const escXml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const f2 = (x) => (Math.round(x * 100) / 100).toString();
@@ -181,9 +208,19 @@ export function toSvg(section, lay, info, opts) {
     out.push(`<image x="${f2(bb[0])}" y="${f2(bb[1])}" width="${f2(bb[2])}" height="${f2(bb[3])}" opacity="0.55" preserveAspectRatio="none" xlink:href="${opts.background.dataUrl}"/>`);
   }
   let i = 0;
+  const path = (poly, close) => `M${poly.map((p) => lay.map(p).map(f2).join(' ')).join('L')}${close ? 'Z' : ''}`;
   for (const [cls, L] of section.layers) {
+    if (isModelColors(opts)) {
+      // model colours: one path per colour, filled with the element colour and a darker outline
+      out.push(`<g id="${escXml(cls)}" stroke-width="0.35" stroke-linejoin="round" stroke-linecap="round">`);
+      for (const [hex, g] of groupByColor(L, opts.colors)) {
+        if (g.loops.length) out.push(`<path d="${g.loops.map((l) => path(l, true)).join('')}" stroke="${outline(hex)}" fill="${opts.fill ? hex : 'none'}" fill-rule="evenodd"/>`);
+        if (g.open.length) out.push(`<path d="${g.open.map((l) => path(l, false)).join('')}" stroke="${outline(hex)}" fill="none"/>`);
+      }
+      out.push('</g>');
+      continue;
+    }
     const col = opts.mono ? '#000' : classColor(cls, i++);
-    const path = (poly, close) => `M${poly.map((p) => lay.map(p).map(f2).join(' ')).join('L')}${close ? 'Z' : ''}`;
     out.push(`<g id="${escXml(cls)}" stroke="${col}" stroke-width="0.35" stroke-linejoin="round" stroke-linecap="round">`);
     if (L.loops.length) out.push(`<path d="${L.loops.map((l) => path(l, true)).join('')}" fill="${opts.fill ? (opts.mono ? '#d0d0d0' : tint(col, 0.75)) : 'none'}" fill-rule="evenodd"/>`);
     if (L.open.length) out.push(`<path d="${L.open.map((l) => path(l, false)).join('')}" fill="none"/>`);
@@ -220,7 +257,7 @@ function scaleBarSvg(lay, ty) {
 }
 
 function legendSvg(section, lay, ty, opts) {
-  if (opts.mono) return '';
+  if (opts.mono || isModelColors(opts)) return '';
   let s = '<g font-family="Helvetica, Arial, sans-serif" font-size="2.6">';
   let x = lay.W / 2 - 20, y = ty + 5;
   let i = 0;
@@ -248,6 +285,21 @@ export function toPdf(section, lay, info, opts) {
   }
   let i = 0;
   for (const [cls, L] of section.layers) {
+    if (isModelColors(opts)) {
+      c.push(`${(0.35 * k).toFixed(3)} w`);
+      for (const [hex, g] of groupByColor(L, opts.colors)) {
+        c.push(`${rgb(outline(hex))} RG ${rgb(hex)} rg`);
+        for (const l of g.loops) {
+          const pts = l.map((p) => lay.map(p));
+          c.push(`${P(...pts[0])} m ${pts.slice(1).map((p) => `${P(...p)} l`).join(' ')} h ${opts.fill ? 'B*' : 'S'}`);
+        }
+        for (const l of g.open) {
+          const pts = l.map((p) => lay.map(p));
+          c.push(`${P(...pts[0])} m ${pts.slice(1).map((p) => `${P(...p)} l`).join(' ')} S`);
+        }
+      }
+      continue;
+    }
     const col = opts.mono ? '#000000' : classColor(cls, i++);
     const fillCol = opts.mono ? '#d0d0d0' : tint(col, 0.75);
     c.push(`${rgb(col)} RG ${rgb(fillCol)} rg ${(0.35 * k).toFixed(3)} w`);

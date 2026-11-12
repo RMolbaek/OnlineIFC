@@ -54,7 +54,7 @@ export function captureViewpoint({ viewer, selection, spacesVisible }) {
   const up = dirToIfc(viewer, new THREE.Vector3(0, 1, 0).applyQuaternion(cam.quaternion)).normalize();
   const vp = {
     guid: uuid(),
-    camera: { pos: pos.toArray(), dir: dir.toArray(), up: up.toArray(), fov: cam.fov, aspect: cam.aspect },
+    camera: { pos: pos.toArray(), dir: dir.toArray(), up: up.toArray(), fov: viewer.fov, aspect: viewer.perspCamera.aspect, ortho: !!viewer.isOrtho, scale: viewer.orthoHeight },
     selection: [],
     visibility: { defaultVisible: true, exceptions: [], spacesVisible: !!spacesVisible },
     coloring: [],
@@ -148,7 +148,9 @@ export function applyViewpoint(vp, ctx) {
     const box = viewer.sceneBox();
     const center = box.isEmpty() ? pos.clone().add(dir) : box.getCenter(new THREE.Vector3());
     const dist = Math.max(1, center.clone().sub(pos).dot(dir));
-    if (vp.camera.fov && vp.camera.ortho !== true) { viewer.camera.fov = Math.min(100, Math.max(20, vp.camera.fov)); viewer.camera.updateProjectionMatrix(); }
+    viewer.setOrthographic(!!vp.camera.ortho);
+    if (vp.camera.ortho && vp.camera.scale) viewer.setOrthoHeight(vp.camera.scale);
+    if (vp.camera.fov && !vp.camera.ortho) { viewer.perspCamera.fov = Math.min(100, Math.max(20, vp.camera.fov)); viewer.perspCamera.updateProjectionMatrix(); }
     viewer.flyTo(pos, pos.clone().addScaledVector(dir, dist));
   }
   return missing;
@@ -172,7 +174,11 @@ function viewpointXml(vp, version) {
     : `<Color Color="FF${c.color}">${comps(c.guids)}</Color>`)).join('')}</Coloring>` : '';
   const components = version === '3.0' ? `<Components>${sel}${vis}${col}</Components>` : `<Components>${hints}${sel}${vis}${col}</Components>`;
   const c = vp.camera;
-  const camera = `<PerspectiveCamera>${xyz('CameraViewPoint', c.pos)}${xyz('CameraDirection', c.dir)}${xyz('CameraUpVector', c.up)}<FieldOfView>${c.fov}</FieldOfView>${version === '3.0' ? `<AspectRatio>${c.aspect || 1.5}</AspectRatio>` : ''}</PerspectiveCamera>`;
+  const camBody = `${xyz('CameraViewPoint', c.pos)}${xyz('CameraDirection', c.dir)}${xyz('CameraUpVector', c.up)}`;
+  const aspect = version === '3.0' ? `<AspectRatio>${c.aspect || 1.5}</AspectRatio>` : '';
+  const camera = c.ortho
+    ? `<OrthogonalCamera>${camBody}<ViewToWorldScale>${c.scale}</ViewToWorldScale>${aspect}</OrthogonalCamera>`
+    : `<PerspectiveCamera>${camBody}<FieldOfView>${c.fov}</FieldOfView>${aspect}</PerspectiveCamera>`;
   const clip = vp.clipping.length ? `<ClippingPlanes>${vp.clipping.map((p) => `<ClippingPlane>${xyz('Location', p.loc)}${xyz('Direction', p.dir)}</ClippingPlane>`).join('')}</ClippingPlanes>` : '';
   return `${XML_HEAD}<VisualizationInfo Guid="${vp.guid}">${components}${camera}${clip}</VisualizationInfo>`;
 }
@@ -256,6 +262,7 @@ function parseViewpoint(xml, guid) {
     vp.camera = {
       pos: vec(kid(pc, 'CameraViewPoint')), dir: vec(kid(pc, 'CameraDirection')), up: vec(kid(pc, 'CameraUpVector')),
       fov: Number(txt(pc, 'FieldOfView')) || 60, aspect: Number(txt(pc, 'AspectRatio')) || 1.5, ortho: pc.localName === 'OrthogonalCamera',
+      scale: Number(txt(pc, 'ViewToWorldScale')) || null,
     };
   }
   return vp;

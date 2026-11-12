@@ -6,6 +6,10 @@
     <title>OnlineIFC – IFC viewer</title>
     <meta name="description" content="Review, edit, merge and script IFC models in the browser. Files never leave your computer." />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2 29 9v14l-13 7-13-7V9z' fill='%233aa0ff'/%3E%3Cpath d='M16 2v28M3 9l13 7 13-7' stroke='%23fff' stroke-width='1.5' fill='none'/%3E%3C/svg%3E" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#1f6fd1" />
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <link rel="stylesheet" href="/src/style.css" />
     <script>
       // Apply the saved theme before the page is drawn (avoids a white flash in dark mode)
@@ -20,7 +24,7 @@
       <div class="brand"><span class="logo"></span>OnlineIFC</div>
 
       <label class="btn primary" data-i18n-title="tb.openTitle">
-        <input id="file-input" type="file" accept=".ifc,.IFC" multiple hidden />
+        <input id="file-input" type="file" accept=".ifc,.IFC,.json,.bcf,.bcfzip,.ids" multiple hidden />
         <svg viewBox="0 0 24 24"><path d="M4 20h16M12 4v12m0 0-5-5m5 5 5-5"/></svg>
         <span data-i18n="tb.open"></span>
       </label>
@@ -41,6 +45,12 @@
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="fit-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></span><span class="mi-text"><b data-i18n="mi.fitAll"></b><small data-i18n="mi.fitAllDesc"></small></span></button>
           <button class="menu-item" data-action="fit"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg></span><span class="mi-text"><b data-i18n="mi.fitSel"></b><small data-i18n="mi.fitSelDesc"></small></span><kbd>F</kbd></button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="toggle-ortho"><span class="mi-icon mi-check" id="ortho-check">☐</span><span class="mi-text"><b data-i18n="mi.ortho"></b><small data-i18n="mi.orthoDesc"></small></span><kbd>O</kbd></button>
+          <button class="menu-item" data-action="walk"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="13" cy="4" r="2"/><path d="M10 21l2-6 3 3v3M8 12l3-4 4 2 3 3M11 8l-1 5"/></svg></span><span class="mi-text"><b data-i18n="mi.walk"></b><small data-i18n="mi.walkDesc"></small></span><kbd>W</kbd></button>
+          <div class="menu-sep"></div>
+          <div class="menu-head" data-i18n="mi.storeys"></div>
+          <div id="storey-items"></div>
         </div>
       </div>
 
@@ -67,6 +77,7 @@
         <div class="menu-pop" data-pop="visibility" hidden>
           <button class="menu-item" data-action="hide"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7c1.6 0 3-.4 4.3-1"/></svg></span><span class="mi-text"><b data-i18n="mi.hide"></b><small data-i18n="mi.hideDesc"></small></span><kbd>H</kbd></button>
           <button class="menu-item" data-action="isolate"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M3 3h4M17 3h4M3 21h4M17 21h4"/></svg></span><span class="mi-text"><b data-i18n="mi.isolate"></b><small data-i18n="mi.isolateDesc"></small></span><kbd>I</kbd></button>
+          <button class="menu-item" data-action="toggle-xray"><span class="mi-icon mi-check" id="xray-check">☐</span><span class="mi-text"><b data-i18n="mi.xray"></b><small data-i18n="mi.xrayDesc"></small></span><kbd>X</kbd></button>
           <button class="menu-item" data-action="show-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="mi-text"><b data-i18n="mi.showAll"></b><small data-i18n="mi.showAllDesc"></small></span><kbd>⇧H</kbd></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-spaces"><span class="mi-icon mi-check" id="spaces-check">☐</span><span class="mi-text"><b data-i18n="mi.spaces"></b><small data-i18n="mi.spacesDesc"></small></span></button>
@@ -129,6 +140,7 @@
           <button class="tab" data-tab="classes" data-i18n="tabs.classes"></button>
           <button class="tab" data-tab="filters" data-i18n="tabs.filters"></button>
           <button class="tab" data-tab="issues" data-i18n="tabs.issues"></button>
+          <button class="tab" data-tab="views" data-i18n="tabs.views"></button>
         </nav>
         <section class="tab-body active" id="tab-models">
           <div class="empty-hint" id="models-empty" data-i18n-html="models.empty"></div>
@@ -136,6 +148,7 @@
           <div class="panel-actions" id="model-actions" hidden>
             <button data-action="color-by-model" data-i18n="models.colorByModel"></button>
             <button data-action="reset-colors" data-i18n="models.resetColors"></button>
+            <button data-action="qto" data-i18n="qto.button" data-i18n-title="qto.buttonTitle"></button>
           </div>
         </section>
         <section class="tab-body" id="tab-tree">
@@ -152,6 +165,9 @@
             <button data-action="sel-opacity-reset" data-i18n="sel.opacityReset" data-i18n-title="sel.opacityResetTitle"></button>
           </div>
           <div id="tree"></div>
+        </section>
+        <section class="tab-body" id="tab-views">
+          <div id="views"></div>
         </section>
         <section class="tab-body" id="tab-issues">
           <div id="issues"></div>
@@ -177,15 +193,17 @@
 
       <div class="center">
         <div class="viewport" id="viewport">
-          <div class="drop-overlay" id="drop-overlay"><div data-i18n="drop.hint"></div></div>
           <div class="welcome" id="welcome">
-            <h1 data-i18n="welcome.title"></h1>
-            <p data-i18n="welcome.text"></p>
-            <label class="btn primary big">
-              <input id="file-input-2" type="file" accept=".ifc,.IFC" multiple hidden />
-              <span data-i18n="welcome.choose"></span>
+            <label class="drop-zone" id="drop-zone">
+              <input id="file-input-2" type="file" accept=".ifc,.IFC,.json,.bcf,.bcfzip,.ids" multiple hidden />
+              <svg class="drop-icon" viewBox="0 0 24 24"><path d="M12 3 21 8v8l-9 5-9-5V8z"/><path d="M12 3v18M3 8l9 5 9-5"/></svg>
+              <h1 data-i18n="welcome.drop"></h1>
+              <p class="muted" data-i18n="welcome.or"></p>
+              <span class="btn primary big" data-i18n="welcome.choose"></span>
+              <p class="muted small" data-i18n="welcome.types"></p>
             </label>
-            <p class="muted" data-i18n="welcome.local"></p>
+            <p class="welcome-text" data-i18n="welcome.text"></p>
+            <p class="muted small" data-i18n="welcome.local"></p>
           </div>
           <div class="planes-panel" id="planes-panel" hidden>
             <div class="planes-head">
@@ -222,11 +240,11 @@
               <label class="chk"><input type="checkbox" data-spot-show="z" /> Z</label>
             </div>
             <div class="measure-hint muted small" id="measure-hint"></div>
-            <div id="measure-list"></div>
             <div class="measure-foot" id="measure-foot" hidden>
               <button class="link" data-action="measure-copy" data-i18n="measure.copy"></button>
               <button class="link" data-action="measure-clear" data-i18n="measure.clear"></button>
             </div>
+            <div id="measure-list"></div>
           </div>
           <div class="cmp-panel" id="cmp-panel" hidden></div>
           <div class="cmp-panel ids-panel" id="ids-panel" hidden></div>
@@ -353,7 +371,13 @@
       </div>
       <label class="chk"><input type="checkbox" id="drw-fill" checked /> <span data-i18n="drw.fill"></span></label>
       <label class="chk"><input type="checkbox" id="drw-bg" checked /> <span data-i18n="drw.background"></span></label>
-      <label class="chk"><input type="checkbox" id="drw-mono" /> <span data-i18n="drw.mono"></span></label>
+      <label class="field"><span data-i18n="drw.colors"></span>
+        <select id="drw-colors">
+          <option value="class" data-i18n="drw.colClass"></option>
+          <option value="shown" data-i18n="drw.colShown"></option>
+          <option value="original" data-i18n="drw.colOriginal"></option>
+          <option value="mono" data-i18n="drw.mono"></option>
+        </select></label>
       <p class="muted small" data-i18n="drw.note"></p>
       <div class="dialog-btns">
         <button class="btn" data-action="drawing-cancel" data-i18n="common.cancel"></button>
@@ -385,6 +409,8 @@
       </div>
     </dialog>
 
+    <dialog id="qto-dialog" class="wide qto-dialog"></dialog>
+
     <dialog id="about-dialog">
       <h2 data-i18n="about.title"></h2>
       <p data-i18n="about.purpose"></p>
@@ -411,6 +437,11 @@
         <tr><td>E</td><td data-i18n="help.e"></td></tr>
         <tr><td>M</td><td data-i18n="help.m"></td></tr>
         <tr><td>Enter / Backspace</td><td data-i18n="help.measureKeys"></td></tr>
+        <tr><td>O</td><td data-i18n="help.o"></td></tr>
+        <tr><td>X</td><td data-i18n="help.x"></td></tr>
+        <tr><td>Page Up / Page Down</td><td data-i18n="help.pgUpDown"></td></tr>
+        <tr><td>W</td><td data-i18n="help.w"></td></tr>
+        <tr><td>Q</td><td data-i18n="help.q"></td></tr>
         <tr><td>Ctrl+Enter</td><td data-i18n="help.ctrlEnter"></td></tr>
       </table>
       <p class="muted" data-i18n="help.note"></p>
@@ -418,5 +449,6 @@
     </dialog>
 
     <script type="module" src="/src/main.js"></script>
+    <div class="drop-overlay" id="drop-overlay"><div><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg><b data-i18n="drop.hint"></b><small data-i18n="welcome.types"></small></div></div>
   </body>
 </html>

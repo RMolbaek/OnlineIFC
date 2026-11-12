@@ -46,6 +46,8 @@ export class PythonEngine extends EventTarget {
         this.#emit('output', { stream: msg.type, text: msg.text });
         break;
       case 'done': {
+        // models the script released from Python's memory are sent again next time
+        for (const k of msg.released || []) this.sent.delete(String(k));
         const p = this.pending.get(msg.id);
         this.pending.delete(msg.id);
         this.#setState('ready');
@@ -93,17 +95,18 @@ export class PythonEngine extends EventTarget {
   async run(code, { models, active = null, selection = new Map(), files = [] }) {
     await this.ensure();
     const transfer = [];
-    const payload = models.map((m) => {
+    const payload = [];
+    for (const m of models) {
       const key = String(m.uid);
       const entry = { key, name: m.name };
       if (this.sent.get(key) !== m.version) {
-        const bytes = m.getBytes().slice(); // copy: the original must stay usable
+        const bytes = await m.getBytes(); // a fresh copy (read from the file or written by web-ifc)
         entry.bytes = bytes.buffer;
         transfer.push(bytes.buffer);
         this.sent.set(key, m.version);
       }
-      return entry;
-    });
+      payload.push(entry);
+    }
     for (const k of [...this.sent.keys()]) if (!models.some((m) => String(m.uid) === k)) this.sent.delete(k);
     const sel = {};
     for (const [m, set] of selection) sel[String(m.uid)] = [...set];
