@@ -661,3 +661,14 @@ dialog .qto-table td:first-child { color: var(--text); }
   .grid3 { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 600px) { .grid3 { grid-template-columns: 1fr; } }
+
+/* annotation of break points (drawing dialog) */
+fieldset.annot .annot-row { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+fieldset.annot .annot-row .field { margin-bottom: 0; }
+fieldset.annot .annot-row .chk { margin-bottom: 6px; color: var(--text); }
+.ann-classes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 10px; max-height: 150px; overflow: auto; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 4px 8px; background: var(--panel-2); }
+.ann-classes .chk { color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ann-classes .chk small { color: var(--muted); }
+#drw-annot.off .annot-body { display: none; }
+.sv-points circle { fill: #1f5fa8; }
+.sv-points text { fill: #1f5fa8; font-family: system-ui, sans-serif; }

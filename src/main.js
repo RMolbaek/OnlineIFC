@@ -498,6 +498,8 @@ document.addEventListener('click', (e) => {
     'drive-play': () => setDrivePlaying(!drive.playing),
     'drive-dir': () => { drive.dir = -drive.dir; $('#drive-dir').textContent = drive.dir > 0 ? '→' : '←'; drivePose(); },
     'drive-close': () => closeDrive(),
+    'ann-all': () => { for (const b of $$('#ann-classes input')) b.checked = true; },
+    'ann-none': () => { for (const b of $$('#ann-classes input')) b.checked = false; },
     fit: () => fitSelection(),
     'fit-all': () => viewer.fitAll(),
     'sel-hide': () => hideSelected({ keepSelection: true }),
@@ -1466,9 +1468,12 @@ function openSecView(p) {
     t, h, toast,
     container: $('#viewport'),
     planes: () => viewer.planes,
-    compute: (pl) => {
+    compute: (pl, withPoints) => {
       if (pl.station) pl.stationLabel = `${t('st.axis')} ${stationText(pl)}`;
-      return computeSection(viewer, pl, { marks: planeAxes(pl).horizontal ? planMarks : [] });
+      const plan = planeAxes(pl).horizontal;
+      // the section window uses the classes chosen in the drawing dialog
+      if (withPoints && !plan && !$('#ann-classes').children.length) renderAnnotClasses();
+      return computeSection(viewer, pl, { marks: plan ? planMarks : [], annot: withPoints && !plan ? annotOptions({ force: true }) : null });
     },
     title: (pl) => planeLabel(pl, viewer.planes.indexOf(pl)),
     station: (pl) => (pl.station ? stationText(pl) : viewer.getPlanePos(pl).toFixed(3)),
@@ -1786,6 +1791,7 @@ async function exportSeries(entry, opts, baseName, file, withBackground) {
   for (let st = lo; st <= hi + 1e-6 && stations.length < 500; st += step) stations.push(st);
   if (!stations.length) return toast(t('st.outside', { from: fmtSt(al.station0), to: fmtSt(al.station0 + al.length) }));
   const letter = sectionLetter(entry);
+  const annot = annotOptions();
   const items = [];
   try {
     await withLoading(async (progress) => {
@@ -1794,17 +1800,18 @@ async function exportSeries(entry, opts, baseName, file, withBackground) {
         await new Promise((r) => setTimeout(r, 0));
         setStationPlane(entry, al, stations[i] - al.station0);
         entry.stationLabel = `${t('st.axis')} ${fmtSt(stations[i])}`;
-        items.push({ st: stations[i], section: computeSection(viewer, entry) });
+        items.push({ st: stations[i], section: computeSection(viewer, entry, { annot }) });
       }
       // the same extent and scale on every page, with the axis at the same place
       const u = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+      const pads = { padTopMm: items[0]?.section.padTopMm || 0, padBottomMm: items[0]?.section.padBottomMm || 0 };
       for (const { section: sc } of items) {
         if (!Number.isFinite(sc.bounds.minX)) continue;
         u.minX = Math.min(u.minX, sc.bounds.minX); u.maxX = Math.max(u.maxX, sc.bounds.maxX);
         u.minY = Math.min(u.minY, sc.bounds.minY); u.maxY = Math.max(u.maxY, sc.bounds.maxY);
       }
       if (!Number.isFinite(u.minX)) throw new Error(t('drw.empty'));
-      const lay = layout({ bounds: u }, opts);
+      const lay = layout({ bounds: u, ...pads }, opts);
       const pages = [];
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
@@ -2216,12 +2223,54 @@ function openDrawingDialog(plane = null) {
     }
   } catch { /* ignore */ }
   updateSeriesUi();
+  renderAnnotClasses();
+  updateAnnotUi();
   $('#drawing-dialog').showModal();
 }
 const DRW_OPTS = 'onlineifc.drawingOptions';
+const ANN_EXCLUDED = 'onlineifc.annot.excluded';
+
+/** Classes of the visible models as check boxes; the ones left out last time stay unticked. */
+function renderAnnotClasses() {
+  let excluded = [];
+  try { excluded = JSON.parse(localStorage.getItem(ANN_EXCLUDED) || '[]'); } catch { /* ignore */ }
+  const counts = new Map();
+  for (const m of viewer.models) {
+    if (!m.visible) continue;
+    // spatial elements with geometry count too (e.g. the terrain of IfcSite); spaces do not
+    for (const [cls, ids] of m.classes) if (cls !== 'IfcSpace') counts.set(cls, (counts.get(cls) || 0) + ids.length);
+  }
+  $('#ann-classes').replaceChildren(...[...counts].sort((a, b) => a[0].localeCompare(b[0])).map(([cls, n]) =>
+    h('label', { class: 'chk', title: cls }, h('input', { type: 'checkbox', value: cls, checked: !excluded.includes(cls) }), ` ${cls} `, h('small', { text: `(${fmtNum(n)})` }))));
+}
+
+/** The annotation of break points applies to vertical sections only. */
+function updateAnnotUi() {
+  const entry = viewer.planes.find((p) => String(p.id) === $('#drw-plane').value);
+  const box = $('#drw-annot');
+  box.hidden = !entry || planeAxes(entry).horizontal;
+  box.classList.toggle('off', !$('#ann-on').checked);
+}
+$('#drw-plane').addEventListener('change', updateAnnotUi);
+$('#ann-on').addEventListener('change', updateAnnotUi);
+
+/** Options of the annotation as chosen in the drawing dialog (null when off). */
+function annotOptions({ force = false } = {}) {
+  if (!force && !$('#ann-on').checked) return null;
+  const boxes = $$('#ann-classes input');
+  return {
+    mode: $('#ann-mode').value,
+    slopes: $('#ann-slopes').checked,
+    classes: boxes.length ? new Set(boxes.filter((b) => b.checked).map((b) => b.value)) : null,
+    dec: ['da', 'de'].includes(getLang()) ? ',' : '.',
+    labels: { offset: t('ann.offset'), height: t('ann.height') },
+  };
+}
+
 function saveDrawingOptions() {
+  try { localStorage.setItem(ANN_EXCLUDED, JSON.stringify($$('#ann-classes input').filter((b) => !b.checked).map((b) => b.value))); } catch { /* ignore */ }
   const out = {};
-  for (const id of ['drw-format', 'drw-paper', 'drw-scale', 'drw-colors', 'drw-fill', 'drw-bg']) {
+  for (const id of ['drw-format', 'drw-paper', 'drw-scale', 'drw-colors', 'drw-fill', 'drw-bg', 'ann-on', 'ann-mode', 'ann-slopes']) {
     const el = $(`#${id}`);
     if (el) out[id] = el.type === 'checkbox' ? el.checked : el.value;
   }
@@ -2246,7 +2295,7 @@ async function exportDrawing() {
   try {
     if (entry.station) entry.stationLabel = `${t('st.axis')} ${formatStation(entry.station.al.station0 + entry.station.s)}`;
     const plan = planeAxes(entry).horizontal;
-    section = await withLoading(async (progress) => { progress(t('drw.cutting'), 0.3); await new Promise((r) => setTimeout(r, 30)); return computeSection(viewer, entry, { marks: plan ? planMarks : [] }); });
+    section = await withLoading(async (progress) => { progress(t('drw.cutting'), 0.3); await new Promise((r) => setTimeout(r, 30)); return computeSection(viewer, entry, { marks: plan ? planMarks : [], annot: plan ? null : annotOptions() }); });
   } catch (e) { console.error(e); return toast(t('drw.failed', { error: e.message || e })); }
   if (!section.layers.size) return toast(t('drw.empty'));
   const name = $('#drw-name').value.trim() || 'Section';

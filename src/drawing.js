@@ -19,7 +19,7 @@ export function planeAxes(entry) {
  * Coordinates are 2D in metres: plan sections use real IFC X/Y, vertical sections use
  * (distance along the section, IFC Z).
  */
-export function computeSection(viewer, entry, { marks = [] } = {}) {
+export function computeSection(viewer, entry, { marks = [], annot = null } = {}) {
   const ax = planeAxes(entry);
   const plane = entry.plane.clone();
   plane.constant += 1e-7; // avoid vertices exactly on the plane
@@ -109,7 +109,197 @@ export function computeSection(viewer, entry, { marks = [] } = {}) {
       bounds.minY = Math.min(bounds.minY, p[1]); bounds.maxY = Math.max(bounds.maxY, p[1]);
     }
   }
-  return { layers, bounds, axes: ax, marks: out };
+  const section = { layers, bounds, axes: ax, marks: out };
+  if (annot && !ax.horizontal && Number.isFinite(bounds.minX)) {
+    section.annot = { ...annot, runs: breakPoints(layers, { classes: annot.classes }), originX: entry.station ? 0 : bounds.minX, station: !!entry.station };
+    section.padTopMm = annot.mode !== 'band' ? 30 : 0;
+    section.padBottomMm = annot.mode !== 'point' ? 34 : 0;
+    section.marksFor = (lay) => annotationMarks(section, lay);
+  }
+  return section;
+}
+
+// ------------------------------------------------- break points of the top outline
+/**
+ * The upper outline of the cut (seen from above: the highest line at every x) of the chosen
+ * classes, simplified to its real break points. Returns runs (separate where there is no
+ * geometry): [[{x, y, sig}]], sig = change of direction in degrees (180 at the ends).
+ */
+export function breakPoints(layers, { classes = null, angle = 10, facet = 0.25, facetAngle = 35 } = {}) {
+  const segs = [];
+  for (const [cls, L] of layers) {
+    if (classes && !classes.has(cls)) continue;
+    const add = (a, b) => { if (Math.abs(a[0] - b[0]) > 1e-9 || Math.abs(a[1] - b[1]) > 1e-9) segs.push(a[0] <= b[0] ? [a, b] : [b, a]); };
+    for (const l of L.loops || []) for (let i = 0; i < l.length; i++) add(l[i], l[(i + 1) % l.length]);
+    for (const l of L.open || []) for (let i = 1; i < l.length; i++) add(l[i - 1], l[i]);
+  }
+  if (!segs.length) return [];
+  let x0 = Infinity, x1 = -Infinity;
+  for (const [a, b] of segs) { x0 = Math.min(x0, a[0]); x1 = Math.max(x1, b[0]); }
+  const span = Math.max(x1 - x0, 1e-6), eps = span * 1e-7;
+  // bins along x for a fast lookup of the segments over an x
+  const NB = Math.min(4096, Math.max(16, Math.round(segs.length / 4)));
+  const bins = Array.from({ length: NB }, () => []);
+  const bin = (x) => Math.min(NB - 1, Math.max(0, Math.floor(((x - x0) / span) * NB)));
+  segs.forEach((sg, i) => { for (let k = bin(sg[0][0]); k <= bin(sg[1][0]); k++) bins[k].push(i); });
+  const yAt = (sg, x) => {
+    const [a, b] = sg, dx = b[0] - a[0];
+    if (dx < eps) return Math.max(a[1], b[1]);
+    return a[1] + ((b[1] - a[1]) * (x - a[0])) / dx;
+  };
+  /** Highest y at x (null where no segment covers x). */
+  const top = (x) => {
+    let best = null;
+    for (const i of bins[bin(x)]) { const sg = segs[i]; if (x < sg[0][0] - eps || x > sg[1][0] + eps) continue; const y = yAt(sg, x); if (best === null || y > best) best = y; }
+    return best;
+  };
+  // the outline changes only at segment ends and where two segments cross
+  const xs = [...new Set(segs.flatMap(([a, b]) => [a[0], b[0]]))].sort((p, q) => p - q);
+  const ux = [];
+  for (const x of xs) if (!ux.length || x - ux[ux.length - 1] > eps * 10) ux.push(x);
+  const runs = [];
+  let run = null;
+  const push = (x, y) => { const l = run[run.length - 1]; if (!l || Math.abs(l.x - x) > eps || Math.abs(l.y - y) > 1e-6) run.push({ x, y }); };
+  const d = span * 1e-6;
+  for (let i = 0; i < ux.length; i++) {
+    const x = ux[i];
+    const yl = top(x - d), yr = top(x + d), yc = top(x);
+    if (yc === null) { run = null; continue; }
+    if (!run) { run = []; runs.push(run); }
+    // a step (vertical face): both heights at this x, in the order of walking left to right
+    if (yl !== null && yr !== null) { push(x, yl); if (Math.abs(yl - yr) > 1e-4) push(x, yr); }
+    else if (yr !== null) push(x, yr); // the outline starts here
+    else if (yl !== null) push(x, yl); // … and ends here
+    else push(x, yc);
+    if (i + 1 >= ux.length) break;
+    const xn = ux[i + 1], xm = (x + xn) / 2;
+    if (top(xm) === null) { run = null; continue; }
+    // crossings inside (x, xn): upper envelope of the straight segments covering the interval
+    const lines = [];
+    for (const j of bins[bin(xm)]) {
+      const sg = segs[j];
+      if (sg[0][0] > x + eps || sg[1][0] < xn - eps || sg[1][0] - sg[0][0] < eps) continue;
+      const m = (sg[1][1] - sg[0][1]) / (sg[1][0] - sg[0][0]);
+      lines.push({ m, c: sg[0][1] - m * sg[0][0] });
+    }
+    if (lines.length < 2) continue;
+    const at = (l, xx) => l.m * xx + l.c;
+    let cur = lines.reduce((p, q) => (at(q, x + d) > at(p, x + d) + 1e-9 || (Math.abs(at(q, x + d) - at(p, x + d)) <= 1e-9 && q.m > p.m) ? q : p));
+    let xc = x;
+    for (let guard = 0; guard < lines.length; guard++) {
+      let next = null, nx = xn;
+      for (const l of lines) {
+        if (l.m <= cur.m + 1e-12) continue;
+        const xi = (cur.c - l.c) / (l.m - cur.m);
+        if (xi > xc + eps && xi < nx - eps) { nx = xi; next = l; }
+      }
+      if (!next) break;
+      push(nx, at(cur, nx));
+      cur = next; xc = nx;
+    }
+  }
+  // keep only real break points (direction changes more than `angle` degrees)
+  const out = [];
+  for (const r of runs) {
+    if (r.length < 2) continue;
+    const kept = [{ ...r[0], sig: 180 }];
+    for (let i = 1; i < r.length - 1; i++) {
+      const p = kept[kept.length - 1], q = r[i], n = r[i + 1];
+      const a1 = Math.atan2(q.y - p.y, q.x - p.x), a2 = Math.atan2(n.y - q.y, n.x - q.x);
+      let da = Math.abs(((a2 - a1) * 180) / Math.PI) % 360;
+      if (da > 180) da = 360 - da;
+      // facets of round shapes (pipes, rails, rounded edges): short pieces with a moderate bend
+      const short = Math.min(Math.hypot(q.x - p.x, q.y - p.y), Math.hypot(n.x - q.x, n.y - q.y)) < facet;
+      if (da >= angle && !(short && da < facetAngle)) kept.push({ ...q, sig: da });
+    }
+    kept.push({ ...r[r.length - 1], sig: 180 });
+    out.push(kept);
+  }
+  return out;
+}
+
+export const ANNOT_COLOR = '#1f5fa8';
+
+/**
+ * Annotation marks of the break points for a layout (null: DXF, about 1:100):
+ * mode 'band' (band of offsets and heights under the cut), 'point' (texts at the points) or 'both';
+ * slopes between the break points (% or 1:n).
+ */
+function annotationMarks(section, lay) {
+  const A = section.annot;
+  if (!A?.runs?.length) return [];
+  const k = lay ? lay.scale / 1000 : 0.1; // metres per paper mm
+  const b = section.bounds;
+  const dec = A.dec || '.';
+  const num = (v, n = 3) => (Math.abs(v) < 0.5 * 10 ** -n ? 0 : v).toFixed(n).replace('.', dec);
+  const layer = 'ANNOTATION_POINTS', col = ANNOT_COLOR, grey = '#444444';
+  const out = [];
+  const txt = (text, at, o = {}) => out.push({ text, at, size: o.size ?? 2.3, rot: o.rot || 0, anchor: o.anchor || 'start', color: o.color || grey, layer, dxfH: (o.size ?? 2.3) * k, bold: o.bold });
+  // points with the same x (vertical faces) are one entry with several heights
+  const all = [];
+  for (const r of A.runs) for (const p of r) {
+    const e = all.find((q) => Math.abs(q.x - p.x) < 1e-4);
+    if (e) { if (!e.ys.some((y) => Math.abs(y - p.y) < 1e-4)) e.ys.push(p.y); e.sig = Math.max(e.sig, p.sig); }
+    else all.push({ x: p.x, ys: [p.y], sig: p.sig });
+  }
+  // the most significant first, then nothing closer than the text needs on paper
+  const gap = 3.6 * k;
+  const picked = [];
+  for (const e of [...all].sort((p, q) => q.sig - p.sig)) if (!picked.some((q) => Math.abs(q.x - e.x) < gap)) picked.push(e);
+  picked.sort((p, q) => p.x - q.x);
+  for (const e of picked) e.ys.sort((p, q) => q - p);
+  const off = (x) => num(x - A.originX);
+  const heights = (e) => e.ys.map((y) => num(y)).join(' / ');
+  const mark = (x, y) => {
+    const s = 0.9 * k;
+    out.push({ line: [[x - s, y - s], [x + s, y + s]], color: col, w: 0.25, layer });
+    out.push({ line: [[x - s, y + s], [x + s, y - s]], color: col, w: 0.25, layer });
+  };
+  // band under the cut: leader from each point down, rows of offsets and heights
+  if (A.mode !== 'point') {
+    const top0 = b.minY - 4 * k, row = 14 * k, mid = top0 - row, bot = mid - row;
+    for (const y of [top0, mid, bot]) out.push({ line: [[b.minX, y], [b.maxX, y]], color: grey, w: 0.25, layer });
+    txt(A.labels?.offset || 'Offset', [b.minX - 2 * k, top0 - row / 2 - 0.9 * k], { anchor: 'end', size: 2.5, bold: true });
+    txt(A.labels?.height || 'Height', [b.minX - 2 * k, mid - row / 2 - 0.9 * k], { anchor: 'end', size: 2.5, bold: true });
+    for (const e of picked) {
+      out.push({ line: [[e.x, e.ys[e.ys.length - 1]], [e.x, top0]], color: '#9aa0a6', w: 0.12, dash: 'dot', layer });
+      out.push({ line: [[e.x, top0], [e.x, bot]], color: grey, w: 0.12, layer });
+      // vertical texts, centred in their row, just right of the tick
+      // vertical texts (rotated 90°: the letters lie left of the baseline), centred in their row
+      txt(off(e.x), [e.x + 2.2 * k, top0 - row / 2], { rot: 90, anchor: 'middle' });
+      txt(heights(e), [e.x + (e.ys.length > 1 ? 1.9 : 2.2) * k, mid - row / 2], { rot: 90, anchor: 'middle', size: e.ys.length > 1 ? 1.9 : 2.3 });
+      mark(e.x, e.ys[0]);
+    }
+  }
+  // texts at the points: short leader up, "offset / height" upwards
+  if (A.mode !== 'band') {
+    for (const e of picked) {
+      const y = e.ys[0];
+      if (A.mode === 'point') mark(e.x, y);
+      out.push({ line: [[e.x, y + 1.2 * k], [e.x, y + 5 * k]], color: col, w: 0.18, layer });
+      txt(`${off(e.x)} / ${heights(e)}`, [e.x + 0.8 * k, y + 5.6 * k], { rot: 90, color: col });
+      out[out.length - 1].at[0] = e.x + 0.85 * k; // centred on the leader
+    }
+  }
+  // slopes between the break points (not for vertical faces and very short pieces)
+  if (A.slopes) {
+    for (const r of A.runs) {
+      for (let i = 1; i < r.length; i++) {
+        const p = r[i - 1], q = r[i];
+        const dx = q.x - p.x, dy = q.y - p.y;
+        if (Math.abs(dx) < 1e-6 || Math.hypot(dx, dy) < 10 * k || Math.abs(dy / dx) > 6) continue;
+        const sl = dy / dx;
+        let text;
+        if (Math.abs(sl) < 0.1) text = `${sl > 0 ? '+' : sl < 0 ? '-' : ''}${Math.abs(sl * 100).toFixed(1).replace('.', dec)} %`;
+        else text = `1:${String(+(1 / Math.abs(sl)).toFixed(2)).replace('.', dec)}`;
+        const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+        const mx = (p.x + q.x) / 2, my = (p.y + q.y) / 2;
+        const n = [-Math.sin((ang * Math.PI) / 180), Math.cos((ang * Math.PI) / 180)]; // left normal = up for a rising line
+        txt(text, [mx + n[0] * 1.4 * k, my + n[1] * 1.4 * k], { rot: ang, anchor: 'middle', size: 2.1, color: '#2d6a2d' });
+      }
+    }
+  }
+  return out;
 }
 
 export const AXIS_COLOR = '#c0392b';
@@ -315,8 +505,9 @@ function marksSvg(section, lay) {
       const a = arrowShape(lay, mk);
       out.push(`<path d="M${a.stub.map((p) => p.map(f2).join(' ')).join('L')}" stroke="${col}" stroke-width="${mk.w ?? 0.7}" fill="none"/><path d="M${a.head.map((p) => p.map(f2).join(' ')).join('L')}Z" fill="${col}" stroke="none"/>`);
     } else if (mk.text !== undefined) {
-      const [x, y] = lay.map(mk.at);
-      out.push(`<text x="${f2(x + (mk.dx || 0))}" y="${f2(y + (mk.dy || 0))}" font-family="Helvetica, Arial, sans-serif" font-size="${mk.size ?? 3}"${mk.bold ? ' font-weight="bold"' : ''} text-anchor="${mk.anchor || 'start'}" fill="${col}">${escXml(mk.text)}</text>`);
+      const [x0, y0] = lay.map(mk.at);
+      const x = x0 + (mk.dx || 0), y = y0 + (mk.dy || 0);
+      out.push(`<text x="${f2(x)}" y="${f2(y)}" font-family="Helvetica, Arial, sans-serif" font-size="${mk.size ?? 3}"${mk.bold ? ' font-weight="bold"' : ''} text-anchor="${mk.anchor || 'start'}" fill="${col}"${mk.rot ? ` transform="rotate(${f2(-mk.rot)} ${f2(x)} ${f2(y)})"` : ''}>${escXml(mk.text)}</text>`);
     }
   }
   return out.join('\n');
@@ -334,8 +525,15 @@ function marksPdf(section, lay, P, k, rgb) {
       const a = arrowShape(lay, mk);
       c.push(`q ${col} RG ${col} rg ${((mk.w ?? 0.7) * k).toFixed(3)} w ${P(...a.stub[0])} m ${P(...a.stub[1])} l S ${P(...a.head[0])} m ${P(...a.head[1])} l ${P(...a.head[2])} l h f Q`);
     } else if (mk.text !== undefined) {
-      const [x, y] = lay.map(mk.at);
-      c.push(`q ${col} rg BT /${mk.bold ? 'F2' : 'F1'} ${((mk.size ?? 3) * k).toFixed(2)} Tf ${P(textX(x + (mk.dx || 0), mk), y + (mk.dy || 0))} Td (${pdfStr(mk.text)}) Tj ET Q`);
+      const [x0, y0] = lay.map(mk.at);
+      const x = x0 + (mk.dx || 0), y = y0 + (mk.dy || 0);
+      const font = `/${mk.bold ? 'F2' : 'F1'} ${((mk.size ?? 3) * k).toFixed(2)} Tf`;
+      if (mk.rot) {
+        // rotated: text matrix; the anchor moves the start back along the text direction
+        const a = (mk.rot * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a);
+        const w = textW(String(mk.text), mk.size ?? 3, mk.bold) * (mk.anchor === 'middle' ? 0.5 : mk.anchor === 'end' ? 1 : 0);
+        c.push(`q ${col} rg BT ${font} ${cs.toFixed(4)} ${sn.toFixed(4)} ${(-sn).toFixed(4)} ${cs.toFixed(4)} ${P(x - cs * w, y + sn * w)} Tm (${pdfStr(mk.text)}) Tj ET Q`);
+      } else c.push(`q ${col} rg BT ${font} ${P(textX(x, mk), y)} Td (${pdfStr(mk.text)}) Tj ET Q`);
     }
   }
   return c;
@@ -385,21 +583,23 @@ export function layout(section, opts) {
   const b = section.bounds;
   const wM = Math.max(b.maxX - b.minX, 0.01), hM = Math.max(b.maxY - b.minY, 0.01);
   const margin = 15, title = 22;
+  // room for annotations above / below the drawing (e.g. the band of offsets and heights)
+  const padT = section.padTopMm || 0, padB = section.padBottomMm || 0;
   let [W, H] = opts.paper === 'auto' ? [0, 0] : PAPERS[opts.paper] || PAPERS.A3;
   let scale = opts.scale;
   if (scale === 'fit') {
     if (!W) [W, H] = PAPERS.A3;
-    const s = Math.max((wM * 1000) / (W - 2 * margin), (hM * 1000) / (H - 2 * margin - title));
+    const s = Math.max((wM * 1000) / (W - 2 * margin), (hM * 1000) / Math.max(20, H - 2 * margin - title - padT - padB));
     scale = SCALES.find((x) => x >= s) || Math.ceil(s / 1000) * 1000;
   }
   const dw = (wM * 1000) / scale, dh = (hM * 1000) / scale;
-  if (!W) { W = Math.ceil(dw + 2 * margin); H = Math.ceil(dh + 2 * margin + title); }
-  const ox = (W - dw) / 2, oy = margin + (H - 2 * margin - title - dh) / 2;
+  if (!W) { W = Math.ceil(dw + 2 * margin); H = Math.ceil(dh + 2 * margin + title + padT + padB); }
+  const ox = (W - dw) / 2, oy = margin + padT + (H - 2 * margin - title - padT - padB - dh) / 2;
   return {
     W, H, scale, margin, title,
     // metres -> paper mm (y down)
     map: (p) => [ox + ((p[0] - b.minX) * 1000) / scale, oy + ((b.maxY - p[1]) * 1000) / scale],
-    fits: dw <= W - 2 * margin + 0.01 && dh <= H - 2 * margin - title + 0.01,
+    fits: dw <= W - 2 * margin + 0.01 && dh <= H - 2 * margin - title - padT - padB + 0.01,
   };
 }
 
@@ -741,8 +941,9 @@ export function toDxf(section, info) {
       poly(ln, [mk.arrow, base], false);
       poly(ln, [tip, [base[0] - uy * sz * 0.28, base[1] + ux * sz * 0.28], [base[0] + uy * sz * 0.28, base[1] - ux * sz * 0.28]], true);
     } else if (mk.text !== undefined) {
-      const b = section.bounds, h = (mk.size ?? 3) * Math.max(b.maxX - b.minX, b.maxY - b.minY) / 300;
+      const b = section.bounds, h = mk.dxfH ?? ((mk.size ?? 3) * Math.max(b.maxX - b.minX, b.maxY - b.minY)) / 300;
       g(0, 'TEXT'); g(8, ln); g(10, mk.at[0]); g(20, mk.at[1]); g(40, h.toFixed(4));
+      if (mk.rot) g(50, mk.rot.toFixed(2));
       if (mk.anchor === 'middle' || mk.anchor === 'end') { g(72, mk.anchor === 'middle' ? 1 : 2); g(11, mk.at[0]); g(21, mk.at[1]); }
       g(1, ascii(mk.text));
     }

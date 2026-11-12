@@ -617,6 +617,19 @@ const en = {
   'line.done': '“{name}” is ready – use it under Alignment for profiles, cross sections and driving.',
   'welcome.text': 'Load one or more models – they are combined in one view using their coordinates. Cut sections and profiles along alignments, measure, check and correct metadata.',
   'planes.stepHint': '‹ › and ↑/↓ move a section by this step',
+  'ann.on': 'Annotate break points (offset / height)',
+  'ann.mode': 'Show as',
+  'ann.band': 'Band under the section',
+  'ann.point': 'Text at the points',
+  'ann.both': 'Both',
+  'ann.slopes': 'Slopes between the points',
+  'ann.classes': 'Classes with annotated outlines',
+  'ann.all': 'all',
+  'ann.none': 'none',
+  'ann.note': 'The break points of the top outline of the ticked classes are annotated (bends of at least 10°; small facets of round shapes are skipped). Offsets are measured from the alignment axis (right +) or, without an alignment, from the left edge of the drawing.',
+  'ann.offset': 'Offset',
+  'ann.height': 'Height',
+  'sv.points': 'Break points with offset / height (classes as in the drawing dialog)',
 };
 
 const da = {
@@ -1226,6 +1239,19 @@ const da = {
   'line.done': '“{name}” er klar – brug den under Linjeføring til profiler, tværsnit og kørsel.',
   'welcome.text': 'Indlæs én eller flere modeller – de lægges sammen i samme visning ud fra deres koordinater. Lav snit og profiler langs linjeføringer, mål op, og tjek og ret metadata.',
   'planes.stepHint': '‹ › og ↑/↓ flytter et snit med dette trin',
+  'ann.on': 'Kotér knækpunkter (offset / kote)',
+  'ann.mode': 'Vis som',
+  'ann.band': 'Kotebånd under snittet',
+  'ann.point': 'Tekst ved punkterne',
+  'ann.both': 'Begge',
+  'ann.slopes': 'Hældninger mellem punkterne',
+  'ann.classes': 'Klasser hvis kontur koteres',
+  'ann.all': 'alle',
+  'ann.none': 'ingen',
+  'ann.note': 'Knækpunkterne i den øverste kontur af de valgte klasser koteres (knæk på mindst 10°; små facetter på runde former springes over). Offset måles fra sporaksen (højre +) eller, uden linjeføring, fra tegningens venstre kant.',
+  'ann.offset': 'Offset',
+  'ann.height': 'Kote',
+  'sv.points': 'Knækpunkter med offset / kote (klasser som i tegnedialogen)',
 };
 
 const de = {
@@ -1835,6 +1861,19 @@ const de = {
   'line.done': '„{name}“ ist bereit – unter Achse für Profile, Querschnitte und Befahrung verwenden.',
   'welcome.text': 'Ein oder mehrere Modelle laden – sie werden anhand ihrer Koordinaten in einer Ansicht zusammengeführt. Schnitte und Profile entlang von Achsen erstellen, messen, Metadaten prüfen und korrigieren.',
   'planes.stepHint': '‹ › und ↑/↓ verschieben einen Schnitt um diesen Schritt',
+  'ann.on': 'Knickpunkte bemaßen (Abstand / Höhe)',
+  'ann.mode': 'Darstellung',
+  'ann.band': 'Band unter dem Schnitt',
+  'ann.point': 'Text an den Punkten',
+  'ann.both': 'Beides',
+  'ann.slopes': 'Neigungen zwischen den Punkten',
+  'ann.classes': 'Klassen mit bemaßter Kontur',
+  'ann.all': 'alle',
+  'ann.none': 'keine',
+  'ann.note': 'Die Knickpunkte der oberen Kontur der gewählten Klassen werden bemaßt (Knick ab 10°; kleine Facetten runder Formen werden übersprungen). Abstände werden von der Achse (rechts +) oder ohne Achse vom linken Rand der Zeichnung gemessen.',
+  'ann.offset': 'Abstand',
+  'ann.height': 'Höhe',
+  'sv.points': 'Knickpunkte mit Abstand / Höhe (Klassen wie im Zeichnungsdialog)',
 };
 
 const hi = {
@@ -2378,6 +2417,19 @@ const hi = {
   'line.done': '“{name}” तैयार है – प्रोफ़ाइल, क्रॉस सेक्शन और चलने के लिए एलाइनमेंट मेनू में उपयोग करें।',
   'welcome.text': 'एक या अधिक मॉडल लोड करें – वे अपने निर्देशांक के आधार पर एक ही दृश्य में जोड़ दिए जाते हैं। एलाइनमेंट के साथ सेक्शन और प्रोफ़ाइल बनाएँ, मापें, मेटाडेटा जाँचें और सुधारें।',
   'planes.stepHint': '‹ › और ↑/↓ सेक्शन को इस स्टेप से खिसकाते हैं',
+  'ann.on': 'मोड़ बिंदुओं पर एनोटेशन (ऑफ़सेट / ऊँचाई)',
+  'ann.mode': 'ऐसे दिखाएँ',
+  'ann.band': 'सेक्शन के नीचे बैंड',
+  'ann.point': 'बिंदुओं पर टेक्स्ट',
+  'ann.both': 'दोनों',
+  'ann.slopes': 'बिंदुओं के बीच ढलान',
+  'ann.classes': 'जिन क्लास की रूपरेखा पर एनोटेशन हो',
+  'ann.all': 'सभी',
+  'ann.none': 'कोई नहीं',
+  'ann.note': 'चुनी गई क्लास की ऊपरी रूपरेखा के मोड़ बिंदु दिखाए जाते हैं (कम से कम 10° का मोड़; गोल आकृतियों के छोटे फलक छोड़ दिए जाते हैं)। ऑफ़सेट एलाइनमेंट अक्ष से (दाएँ +) या एलाइनमेंट न होने पर ड्रॉइंग के बाएँ किनारे से मापा जाता है।',
+  'ann.offset': 'ऑफ़सेट',
+  'ann.height': 'ऊँचाई',
+  'sv.points': 'ऑफ़सेट / ऊँचाई के साथ मोड़ बिंदु (क्लास ड्रॉइंग डायलॉग के अनुसार)',
 };
 
 const DICTS = { en, da, de, hi };

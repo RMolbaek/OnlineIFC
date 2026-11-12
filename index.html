@@ -428,6 +428,21 @@
           <option value="original" data-i18n="drw.colOriginal"></option>
           <option value="mono" data-i18n="drw.mono"></option>
         </select></label>
+      <fieldset class="annot" id="drw-annot">
+        <label class="chk"><input type="checkbox" id="ann-on" /> <b data-i18n="ann.on"></b></label>
+        <div class="annot-body" id="ann-body">
+          <div class="annot-row">
+            <label class="field"><span data-i18n="ann.mode"></span>
+              <select id="ann-mode"><option value="band" data-i18n="ann.band"></option><option value="point" data-i18n="ann.point"></option><option value="both" data-i18n="ann.both"></option></select></label>
+            <label class="chk"><input type="checkbox" id="ann-slopes" /> <span data-i18n="ann.slopes"></span></label>
+          </div>
+          <div class="field">
+            <span><span data-i18n="ann.classes"></span> · <button type="button" class="link" data-action="ann-all" data-i18n="ann.all"></button> · <button type="button" class="link" data-action="ann-none" data-i18n="ann.none"></button></span>
+            <div class="ann-classes" id="ann-classes"></div>
+          </div>
+          <p class="muted small" data-i18n="ann.note"></p>
+        </div>
+      </fieldset>
       <fieldset class="series" id="drw-series" hidden>
         <label class="chk"><input type="checkbox" id="ser-on" /> <b data-i18n="ser.on"></b></label>
         <div class="grid3">
