@@ -13,6 +13,7 @@ import { mergeIfcBlobs } from './merge.js';
 import { ContextMenu } from './contextmenu.js';
 import { renderVersion } from './version.js';
 import { ProjectManager } from './projects.js';
+import { SectionViewer } from './secview.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -1332,6 +1333,7 @@ function renderPlanes() {
       slider,
       stepBtn(1),
       h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
+      p.boxPart ? null : h('button', { title: t('sv.open'), text: '▣', onclick: () => openSecView(p) }),
       p.boxPart ? null : h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
       h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
       val,
@@ -1432,7 +1434,43 @@ function stationMark(p) {
 }
 
 const sectionMarks = new SectionMarks(viewer, $('#viewport'));
-viewer.addEventListener('planeschanged', () => sectionMarks.set(viewer.planes.filter((p) => p.station && p.enabled).map(stationMark)));
+viewer.addEventListener('planeschanged', () => {
+  sectionMarks.set(viewer.planes.filter((p) => p.station && p.enabled).map(stationMark));
+  secViewer?.planesChanged();
+});
+
+// window with the live cut of one plane, to step through the sections next to the 3D view
+let secViewer = null;
+function openSecView(p) {
+  secViewer ||= new SectionViewer({
+    t, h, toast,
+    container: $('#viewport'),
+    planes: () => viewer.planes,
+    compute: (pl) => {
+      if (pl.station) pl.stationLabel = `${t('st.axis')} ${stationText(pl)}`;
+      return computeSection(viewer, pl, { marks: planeAxes(pl).horizontal ? planMarks : [] });
+    },
+    title: (pl) => planeLabel(pl, viewer.planes.indexOf(pl)),
+    station: (pl) => (pl.station ? stationText(pl) : viewer.getPlanePos(pl).toFixed(3)),
+    step: (pl, dir) => {
+      if (pl.station) setStationPlane(pl, pl.station.al, pl.station.s + dir * planeStep());
+      else viewer.setPlanePos(pl, viewer.getPlanePos(pl) + dir * planeStep());
+      renderPlanes();
+    },
+    setStation: (pl, text) => {
+      const v = pl.station ? parseStation(text) : (String(text).trim() !== '' && Number.isFinite(+String(text).replace(',', '.')) ? +String(text).replace(',', '.') : null);
+      if (v === null) { toast(t('st.bad', { v: text })); return false; }
+      if (pl.station) setStationPlane(pl, pl.station.al, v - pl.station.al.station0);
+      else viewer.setPlanePos(pl, v);
+      renderPlanes();
+      return true;
+    },
+    getStep: () => planeStep(),
+    setStep: (v) => { $('#plane-step').value = String(v); $('#plane-step').dispatchEvent(new Event('change')); },
+    colors: () => ({ colors: 'shown', fill: true }),
+  });
+  secViewer.open(p);
+}
 
 /** Drawing marks of the station planes for a plan drawing (classic section marks A–A). */
 function planSectionMarks() {
@@ -1545,6 +1583,7 @@ function stationRow(p) {
     name, enabled,
     stepBtn(-1), slider, stepBtn(1),
     h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
+    h('button', { title: t('sv.open'), text: '▣', onclick: () => openSecView(p) }),
     h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
     h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
     h('div', { class: 'val' }, posInput, h('span', { text: 'km' })),

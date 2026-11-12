@@ -68,6 +68,8 @@ Models with `IfcAlignment` show the alignment in 3D with station marks (**Visibi
 
 Cross sections get letters (A–A, B–B …). In 3D and on plan drawings each one is shown as a classic **section mark**: a dash-dot line across the alignment with arrows in the viewing direction and the letter at both ends. Plan drawings also show the alignment axis with station ticks inside the drawing, and a cross section at a station does not cut the plan. In the 2D drawing dialog of a station plane, **Series** writes one PDF page per station (from, to, every x m). All pages use the same scale and extent, with the axis at the same place.
 
+**Section window:** the ▣ button of a section plane opens a window with the live 2D cut of that plane, next to the 3D view. There you step through the sections with ‹ ›, the arrow keys or a typed station, and set the step length. The model shows the section mark of the current cut at the same time. The window has a grid (offset from the axis and height), zoom (wheel), pan (drag), *Fit* (`F`), and shows the coordinates under the cursor. ⧉ pops it out into a browser window of its own, e.g. on a second screen, and closing that window puts it back.
+
 ### Long profile
 **Section → Long profile** unrolls the model along an alignment or along a **line you draw**. Choose *Draw a new line*, click points in the view (on elements, or at the height of the last point), then press Enter or double click. Backspace removes the last point and Esc cancels. The visible elements are cut with the vertical surface that follows the path, so the drawing has the station along and the height up. You set the range (from–to station) and the height exaggeration (1–50×). The red line is the vertical profile of the alignment, or the heights of the clicked points of a drawn line. Station and height grid lines are chosen for the paper scale, and the profile heights are written under the stations. The profile is previewed in the dialog and exported as PDF, SVG or DXF (DXF heights are exaggerated like the drawing). Drawn lines also work for cross sections at a station and for driving, and projects remember them.
 
@@ -160,6 +162,7 @@ Built with [three.js](https://threejs.org), [three-mesh-bvh](https://github.com/
 | `src/bcf.js`, `src/issues.js` | BCF read/write and the Issues tab |
 | `src/drawing.js` | 2D drawings from section planes (PDF, SVG, DXF) |
 | `src/alignment.js` | IFC4x3 alignments and stationing |
+| `src/secview.js` | section window: live 2D cut of a plane, stepping, pop-out window |
 | `src/map.js` | map underlay, georeferencing and coordinate conversion (proj4) |
 | `src/ifc.js`, `src/model.js` | loading IFC, metadata and metadata editing (web-ifc) |
 | `src/python.js`, `src/python-worker.js` | Pyodide/IfcOpenShell worker and merge logic |

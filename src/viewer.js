@@ -540,6 +540,7 @@ export class Viewer extends EventTarget {
   setPlanePos(entry, pos) {
     entry.plane.constant = -pos / entry.plane.normal.dot(entry.axisVec);
     this.#updateHelper(entry);
+    this.dispatchEvent(new Event('planeschanged'));
   }
 
   /** Område planet kan flyttes i, ud fra scenens bounding box. */

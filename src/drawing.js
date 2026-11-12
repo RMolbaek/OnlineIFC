@@ -806,3 +806,26 @@ export function renderBackground(viewer, section, lay) {
   for (let q = 0; q < bin.length; q++) bytes[q] = bin.charCodeAt(q);
   return { dataUrl: canvas.toDataURL('image/png'), jpeg: { bytes, width: w, height: hgt }, box: [x0, y0, wMm, hMm] };
 }
+
+/**
+ * Paths of a section for a live view, in drawing metres with y up (the caller flips y):
+ * [{d, fill, stroke}] grouped by colour. opts like the writers ({colors, fill, mono}).
+ */
+export function sectionPaths(section, opts = { colors: 'shown', fill: true }) {
+  const out = [];
+  const path = (poly, close) => `M${poly.map((p) => `${p[0].toFixed(4)} ${(-p[1]).toFixed(4)}`).join('L')}${close ? 'Z' : ''}`;
+  let i = 0;
+  for (const [cls, L] of section.layers) {
+    if (isModelColors(opts)) {
+      for (const [hex, g] of groupByColor(L, opts.colors)) {
+        if (g.loops.length) out.push({ d: g.loops.map((l) => path(l, true)).join(''), fill: opts.fill ? hex : 'none', stroke: outline(hex) });
+        if (g.open.length) out.push({ d: g.open.map((l) => path(l, false)).join(''), fill: 'none', stroke: outline(hex) });
+      }
+      continue;
+    }
+    const col = opts.mono ? '#000000' : classColor(cls, i++);
+    if (L.loops?.length) out.push({ d: L.loops.map((l) => path(l, true)).join(''), fill: opts.fill ? (opts.mono ? '#d0d0d0' : tint(col, 0.75)) : 'none', stroke: col });
+    if (L.open?.length) out.push({ d: L.open.map((l) => path(l, false)).join(''), fill: 'none', stroke: col });
+  }
+  return out;
+}

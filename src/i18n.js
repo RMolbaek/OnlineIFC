@@ -592,6 +592,17 @@ const en = {
   'drive.play': 'Drive / pause (dragging the view pauses too)',
   'drive.dir': 'Direction',
   'drive.eye': 'Eye height',
+  'sv.open': 'Show the cut live in a window (step through the sections there)',
+  'sv.popOut': 'Pop out into a window of its own (e.g. a second screen)',
+  'sv.dock': 'Back into the main window',
+  'sv.prev': 'Previous section (←)',
+  'sv.next': 'Next section (→)',
+  'sv.step': 'Step',
+  'sv.fit': 'Fit (F)',
+  'sv.refresh': 'Cut again (after changing visibility)',
+  'sv.coord': 'x {x} m · height {z} m',
+  'sv.info': '{n} elements · {ms} ms',
+  'sv.blocked': 'The browser blocked the new window – allow pop-ups for this page.',
 };
 
 const da = {
@@ -1176,6 +1187,17 @@ const da = {
   'drive.play': 'Kør / pause (træk i visningen pauser også)',
   'drive.dir': 'Retning',
   'drive.eye': 'Øjenhøjde',
+  'sv.open': 'Vis snittet live i et vindue (gå gennem snittene der)',
+  'sv.popOut': 'Træk ud i sit eget vindue (fx på en anden skærm)',
+  'sv.dock': 'Tilbage i hovedvinduet',
+  'sv.prev': 'Forrige snit (←)',
+  'sv.next': 'Næste snit (→)',
+  'sv.step': 'Trin',
+  'sv.fit': 'Tilpas (F)',
+  'sv.refresh': 'Skær igen (efter ændret synlighed)',
+  'sv.coord': 'x {x} m · kote {z} m',
+  'sv.info': '{n} elementer · {ms} ms',
+  'sv.blocked': 'Browseren blokerede det nye vindue – tillad pop op-vinduer for siden.',
 };
 
 const de = {
@@ -1760,6 +1782,17 @@ const de = {
   'drive.play': 'Fahren / Pause (Ziehen in der Ansicht pausiert auch)',
   'drive.dir': 'Richtung',
   'drive.eye': 'Augenhöhe',
+  'sv.open': 'Schnitt live in einem Fenster zeigen (dort durch die Schnitte gehen)',
+  'sv.popOut': 'In ein eigenes Fenster lösen (z. B. zweiter Bildschirm)',
+  'sv.dock': 'Zurück ins Hauptfenster',
+  'sv.prev': 'Vorheriger Schnitt (←)',
+  'sv.next': 'Nächster Schnitt (→)',
+  'sv.step': 'Schritt',
+  'sv.fit': 'Einpassen (F)',
+  'sv.refresh': 'Neu schneiden (nach geänderter Sichtbarkeit)',
+  'sv.coord': 'x {x} m · Höhe {z} m',
+  'sv.info': '{n} Elemente · {ms} ms',
+  'sv.blocked': 'Der Browser hat das neue Fenster blockiert – Pop-ups für diese Seite erlauben.',
 };
 
 const hi = {
@@ -2278,6 +2311,17 @@ const hi = {
   'drive.play': 'चलाएँ / रोकें (दृश्य खींचने से भी रुकता है)',
   'drive.dir': 'दिशा',
   'drive.eye': 'आँख की ऊँचाई',
+  'sv.open': 'कट को विंडो में लाइव दिखाएँ (वहाँ सेक्शन बदलें)',
+  'sv.popOut': 'अलग विंडो में खोलें (जैसे दूसरी स्क्रीन)',
+  'sv.dock': 'मुख्य विंडो में वापस',
+  'sv.prev': 'पिछला सेक्शन (←)',
+  'sv.next': 'अगला सेक्शन (→)',
+  'sv.step': 'स्टेप',
+  'sv.fit': 'फ़िट (F)',
+  'sv.refresh': 'फिर से काटें (दृश्यता बदलने के बाद)',
+  'sv.coord': 'x {x} m · ऊँचाई {z} m',
+  'sv.info': '{n} तत्व · {ms} ms',
+  'sv.blocked': 'ब्राउज़र ने नई विंडो रोक दी – इस पेज के लिए पॉप-अप की अनुमति दें।',
 };
 
 const DICTS = { en, da, de, hi };
