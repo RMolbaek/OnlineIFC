@@ -109,8 +109,15 @@ async function withLoading(fn) {
 }
 
 async function openFiles(files) {
-  const list = [...files].filter((f) => /\.ifc$/i.test(f.name));
-  if (!list.length) { toast(t('msg.chooseIfc')); return; }
+  const all = [...files];
+  const list = all.filter((f) => /\.ifc$/i.test(f.name));
+  const workspaces = all.filter((f) => /\.json$/i.test(f.name));
+  if (!list.length && !workspaces.length) { toast(t('msg.chooseIfc')); return; }
+  if (list.length) await openIfcFiles(list);
+  for (const w of workspaces) await views.openWorkspace(w);
+}
+
+async function openIfcFiles(list) {
   const before = viewer.models.length;
   await withLoading(async (progress) => {
     for (let i = 0; i < list.length; i++) {
@@ -1761,4 +1768,18 @@ window.addEventListener('beforeunload', (e) => {
 renderAll();
 
 // For debugging in the console
+// ================================================================ installable app
+// Files opened with the installed app (file handler in the manifest)
+if ('launchQueue' in window) {
+  window.launchQueue.setConsumer(async (params) => {
+    if (!params.files?.length) return;
+    const files = await Promise.all(params.files.map((fh) => fh.getFile()));
+    openFiles(files);
+  });
+}
+// Service worker: offline use and fast start (only in the built app, not in the dev server)
+if (import.meta.env.PROD && 'serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('service worker', e)));
+}
+
 window.onlineIfc = { viewer, state, openFiles, python, measure, views, walk };

@@ -18,7 +18,20 @@ The interface is in **English**, **Danish**, **German** and **Hindi** (language 
 - **Calculated quantities:** for every element the volume, surface area, plan area (top faces), length, width and height are calculated from the 3D geometry, next to the quantities stored in the IFC file. With several elements selected, the totals are shown. The values are also included in the CSV export.
 - **Structure and classes:** a tree from project to element and a list of IFC classes, searchable by name, class, GUID or tag. Select several rows with Ctrl+click (toggle) and Shift+click (range), then hide, show or isolate them all at once with the bar above the list, or with the eye on any selected row. The same bar has a **transparency** slider for the selected elements (*Solid* makes them solid again).
 - Hide, isolate, show all, show/hide spaces, CSV export of all properties, screenshots.
-- **Large models:** geometry is streamed in batches with progress, shared geometry is read once, and picking/snapping uses a BVH (three-mesh-bvh), so clicking and measuring stay fast on models with tens of thousands of elements.
+- **Large models (300 MB+):** geometry is streamed in batches with progress, only small repeated geometries are cached, normals are stored compactly, the IFC file is not kept in memory a second time (it is read again from disk when needed), web-ifc may use up to 3.5 GB, and picking/snapping uses a BVH (three-mesh-bvh), so clicking and measuring stay fast on models with tens of thousands of elements.
+- **Orthographic camera** (O): parallel projection without perspective, also stored in BCF viewpoints (`OrthogonalCamera`).
+- **Storeys:** the *View* menu lists all storeys of all models by elevation. Click one to show it alone, optionally with a plan cut 1.2 m above the floor. Page Up / Page Down step through the storeys.
+- **X-ray** (X): everything becomes see-through except the selected elements.
+- **Walk mode** (W): first-person view. W/A/S/D or the arrow keys move horizontally, drag to look around, Q/E down/up, Shift is faster, the wheel sets the speed, Esc leaves walk mode.
+
+### Saved views and workspace
+
+- **Views tab:** save the current view under a name (camera, sections, visibility, colours, transparency, selection, X-ray) with a thumbnail, and click it to return. Views refer to elements by GlobalId, so they also work on a newer version of the model. They are kept in the browser.
+- **Workspace file** (`.onlineifc.json`): saves the views, the issues and the current view in one small file to share or to continue later. The IFC files are not included; open them together with the workspace file (or afterwards).
+
+### Quantity takeoff
+
+- **Quantity takeoff** (Q, or the button in the *Models* tab): a table with the count and the summed volume, surface area, plan area and length per group, grouped by one or two properties (class, storey, type, name, any property …). Add any numeric property, e.g. from a `Qto_` set, as an extra column. Works on all visible elements or on the selection; click a row to select its elements; export to CSV.
 
 ### Filters (colour and find by properties)
 The **Filters** tab indexes the attributes, storey, type, material, property sets, quantities and calculated quantities of all elements.
@@ -99,6 +112,11 @@ Run with **Ctrl+Enter**. The script is saved in the browser. The *Examples* menu
 | Hide / isolate / show all | H / I / Shift+H |
 | Edit mode | E |
 | Measure on/off | M |
+| Orthographic / perspective camera | O |
+| X-ray | X |
+| Walk mode (Esc exits) | W |
+| Next / previous storey | Page Up / Page Down |
+| Quantity takeoff | Q |
 | Finish / undo last point while measuring | Enter / Backspace |
 | Run Python script | Ctrl+Enter |
 | Clear selection | Esc |
@@ -150,3 +168,7 @@ localStorage.setItem('onlineifc.python', JSON.stringify({
 `.github/workflows/deploy.yml` builds the site and deploys it to GitHub Pages on every push to `main`.
 Enable Pages once: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 The `dist/` folder can also be put on any other static host (Netlify, Azure Static Web Apps, S3 …).
+
+### Installable app (PWA)
+
+The built site has a web app manifest and a service worker (`public/sw.js`). In Chrome or Edge, use *Install* in the address bar to get OnlineIFC as an app with its own window. After the first visit it works offline, and the installed app can open `.ifc` files directly (*Open with* in the file explorer). The service worker only caches the app itself; IFC files never leave the computer. It is only registered in the built app (`npm run build`), not in the dev server.
