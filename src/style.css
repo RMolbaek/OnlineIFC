@@ -186,11 +186,15 @@ body.dragging .drop-overlay { display: flex; }
 .planes-head { display: flex; gap: 10px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
 .planes-head .link { margin-left: auto; }
 .chk { display: inline-flex; gap: 4px; align-items: center; color: var(--muted); font-size: 12px; cursor: pointer; }
-.plane-row { display: grid; grid-template-columns: auto 88px 1fr auto auto auto; gap: 6px; align-items: center; padding: 4px 0; border-top: 1px solid var(--border); }
+.plane-row { display: grid; grid-template-columns: auto 58px auto 1fr auto auto auto auto; gap: 5px; align-items: center; padding: 4px 0; border-top: 1px solid var(--border); }
 .plane-row .pl-name { font-size: 12px; }
 .plane-row input[type='range'] { width: 100%; }
 .plane-row button { border: 1px solid var(--border); background: var(--panel-2); border-radius: 5px; cursor: pointer; padding: 1px 6px; }
-.plane-row .val { grid-column: 2 / 7; font-size: 11px; color: var(--muted); margin-top: -4px; }
+.plane-row .val { grid-column: 2 / 9; font-size: 11px; color: var(--muted); margin-top: -2px; display: flex; align-items: center; gap: 4px; }
+.plane-row .val input { width: 92px; font-size: 11px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); }
+.plane-row .pl-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.planes-step { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 12px; flex-wrap: wrap; }
+.planes-step input { width: 64px; padding: 1px 4px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel); color: var(--text); margin-left: 4px; }
 .mode-hint {
   position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
   background: var(--accent); color: #fff; padding: 6px 14px; border-radius: 16px; box-shadow: var(--shadow); z-index: 3;
@@ -583,3 +587,7 @@ dialog .qto-table td:first-child { color: var(--text); }
 .panel.left { width: 340px; }
 .tabs .tab { font-size: 12px; padding-left: 4px; padding-right: 4px; }
 .qto-controls select.sm { height: 28px; padding: 0 6px; }
+
+.menu-sub { display: flex; align-items: center; gap: 8px; padding: 2px 10px 6px 44px; font-size: 12px; flex-wrap: wrap; }
+.menu-sub label { display: flex; align-items: center; gap: 6px; }
+.menu-sub input[type='number'] { width: 70px; height: 24px; padding: 0 6px; border: 1px solid var(--border); border-radius: 5px; background: var(--panel-2); color: var(--text); }

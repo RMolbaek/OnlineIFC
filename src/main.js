@@ -1165,15 +1165,28 @@ function renderPlanes() {
     const enabled = h('input', { type: 'checkbox', checked: p.enabled, title: t('planes.active') });
     enabled.addEventListener('change', () => viewer.togglePlane(p, enabled.checked));
     const slider = h('input', { type: 'range', min: String(range.min), max: String(range.max), step: String(step), value: String(viewer.getPlanePos(p)) });
-    const val = h('div', { class: 'val' });
-    const upd = () => { val.textContent = `${viewer.getPlanePos(p).toFixed(3)} m`; };
-    slider.addEventListener('input', () => { viewer.setPlanePos(p, +slider.value); upd(); });
+    // exact position: type it, or step with the arrow buttons / arrow keys in the field
+    const posInput = h('input', { type: 'number', step: 'any', title: t('planes.posTitle') });
+    const val = h('div', { class: 'val' }, posInput, h('span', { text: 'm' }));
+    const upd = () => { posInput.value = viewer.getPlanePos(p).toFixed(3); slider.value = String(viewer.getPlanePos(p)); };
+    const moveTo = (v) => { viewer.setPlanePos(p, v); upd(); };
+    slider.addEventListener('input', () => { viewer.setPlanePos(p, +slider.value); posInput.value = viewer.getPlanePos(p).toFixed(3); });
+    posInput.addEventListener('change', () => { if (Number.isFinite(+posInput.value) && posInput.value !== '') moveTo(+posInput.value); else upd(); });
+    posInput.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); moveTo(viewer.getPlanePos(p) + (e.key === 'ArrowUp' ? 1 : -1) * planeStep()); }
+    });
+    const stepBtn = (dir) => h('button', {
+      class: 'step', text: dir > 0 ? '›' : '‹', title: t(dir > 0 ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) }),
+      onclick: () => moveTo(viewer.getPlanePos(p) + dir * planeStep()),
+    });
     upd();
     const name = p.boxPart ? `${t('planes.boxPart')} ${p.axis === 'y' ? 'Z' : p.axis === 'z' ? 'Y' : 'X'} ${p.boxPart}` : t(AXIS_LABEL[p.axis]);
     list.append(h('div', { class: 'plane-row' },
       enabled,
-      h('span', { class: 'pl-name', text: name }),
+      h('span', { class: 'pl-name', text: name, title: name }),
+      stepBtn(-1),
       slider,
+      stepBtn(1),
       h('button', { title: t('planes.flip'), text: '⇄', onclick: () => { viewer.flipPlane(p); renderPlanes(); } }),
       p.boxPart ? null : h('button', { title: t('drw.title'), text: '2D', onclick: () => openDrawingDialog(p) }),
       h('button', { title: t('planes.remove'), text: '✕', onclick: () => { viewer.removePlane(p); renderPlanes(); } }),
@@ -1181,6 +1194,17 @@ function renderPlanes() {
     ));
   }
 }
+/** Step length (m) for the ‹ › buttons of the section planes; remembered in the browser. */
+function planeStep() {
+  const v = +$('#plane-step').value;
+  return Number.isFinite(v) && v > 0 ? v : 1;
+}
+try { const v = localStorage.getItem('onlineifc.planeStep'); if (v) $('#plane-step').value = v; } catch { /* ignore */ }
+$('#plane-step').addEventListener('change', () => {
+  try { localStorage.setItem('onlineifc.planeStep', String(planeStep())); } catch { /* ignore */ }
+  // only the tooltips change: redrawing the rows here would swallow a click on ‹ › that blurs this field
+  for (const b of $$('.plane-row button.step')) b.title = t(b.textContent === '›' ? 'planes.stepFwd' : 'planes.stepBack', { step: fmtNum(planeStep()) });
+});
 $('#plane-helpers').addEventListener('change', (e) => viewer.setHelpersVisible(e.target.checked));
 $('#plane-fill').addEventListener('change', (e) => viewer.setSectionFill(e.target.checked));
 
@@ -1221,6 +1245,24 @@ for (const b of $$('#measure-modes [data-measure]')) b.addEventListener('click',
 $('#measure-snap').addEventListener('change', (e) => { measure.snapOn = e.target.checked; });
 $('#measure-unit').addEventListener('change', (e) => { measure.unit = e.target.value; measure.refresh(); });
 $('#station-format').addEventListener('change', (e) => { alignmentLayer.format = e.target.value; alignmentLayer.rebuild(); measure.refresh(); });
+
+// Station marks of alignments: automatic, a fixed interval, or off (only the line)
+function applyStationInterval() {
+  const sel = $('#station-interval').value;
+  $('#station-custom-wrap').hidden = sel !== 'custom';
+  let v = sel;
+  if (sel === 'custom') { const c = +$('#station-custom').value; v = Number.isFinite(c) && c > 0 ? c : 'auto'; }
+  alignmentLayer.interval = v === 'auto' ? 'auto' : Number(v);
+  alignmentLayer.rebuild();
+  try { localStorage.setItem('onlineifc.stationInterval', JSON.stringify({ sel, custom: $('#station-custom').value })); } catch { /* ignore */ }
+}
+try {
+  const saved = JSON.parse(localStorage.getItem('onlineifc.stationInterval') || 'null');
+  if (saved) { $('#station-interval').value = saved.sel; $('#station-custom').value = saved.custom; }
+} catch { /* ignore */ }
+$('#station-interval').addEventListener('change', applyStationInterval);
+$('#station-custom').addEventListener('change', applyStationInterval);
+applyStationInterval();
 for (const cb of $$('[data-spot-show]')) {
   cb.checked = !!measure.spotShow[cb.dataset.spotShow];
   cb.addEventListener('change', () => measure.setSpotShow(cb.dataset.spotShow, cb.checked));
@@ -1393,7 +1435,7 @@ async function exportDrawing() {
   const name = $('#drw-name').value.trim() || 'Section';
   const info = {
     title: name,
-    subtitle: `${viewer.models.filter((m) => m.visible).map((m) => m.name).join(', ')} · ${planeLabel(entry, viewer.planes.indexOf(entry))}`,
+    subtitle: `${planeLabel(entry, viewer.planes.indexOf(entry))} · ${viewer.models.filter((m) => m.visible).map((m) => m.name).join(', ')}`,
     date: new Date().toISOString().slice(0, 10),
   };
   const file = name.replace(/[^\w\-æøåÆØÅäöüÄÖÜß ]+/g, '').trim().replace(/\s+/g, '_') || 'section';

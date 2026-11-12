@@ -194,8 +194,62 @@ function outline(hex) {
 const escXml = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const f2 = (x) => (Math.round(x * 100) / 100).toString();
 
-function titleLines(info, lay) {
-  return [info.title, `${info.subtitle}`, `1:${lay.scale}  ·  ${info.date}  ·  OnlineIFC`];
+// Approximate Helvetica widths (em) – a little generous, so text never runs into the scale bar
+const charW = (ch, bold) => {
+  if (/[ilI.,:;!|'`]/.test(ch)) return 0.28;
+  if (/[fjrt()\[\]\-/ ]/.test(ch)) return 0.36;
+  if (/[mwMW]/.test(ch)) return bold ? 0.92 : 0.86;
+  if (/[A-Z]/.test(ch)) return bold ? 0.74 : 0.70;
+  return bold ? 0.6 : 0.56;
+};
+const textW = (str, size, bold = false) => { let w = 0; for (const ch of str) w += charW(ch, bold); return w * size; };
+
+/** Cuts text to a width, ending with '...'. */
+function fit(str, size, maxW, bold = false) {
+  if (textW(str, size, bold) <= maxW) return str;
+  let out = '';
+  for (const ch of str) {
+    if (textW(`${out}${ch}...`, size, bold) > maxW) break;
+    out += ch;
+  }
+  return `${out}...`;
+}
+
+/** Wraps text into at most maxLines lines; breaks after ', ', ' ', '_' or '-'. */
+function wrap(str, size, maxW, maxLines) {
+  const tokens = str.split(/(?<=, |\s|_|-)/);
+  const lines = [];
+  let cur = '';
+  for (const tk of tokens) {
+    if (cur && textW(cur + tk, size) > maxW) {
+      lines.push(cur.trimEnd());
+      cur = '';
+      if (lines.length === maxLines) break;
+    }
+    cur += tk;
+  }
+  if (lines.length < maxLines && cur) lines.push(cur.trimEnd());
+  const used = lines.join('').replace(/\s/g, '').length;
+  if (used < str.replace(/\s/g, '').length) lines[lines.length - 1] = fit(`${lines[lines.length - 1]} ...`, size, maxW);
+  return lines.map((l) => fit(l, size, maxW));
+}
+
+/**
+ * Text lines of the title block, fitted into the space left of the legend / scale bar:
+ * [{text, size, bold, y}] with y relative to the top of the title block.
+ */
+function titleLines(info, lay, opts = {}) {
+  const m = lay.margin;
+  const step = niceBar(lay);
+  const barLeft = lay.W - m - 4 * ((step * 1000) / lay.scale) - 10;
+  const legend = !opts.mono && !isModelColors(opts) && opts.legend !== false;
+  const right = Math.min(barLeft, legend ? lay.W / 2 - 22 : barLeft) - 4;
+  const maxW = Math.max(40, right - m);
+  const sub = wrap(String(info.subtitle ?? ''), 3.2, maxW, 2);
+  const lines = [{ text: fit(String(info.title ?? ''), 5, maxW, true), size: 5, bold: true, y: 7 }];
+  sub.forEach((t, i) => lines.push({ text: t, size: 3.2, y: 11.8 + i * 3.8 }));
+  lines.push({ text: fit(`1:${lay.scale}  ·  ${info.date}  ·  OnlineIFC`, 3, maxW), size: 3, y: sub.length > 1 ? 20.2 : 18.5 });
+  return lines;
 }
 
 /** SVG drawing (sizes in mm). opts: {fill, mono, background: {dataUrl}} */
@@ -229,10 +283,9 @@ export function toSvg(section, lay, info, opts) {
   // frame, title and scale bar
   const m = lay.margin;
   out.push(`<rect x="${m / 2}" y="${m / 2}" width="${lay.W - m}" height="${lay.H - m}" fill="none" stroke="#000" stroke-width="0.5"/>`);
-  const [l1, l2, l3] = titleLines(info, lay);
   const ty = lay.H - m / 2 - lay.title;
   out.push(`<line x1="${m / 2}" y1="${ty}" x2="${lay.W - m / 2}" y2="${ty}" stroke="#000" stroke-width="0.35"/>`);
-  out.push(`<g font-family="Helvetica, Arial, sans-serif" fill="#000"><text x="${m}" y="${ty + 7}" font-size="5" font-weight="bold">${escXml(l1)}</text><text x="${m}" y="${ty + 13}" font-size="3.5">${escXml(l2)}</text><text x="${m}" y="${ty + 18.5}" font-size="3">${escXml(l3)}</text></g>`);
+  out.push(`<g font-family="Helvetica, Arial, sans-serif" fill="#000">${titleLines(info, lay, opts).map((l) => `<text x="${m}" y="${f2(ty + l.y)}" font-size="${l.size}"${l.bold ? ' font-weight="bold"' : ''}>${escXml(l.text)}</text>`).join('')}</g>`);
   out.push(scaleBarSvg(lay, ty));
   out.push(legendSvg(section, lay, ty, opts));
   out.push('</svg>');
@@ -316,9 +369,9 @@ export function toPdf(section, lay, info, opts) {
   const ty = lay.H - m / 2 - lay.title;
   c.push(`0 0 0 RG ${(0.5 * k).toFixed(3)} w ${P(m / 2, lay.H - m / 2)} ${((lay.W - m) * k).toFixed(2)} ${((lay.H - m) * k).toFixed(2)} re S`);
   c.push(`${(0.35 * k).toFixed(3)} w ${P(m / 2, ty)} m ${P(lay.W - m / 2, ty)} l S`);
-  const [l1, l2, l3] = titleLines(info, lay);
   const text = (x, y, size, s, bold = false) => `BT /${bold ? 'F2' : 'F1'} ${(size * k).toFixed(2)} Tf ${P(x, y)} Td (${pdfStr(s)}) Tj ET`;
-  c.push('0 0 0 rg', text(m, ty + 7, 5, l1, true), text(m, ty + 13, 3.5, l2), text(m, ty + 18.5, 3, l3));
+  // the PDF has no class legend, so the title may use the space up to the scale bar
+  c.push('0 0 0 rg', ...titleLines(info, lay, { ...opts, legend: false }).map((l) => text(m, ty + l.y, l.size, l.text, l.bold)));
   // scale bar
   const step = niceBar(lay);
   const segMm = (step * 1000) / lay.scale;

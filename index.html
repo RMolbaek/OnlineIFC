@@ -82,6 +82,18 @@
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-spaces"><span class="mi-icon mi-check" id="spaces-check">☐</span><span class="mi-text"><b data-i18n="mi.spaces"></b><small data-i18n="mi.spacesDesc"></small></span></button>
           <button class="menu-item" data-action="toggle-alignments"><span class="mi-icon mi-check" id="alignments-check">☑</span><span class="mi-text"><b data-i18n="mi.alignments"></b><small data-i18n="mi.alignmentsDesc"></small></span></button>
+          <div class="menu-sub" id="station-row">
+            <label><span data-i18n="mi.stationing"></span>
+              <select id="station-interval" class="sm">
+                <option value="auto" data-i18n="mi.stationAuto"></option>
+                <option value="1">1 m</option><option value="5">5 m</option><option value="10">10 m</option><option value="20">20 m</option>
+                <option value="25">25 m</option><option value="50">50 m</option><option value="100">100 m</option><option value="200">200 m</option>
+                <option value="500">500 m</option><option value="1000">1000 m</option>
+                <option value="custom" data-i18n="mi.stationCustom"></option>
+                <option value="0" data-i18n="mi.stationOff"></option>
+              </select></label>
+            <label id="station-custom-wrap" hidden><input type="number" id="station-custom" min="0.1" step="any" value="15" class="sm" /> m</label>
+          </div>
         </div>
       </div>
 
@@ -211,6 +223,11 @@
               <label class="chk"><input type="checkbox" id="plane-fill" checked /> <span data-i18n="planes.fill"></span></label>
               <label class="chk"><input type="checkbox" id="plane-helpers" checked /> <span data-i18n="planes.helpers"></span></label>
               <button class="link" data-action="clear-planes" data-i18n="planes.clear"></button>
+            </div>
+            <div class="planes-step">
+              <label data-i18n-title="planes.stepTitle"><span data-i18n="planes.step"></span>
+                <input type="number" id="plane-step" min="0.001" step="any" value="1" /> m</label>
+              <span class="muted small" data-i18n="planes.stepHint"></span>
             </div>
             <div id="plane-list"></div>
           </div>

@@ -9,7 +9,7 @@ The interface is in **English**, **Danish**, **German** and **Hindi** (language 
 ### Review
 - **Open files** (IFC2x3, IFC4, IFC4x3): drag and drop them anywhere in the window at any time, or click the drop area on the start screen / *Open IFC*. Dropped files are recognised by type: `.ifc` models are added to the view, `.bcf`/`.bcfzip` go to *Issues*, `.ids` opens the IDS check, and `.onlineifc.json` opens a workspace.
 - **Federation:** several models are shown in one view. The first model defines the coordinate system and the following models are placed relative to it using their own coordinates.
-- **Sections:** horizontal plan section, vertical sections (X/Y), a section parallel to a clicked face, and a section box around the selection. Every plane can be moved with a slider, flipped, disabled or removed. Cut faces are coloured red.
+- **Sections:** horizontal plan section, vertical sections (X/Y), a section parallel to a clicked face, and a section box around the selection. Every plane can be moved with a slider, stepped with ‹ › by a chosen step length (e.g. 0.5 m), placed at a typed position (↑/↓ in the field steps too), flipped, disabled or removed. Cut faces are coloured red.
 - **Colours:** colour and opacity per model, *Colour by model* gives every model its own colour, *Original* restores the colours from the IFC file.
 - **Toolbar menus:** *View*, *Section* and *Visibility* open menus where every tool has a short description.
 - **Axis cross:** an X/Y/Z axis indicator in the top-left corner of the 3D view always shows the directions (IFC axes, Z up).
@@ -49,11 +49,11 @@ The **Issues** tab creates issues from the current view. The camera, section pla
 
 ### 2D drawings
 **Section → Export section as drawing** (or **2D** next to a section plane) turns a section into a drawing:
-- **PDF/SVG:** true scale on A4–A0 (or fitted), cut outlines with filled cut areas coloured per IFC class, with the model colours as shown in the viewer (including colours you chose, e.g. from a filter), with the original IFC colours, or in black and white, title block, scale bar, and optionally the view behind the cut as a background.
+- **PDF/SVG:** true scale on A4–A0 (or fitted), a title block that wraps/shortens long model names so nothing overlaps the scale bar, cut outlines with filled cut areas coloured per IFC class, with the model colours as shown in the viewer (including colours you chose, e.g. from a filter), with the original IFC colours, or in black and white, title block, scale bar, and optionally the view behind the cut as a background.
 - **DXF (R12):** one layer per IFC class, coordinates in metres. Plan sections use the real IFC X/Y coordinates, so they line up with other drawings.
 
 ### Alignments and stationing (IFC4x3)
-Models with `IfcAlignment` show the alignment in 3D with station marks (**View → Show alignments**). The vertical profile is computed from the alignment's vertical segments and the start station from `IfcReferent` / `Pset_Stationing`. Spot measurements show **station**, **lateral offset** (left positive, as in IFC) and the **height above the vertical profile**, and distances show the station range. Stations are written as `km+m` (`1+234.567`) or in metres.
+Models with `IfcAlignment` show the alignment in 3D with station marks (**Visibility → Show alignments**). The vertical profile is computed from the alignment's vertical segments and the start station from `IfcReferent` / `Pset_Stationing`. Spot measurements show **station**, **lateral offset** (left positive, as in IFC) and the **height above the vertical profile**, and distances show the station range. Stations are written as `km+m` (`1+234.567`) or in metres. Under **Visibility → Stationing** the station marks can be automatic, every 1–1000 m, any other interval, or off (only the line).
 
 ### Measure
 **Measure** (toolbar or `M`) opens the measuring panel with three tools:

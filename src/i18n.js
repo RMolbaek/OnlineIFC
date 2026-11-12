@@ -464,6 +464,16 @@ const en = {
   'drw.colClass': 'A colour per IFC class',
   'drw.colShown': 'Model colours as shown (incl. chosen colours)',
   'drw.colOriginal': 'Original colours from the IFC file',
+  'planes.step': 'Step',
+  'planes.stepTitle': 'Distance the ‹ › buttons move a section plane',
+  'planes.stepHint': '‹ › move the plane; or type the position (↑/↓ steps)',
+  'planes.posTitle': 'Position of the plane – type a value, or use ↑/↓ to step',
+  'planes.stepFwd': 'Move forward {step} m',
+  'planes.stepBack': 'Move back {step} m',
+  'mi.stationing': 'Stationing',
+  'mi.stationAuto': 'Automatic',
+  'mi.stationCustom': 'Other interval …',
+  'mi.stationOff': 'Off (line only)',
 };
 
 const da = {
@@ -920,6 +930,16 @@ const da = {
   'drw.colClass': 'En farve pr. IFC-klasse',
   'drw.colShown': 'Modelfarver som vist (inkl. valgte farver)',
   'drw.colOriginal': 'Originale farver fra IFC-filen',
+  'planes.step': 'Spring',
+  'planes.stepTitle': 'Afstand som ‹ › flytter et snitplan',
+  'planes.stepHint': '‹ › flytter planet; eller skriv positionen (↑/↓ springer)',
+  'planes.posTitle': 'Planets position – skriv en værdi, eller brug ↑/↓ for at springe',
+  'planes.stepFwd': 'Flyt {step} m frem',
+  'planes.stepBack': 'Flyt {step} m tilbage',
+  'mi.stationing': 'Stationering',
+  'mi.stationAuto': 'Automatisk',
+  'mi.stationCustom': 'Andet interval …',
+  'mi.stationOff': 'Fra (kun linjen)',
 };
 
 const de = {
@@ -1376,6 +1396,16 @@ const de = {
   'drw.colClass': 'Eine Farbe je IFC-Klasse',
   'drw.colShown': 'Modellfarben wie angezeigt (inkl. gewählter Farben)',
   'drw.colOriginal': 'Originalfarben aus der IFC-Datei',
+  'planes.step': 'Schritt',
+  'planes.stepTitle': 'Strecke, um die ‹ › eine Schnittebene verschieben',
+  'planes.stepHint': '‹ › verschieben die Ebene; oder Position eingeben (↑/↓ springt)',
+  'planes.posTitle': 'Position der Ebene – Wert eingeben oder mit ↑/↓ springen',
+  'planes.stepFwd': '{step} m vor',
+  'planes.stepBack': '{step} m zurück',
+  'mi.stationing': 'Stationierung',
+  'mi.stationAuto': 'Automatisch',
+  'mi.stationCustom': 'Anderes Intervall …',
+  'mi.stationOff': 'Aus (nur Linie)',
 };
 
 const hi = {
@@ -1766,6 +1796,16 @@ const hi = {
   'drw.colClass': 'हर IFC क्लास के लिए एक रंग',
   'drw.colShown': 'दिखाए गए मॉडल रंग (चुने गए रंग सहित)',
   'drw.colOriginal': 'IFC फ़ाइल के मूल रंग',
+  'planes.step': 'कदम',
+  'planes.stepTitle': '‹ › बटन सेक्शन प्लेन को कितना खिसकाते हैं',
+  'planes.stepHint': '‹ › प्लेन खिसकाते हैं; या स्थिति लिखें (↑/↓ कदम)',
+  'planes.posTitle': 'प्लेन की स्थिति – मान लिखें या ↑/↓ से कदम बढ़ाएँ',
+  'planes.stepFwd': '{step} m आगे',
+  'planes.stepBack': '{step} m पीछे',
+  'mi.stationing': 'स्टेशनिंग',
+  'mi.stationAuto': 'स्वचालित',
+  'mi.stationCustom': 'अन्य अंतराल …',
+  'mi.stationOff': 'बंद (केवल रेखा)',
 };
 
 const DICTS = { en, da, de, hi };
