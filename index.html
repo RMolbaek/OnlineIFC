@@ -41,6 +41,12 @@
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="fit-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></span><span class="mi-text"><b data-i18n="mi.fitAll"></b><small data-i18n="mi.fitAllDesc"></small></span></button>
           <button class="menu-item" data-action="fit"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m20 20-4.5-4.5"/></svg></span><span class="mi-text"><b data-i18n="mi.fitSel"></b><small data-i18n="mi.fitSelDesc"></small></span><kbd>F</kbd></button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="toggle-ortho"><span class="mi-icon mi-check" id="ortho-check">☐</span><span class="mi-text"><b data-i18n="mi.ortho"></b><small data-i18n="mi.orthoDesc"></small></span><kbd>O</kbd></button>
+          <button class="menu-item" data-action="walk"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="13" cy="4" r="2"/><path d="M10 21l2-6 3 3v3M8 12l3-4 4 2 3 3M11 8l-1 5"/></svg></span><span class="mi-text"><b data-i18n="mi.walk"></b><small data-i18n="mi.walkDesc"></small></span><kbd>W</kbd></button>
+          <div class="menu-sep"></div>
+          <div class="menu-head" data-i18n="mi.storeys"></div>
+          <div id="storey-items"></div>
         </div>
       </div>
 
@@ -67,6 +73,7 @@
         <div class="menu-pop" data-pop="visibility" hidden>
           <button class="menu-item" data-action="hide"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 3l18 18M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7c1.6 0 3-.4 4.3-1"/></svg></span><span class="mi-text"><b data-i18n="mi.hide"></b><small data-i18n="mi.hideDesc"></small></span><kbd>H</kbd></button>
           <button class="menu-item" data-action="isolate"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M3 3h4M17 3h4M3 21h4M17 21h4"/></svg></span><span class="mi-text"><b data-i18n="mi.isolate"></b><small data-i18n="mi.isolateDesc"></small></span><kbd>I</kbd></button>
+          <button class="menu-item" data-action="toggle-xray"><span class="mi-icon mi-check" id="xray-check">☐</span><span class="mi-text"><b data-i18n="mi.xray"></b><small data-i18n="mi.xrayDesc"></small></span><kbd>X</kbd></button>
           <button class="menu-item" data-action="show-all"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span><span class="mi-text"><b data-i18n="mi.showAll"></b><small data-i18n="mi.showAllDesc"></small></span><kbd>⇧H</kbd></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-spaces"><span class="mi-icon mi-check" id="spaces-check">☐</span><span class="mi-text"><b data-i18n="mi.spaces"></b><small data-i18n="mi.spacesDesc"></small></span></button>
@@ -411,6 +418,10 @@
         <tr><td>E</td><td data-i18n="help.e"></td></tr>
         <tr><td>M</td><td data-i18n="help.m"></td></tr>
         <tr><td>Enter / Backspace</td><td data-i18n="help.measureKeys"></td></tr>
+        <tr><td>O</td><td data-i18n="help.o"></td></tr>
+        <tr><td>X</td><td data-i18n="help.x"></td></tr>
+        <tr><td>Page Up / Page Down</td><td data-i18n="help.pgUpDown"></td></tr>
+        <tr><td>W</td><td data-i18n="help.w"></td></tr>
         <tr><td>Ctrl+Enter</td><td data-i18n="help.ctrlEnter"></td></tr>
       </table>
       <p class="muted" data-i18n="help.note"></p>

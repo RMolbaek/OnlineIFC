@@ -529,3 +529,10 @@ dialog a { color: var(--accent); }
 .btn.danger { color: var(--danger); }
 .bcf-body .flt-btns .chk { flex: 1; color: var(--text); font-size: 12px; }
 .m-label.align { --m-color: #e8590c; font-size: 11px; padding: 2px 6px; } .m-label.align.name { font-size: 12px; }
+.menu-head { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 4px 8px 2px; }
+#storey-items { max-height: 40vh; overflow: auto; }
+.toolbar .menu-item.small-item { padding: 4px 8px; }
+.menu-item.small-item .mi-icon { width: 20px; height: 20px; font-size: 10px; }
+.menu-item.active b { color: var(--accent); }
+.menu-empty { padding: 4px 10px; font-size: 12px; color: var(--muted); }
+#viewport.walking canvas { cursor: crosshair; }

@@ -6,6 +6,7 @@ import { fmtValue, prettyTypeName, prettyRawName, decodeIfcString } from './ifc.
 import { t } from './i18n.js';
 
 let nextUid = 1;
+const XRAY_OPACITY = 0.12;
 const PICK_MATERIAL = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 
 /** Delte uniforms: når et snit er aktivt, farves bagsider (= indersiden af snitflader). */
@@ -49,6 +50,7 @@ export class IfcModel {
     this.hidden = new Set(); // skjulte expressIDs
     this.elementOpacity = new Map(); // expressID -> own transparency (0..1)
     this.elementColor = new Map(); // expressID -> own colour (0xRRGGBB)
+    this.xrayKeep = null; // X-ray mode: Set of elements kept solid (everything else is faded)
     this.selected = new Set();
     this.highlightMaterial = null;
 
@@ -93,7 +95,7 @@ export class IfcModel {
   #applyMaterial(b) {
     const m = b.material;
     m.color.copy(this.overrideColor || b.color);
-    const op = b.opacity * this.opacity;
+    const op = b.opacity * this.opacity * (this.xrayKeep ? XRAY_OPACITY : 1);
     const transparent = op < 0.999;
     if (m.transparent !== transparent) m.needsUpdate = true;
     m.transparent = transparent;
@@ -120,8 +122,9 @@ export class IfcModel {
   // ---------------------------------------------------------------- synlighed
   #rebuild(b) {
     // Elements with their own colour/transparency are drawn in separate meshes (see #rebuildFades)
-    const faded = this.elementOpacity.size || this.elementColor.size
-      ? (id) => this.elementOpacity.has(id) || this.elementColor.has(id) : () => false;
+    const keep = this.xrayKeep;
+    const faded = this.elementOpacity.size || this.elementColor.size || keep?.size
+      ? (id) => this.elementOpacity.has(id) || this.elementColor.has(id) || !!keep?.has(id) : () => false;
     const excluded = (id) => this.hidden.has(id) || faded(id);
     const anyHidden = b.items.some((it) => excluded(it.id));
     const starts = [];
@@ -159,13 +162,17 @@ export class IfcModel {
       f.material.dispose();
     }
     b.fades = [];
-    if (!this.elementOpacity.size && !this.elementColor.size) return;
+    const keep = this.xrayKeep;
+    if (!this.elementOpacity.size && !this.elementColor.size && !keep?.size) return;
     const byStyle = new Map();
     for (const it of b.items) {
       if (this.hidden.has(it.id)) continue;
-      const op = this.elementOpacity.get(it.id);
+      const kept = !!keep?.has(it.id);
+      let op = this.elementOpacity.get(it.id);
       const col = this.elementColor.get(it.id);
-      if (op === undefined && col === undefined) continue;
+      if (op === undefined && col === undefined && !kept) continue;
+      if (keep && !kept) op = (op ?? 1) * XRAY_OPACITY; // styled elements are faded too in X-ray mode
+      if (kept) op = 1;
       const key = `${col ?? 'base'}|${op ?? 1}`;
       if (!byStyle.has(key)) byStyle.set(key, { op: op ?? 1, col, items: [] });
       byStyle.get(key).items.push(it);
@@ -211,6 +218,13 @@ export class IfcModel {
     m.transparent = transparent;
     m.opacity = op;
     m.depthWrite = !transparent;
+  }
+
+  /** X-ray mode: everything is see-through except the given elements (null turns it off). */
+  setXray(keepIds) {
+    this.xrayKeep = keepIds ? new Set(keepIds) : null;
+    for (const b of this.buckets) this.#applyMaterial(b);
+    this.#rebuildAll();
   }
 
   /** Gives single elements their own colour (number like 0xff0000). null removes the colour. */

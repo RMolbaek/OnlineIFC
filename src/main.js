@@ -5,6 +5,7 @@ import { isSpatialType, KIND_TYPES } from './model.js';
 import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js';
 import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
+import { WalkMode } from './walk.js';
 import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
@@ -35,6 +36,13 @@ const PALETTE = ['#4e79a7', '#f28e2b', '#e15759', '#59a14f', '#b07aa1', '#edc948
 
 const viewer = new Viewer($('#viewport'));
 const measure = new MeasureTool(viewer, $('#viewport'));
+const walk = new WalkMode(viewer);
+walk.addEventListener('change', () => {
+  $('#viewport').classList.toggle('walking', walk.active);
+  if (walk.active) { if (measure.mode) setMeasureMode(null); toast(t('msg.walkHelp'), true); }
+  renderStatus();
+});
+walk.addEventListener('speed', () => renderStatus());
 const mapLayer = new MapLayer(viewer);
 const alignmentLayer = new AlignmentLayer(viewer, $('#viewport'));
 measure.alignments = alignmentLayer;
@@ -44,6 +52,9 @@ const state = {
   pickPlaneMode: false,
   spacesVisible: false,
   editMode: false,
+  xray: false,
+  storey: null, // {model, id} of the storey shown alone
+  storeyCut: true, // plan section 1.2 m above the floor of that storey
   treeKeys: new Set(), // tree/class rows selected by the user (for highlighting group rows)
   lastTreeKey: null, // anchor for Shift+click range selection
 };
@@ -210,6 +221,7 @@ function clearSelection() {
 
 function applySelection() {
   for (const m of viewer.models) m.setSelection(state.selection.get(m) || [], viewer.highlightMaterial);
+  if (state.xray) for (const m of viewer.models) m.setXray(state.selection.get(m) || []);
   for (const el of $$('.node.selected')) el.classList.remove('selected');
   applyTreeSelection();
   if (state.active) treeRegistry.get(`${state.active.model.uid}:${state.active.id}`)?.row.classList.add('selected');
@@ -352,6 +364,10 @@ document.addEventListener('click', (e) => {
     isolate: () => isolateSelected(),
     'show-all': () => showAll(),
     'toggle-spaces': () => toggleSpaces(),
+    'toggle-ortho': () => { if (walk.active) walk.stop(); setOrtho(!viewer.isOrtho); },
+    walk: () => walk.toggle(),
+    'toggle-xray': () => setXray(!state.xray),
+    'storey-cut': () => { state.storeyCut = !state.storeyCut; renderStoreyItems(); if (state.storey) showStorey(state.storey); },
     'toggle-alignments': () => {
       if (!viewer.models.some((m) => m.alignments?.length)) return toast(t('aln.none'));
       alignmentLayer.setVisible(!alignmentLayer.visible);
@@ -383,6 +399,7 @@ function toggleMenu(btn) {
   const open = pop.hidden;
   closeMenus();
   if (!open) return;
+  if (pop.dataset.pop === 'view') renderStoreyItems();
   const r = btn.getBoundingClientRect();
   pop.hidden = false;
   pop.style.top = `${r.bottom + 4}px`;
@@ -483,6 +500,10 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'i' || e.key === 'I') isolateSelected();
   else if (e.key === 'e' || e.key === 'E') setEditMode(!state.editMode);
   else if (e.key === 'm' || e.key === 'M') setMeasureMode(measure.mode ? null : lastMeasureMode);
+  else if (e.key === 'o' || e.key === 'O') { if (!walk.active) setOrtho(!viewer.isOrtho); }
+  else if (e.key === 'w' || e.key === 'W') walk.toggle();
+  else if (e.key === 'x' || e.key === 'X') setXray(!state.xray);
+  else if (e.key === 'PageUp' || e.key === 'PageDown') { e.preventDefault(); stepStorey(e.key === 'PageUp' ? 1 : -1); }
   else if ((e.ctrlKey || e.metaKey) && e.key === 'o') { e.preventDefault(); $('#file-input').click(); }
 });
 
@@ -1181,6 +1202,98 @@ const issues = new IssuesPanel({
   afterVisibility: () => { refreshVisibilityUi(); renderPlanes(); },
 });
 
+// ================================================== ortho, X-ray and storeys
+function setOrtho(on) {
+  viewer.setOrthographic(on);
+  if (!$('#ortho-check')) return;
+  $('#ortho-check').textContent = on ? '☑' : '☐';
+  renderStatus();
+}
+
+function setXray(on) {
+  state.xray = on;
+  for (const m of viewer.models) m.setXray(on ? state.selection.get(m) || [] : null);
+  $('#xray-check').textContent = on ? '☑' : '☐';
+  if (on && !state.selection.size) toast(t('msg.xrayHint'), true);
+  renderStatus();
+}
+
+/** All storeys of all models, sorted by elevation: [{model, id, name, elevation}] */
+function allStoreys() {
+  const out = [];
+  for (const m of viewer.models) {
+    const walk = (n) => {
+      if (m.typeName(n.expressID) === 'IfcBuildingStorey') {
+        const line = m.api.GetLine(m.modelID, n.expressID, false);
+        const ev = line?.Elevation;
+        const v = ev && typeof ev === 'object' ? Number(ev._representationValue ?? ev.value) : NaN;
+        out.push({ model: m, id: n.expressID, node: n, name: m.label(n.expressID), elevation: Number.isFinite(v) ? v * (m.lengthScale || 1) : null });
+      }
+      for (const c of n.children || []) walk(c);
+    };
+    if (m.tree) walk(m.tree);
+  }
+  return out.sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0));
+}
+
+function renderStoreyItems() {
+  const box = $('#storey-items');
+  const list = allStoreys();
+  const multi = viewer.models.length > 1;
+  const item = (label, sub, onclick, active = false) => {
+    const b = h('button', { class: `menu-item small-item${active ? ' active' : ''}` },
+      h('span', { class: 'mi-icon', text: active ? '●' : '' }),
+      h('span', { class: 'mi-text' }, h('b', { text: label }), sub ? h('small', { text: sub }) : null));
+    b.addEventListener('click', () => { closeMenus(); onclick(); });
+    return b;
+  };
+  const items = [];
+  if (!list.length) items.push(h('div', { class: 'menu-empty', text: t('mi.noStoreys') }));
+  else {
+    items.push(item(t('mi.allStoreys'), null, () => showStorey(null), !state.storey));
+    for (const st of [...list].reverse()) {
+      const sub = [st.elevation !== null ? `${st.elevation >= 0 ? '+' : ''}${st.elevation.toFixed(2)} m` : null, multi ? st.model.name : null].filter(Boolean).join(' · ');
+      items.push(item(st.name, sub, () => showStorey(st), state.storey?.id === st.id && state.storey?.model === st.model));
+    }
+    const cut = h('button', { class: 'menu-item small-item' }, h('span', { class: 'mi-icon mi-check', text: state.storeyCut ? '☑' : '☐' }),
+      h('span', { class: 'mi-text' }, h('b', { text: t('mi.storeyCut') }), h('small', { text: t('mi.storeyCutDesc') })));
+    cut.addEventListener('click', (e) => { e.stopPropagation(); state.storeyCut = !state.storeyCut; renderStoreyItems(); if (state.storey) showStorey(state.storey); });
+    items.push(cut);
+  }
+  box.replaceChildren(...items);
+}
+
+let storeyPlane = null;
+function showStorey(st) {
+  if (storeyPlane) { viewer.removePlane(storeyPlane); storeyPlane = null; }
+  state.storey = st ? { model: st.model, id: st.id } : null;
+  if (!st) {
+    showAll();
+    renderPlanes();
+    return;
+  }
+  const ids = descendantIds(st.model, st.node);
+  for (const m of viewer.models) m.isolate(m === st.model ? ids : []);
+  if (state.storeyCut && st.elevation !== null) {
+    storeyPlane = viewer.addPlane('y');
+    const y = viewer.fromIfc(0, 0, st.elevation + 1.2).y;
+    viewer.setPlanePos(storeyPlane, y);
+  }
+  refreshVisibilityUi();
+  renderPlanes();
+  const b = st.model.getBox(ids);
+  if (!b.isEmpty()) viewer.fitBox(b);
+  toast(t('msg.storeyShown', { name: st.name }), true);
+}
+
+function stepStorey(dir) {
+  const list = allStoreys();
+  if (!list.length) return;
+  let i = state.storey ? list.findIndex((x) => x.id === state.storey.id && x.model === state.storey.model) : -1;
+  i = i < 0 ? (dir > 0 ? 0 : list.length - 1) : Math.min(list.length - 1, Math.max(0, i + dir));
+  showStorey(list[i]);
+}
+
 // ====================================================================== drawing
 function planeLabel(p, i) {
   return p.boxPart ? `${t('planes.boxPart')} ${p.axis.toUpperCase()} ${p.boxPart}` : `${i + 1}. ${t(AXIS_LABEL[p.axis])} (${viewer.getPlanePos(p).toFixed(2)} m)`;
@@ -1599,6 +1712,10 @@ function renderStatus() {
     sel ? t('status.selected', { n: fmtNum(sel) }) : null,
     viewer.planes.length ? t('status.sections', { n: viewer.planes.length }) : null,
     state.editMode ? t('status.editMode') : null,
+    viewer.isOrtho ? t('status.ortho') : null,
+    walk.active ? t('status.walk', { speed: walk.speed.toFixed(1) }) : null,
+    state.xray ? t('status.xray') : null,
+    state.storey ? t('status.storey', { name: state.storey.model.label(state.storey.id) }) : null,
     measure.mode ? t(`measure.${measure.mode}`) : null,
   ].filter(Boolean).join('  ·  ');
 }
