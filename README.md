@@ -150,6 +150,7 @@ Run with **Ctrl+Enter**. The script is saved in the browser. The *Examples* menu
 Notes on performance:
 - The 3D view is drawn on demand: while the camera moves, shortly after any input or `viewer.invalidate()`, and otherwise twice a second. An idle view costs almost no GPU time.
 - The build puts web-ifc and three.js in files of their own, so an update of the app only re-downloads the small application file. The code editor is loaded when the Python panel is first opened.
+- Visual identity: the mark is a cross section (a profile, which is also a V) with the point that looks at it; colours ink `#0F1B2D`, signal blue `#2B72D6` (dark mode `#4C9BFF`), tracé orange `#E8590C` for alignments and axis red `#C0392B` for sections. Type: Space Grotesk for headings, Inter for the interface, JetBrains Mono for stations and measured values, bundled with the app via Fontsource (no requests to font services). The icons in `public/icons` are made from `icon.svg` / `maskable.svg`.
 - `src/style.css` is organised as tokens, base controls (`.btn`, fields, `.float` panels) and feature sections; new UI should use those instead of local styles.
 
 

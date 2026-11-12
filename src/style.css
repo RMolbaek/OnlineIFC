@@ -5,21 +5,28 @@
 
 /* ============================================================ 1 tokens */
 :root {
-  --bg: #f3f4f6;
+  /* visual identity: ink, signal blue, tracé orange (alignments), axis red (sections) */
+  --ink: #0F1B2D;
+  --bg: #F3F5F7;
   --panel: #ffffff;
-  --panel-2: #f6f7f9;
-  --border: #dfe3e8;
-  --border-strong: #c9cfd8;
-  --text: #1c222d;
-  --muted: #687182;
-  --accent: #2b72d6;
-  --accent-soft: #e7f0fc;
+  --panel-2: #F6F8FA;
+  --border: #D9DFE6;
+  --border-strong: #C5CDD8;
+  --text: #0F1B2D;
+  --muted: #5A6B82;
+  --accent: #2B72D6;
+  --accent-soft: #E7F0FC;
   --sel: #ff9f1a;
   --danger: #d2413a;
   --ok: #188a5c;
   --warn: #a8600a;
-  --axis: #c0392b;
-  --viewport: linear-gradient(180deg, #dde3ea 0%, #f4f6f8 100%);
+  --axis: #C0392B;
+  --trace: #E8590C;
+  --mark-line: var(--ink);
+  --mark-dot: var(--accent);
+  --font: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --display: 'Space Grotesk', Inter, system-ui, sans-serif;
+  --viewport: linear-gradient(180deg, #DCE3EB 0%, #F4F6F8 100%);
   --shadow: 0 6px 22px rgba(20, 30, 50, 0.14);
   --r-sm: 5px;
   --r: 8px;
@@ -28,23 +35,24 @@
   --fs: 13px;
   --fs-sm: 12px;
   --fs-xs: 11px;
-  --mono: ui-monospace, Menlo, Consolas, monospace;
+  --mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
   color-scheme: light;
 }
 :root[data-theme="dark"] {
-  --bg: #13161b;
-  --panel: #1a1e25;
-  --panel-2: #21262f;
-  --border: #2d333f;
-  --border-strong: #3c4453;
-  --text: #e3e6eb;
-  --muted: #8e96a4;
-  --accent: #5a9ff2;
-  --accent-soft: #1d3350;
+  --bg: #0B1422;
+  --panel: #0F1B2D;
+  --panel-2: #16243A;
+  --border: #23344D;
+  --border-strong: #31465F;
+  --text: #E8EDF3;
+  --muted: #8FA3BF;
+  --accent: #4C9BFF;
+  --accent-soft: #17345A;
+  --mark-line: #F3F5F7;
   --danger: #ef6a63;
   --ok: #4fd1a1;
   --warn: #f2b25c;
-  --viewport: linear-gradient(180deg, #222932 0%, #14181e 100%);
+  --viewport: linear-gradient(180deg, #1B2A40 0%, #0D1726 100%);
   --shadow: 0 6px 22px rgba(0, 0, 0, 0.5);
   color-scheme: dark;
 }
@@ -54,7 +62,7 @@
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
 body {
-  font: var(--fs)/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font: var(--fs)/1.4 var(--font);
   background: var(--bg);
   color: var(--text);
   display: flex;
@@ -129,8 +137,14 @@ input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); margi
   overflow-x: auto; scrollbar-width: none; z-index: 5;
 }
 .toolbar > * { flex-shrink: 0; }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 15px; margin-right: 8px; letter-spacing: -0.01em; }
-.logo { width: 20px; height: 20px; background: var(--accent); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+.brand { display: flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 600; font-size: 16px; margin-right: 8px; letter-spacing: -0.025em; }
+.brand .mark { width: 26px; height: 26px; }
+/* the mark: a cross section (the profile) and the point that looks at it */
+.mark { fill: none; }
+.mark-line { stroke: var(--mark-line); stroke-width: 4.8; stroke-linecap: round; stroke-linejoin: round; }
+.mark-dot { fill: var(--mark-dot); }
+.about-mark .mark { width: 44px; height: 44px; }
+.about-mark { margin-bottom: 6px; }
 .sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
 .toolbar > button, .menu-btn {
   display: inline-flex; align-items: center; gap: 6px; height: var(--ctl); padding: 0 8px;
@@ -400,8 +414,9 @@ details.batch[open] > summary { margin-bottom: 6px; }
   background: color-mix(in srgb, var(--panel) 75%, transparent); transition: border-color .15s, background .15s;
 }
 .drop-zone:hover, body.dragging .drop-zone { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--panel)); }
-.drop-zone .drop-icon { width: 56px; height: 56px; stroke: var(--accent); stroke-width: 1.5; fill: color-mix(in srgb, var(--accent) 15%, transparent); }
-.welcome h1 { font-size: 22px; margin-top: 4px; }
+.drop-zone .drop-icon { width: 68px; height: 68px; }
+.drop-zone .drop-icon .mark-line { stroke-width: 3.4; }
+.welcome h1 { font-family: var(--display); font-weight: 500; font-size: 24px; letter-spacing: -0.02em; margin-top: 4px; }
 .drop-zone p { margin: 2px 0; }
 .welcome-text { max-width: 560px; margin: 14px 0 0; }
 .drop-overlay {
@@ -571,7 +586,7 @@ dialog {
 }
 dialog.wide { width: min(640px, calc(100vw - 32px)); }
 dialog::backdrop { background: rgba(10, 15, 25, 0.4); }
-dialog h2 { font-size: 17px; margin-bottom: 10px; }
+dialog h2 { font-family: var(--display); font-weight: 600; font-size: 19px; letter-spacing: -0.015em; margin-bottom: 10px; }
 dialog p { margin: 8px 0; }
 dialog td { padding: 3px 12px 3px 0; vertical-align: top; }
 dialog td:first-child { color: var(--muted); }
@@ -672,3 +687,11 @@ fieldset.annot .annot-row .chk { margin-bottom: 6px; color: var(--text); }
 #drw-annot.off .annot-body { display: none; }
 .sv-points circle { fill: #1f5fa8; }
 .sv-points text { fill: #1f5fa8; font-family: system-ui, sans-serif; }
+
+/* ---------- visual identity: display type and figures ---------- */
+.float-head b, .panel-title, .prop-head .name, .card-name, .project-bar b, .ctx-head b, .sv-title { font-family: var(--display); letter-spacing: -0.01em; }
+.prop-head .name { font-weight: 600; }
+/* stations, heights and measured values in mono, so figures line up */
+.m-label, .m-value, .m-lines td:last-child, .station-input, .pl-pos .val input, .sv-station, .sv-foot, #drive-station, .qto-table .num { font-family: var(--mono); font-size: 0.95em; }
+.m-label { font-weight: 500; }
+.m-label.align { --m-color: var(--trace); }
