@@ -158,6 +158,7 @@ export class ProjectManager extends EventTarget {
           views: views.views,
           issues: (issues.topics || []).map((tp) => ({ ...tp, viewpoints: tp.viewpoints.map(({ _url, ...vp }) => vp) })),
           spacesVisible: !!state.spacesVisible,
+          extra: this.ctx.getExtra?.() || null, // e.g. drawn lines
         },
       };
       await store.put('projects', rec);
@@ -222,6 +223,7 @@ export class ProjectManager extends EventTarget {
       issues.topics = (st?.issues || []).map((tp) => ({ ...tp }));
       state.spacesVisible = !!st?.spacesVisible;
       await this.ctx.openFiles(files, keys);
+      this.ctx.setExtra?.(st?.extra || null);
       // change logs of edited models
       viewer.models.forEach((m) => {
         const f = rec.files.find((x) => x.key === this.keys.get(m));

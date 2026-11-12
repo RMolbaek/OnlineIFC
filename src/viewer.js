@@ -522,9 +522,15 @@ export class Viewer extends EventTarget {
     const axisVec = axis === 'custom' ? n.clone().negate() : AXES[axis].clone();
     const entry = { id: this.planeSeq++, axis, axisVec, plane, enabled: true, helper: null };
     this.planes.push(entry);
+    // a free plane that is exactly a cross section of an alignment (e.g. from a saved view)
+    // becomes a station plane again
+    if (axis === 'custom') this.stationResolver?.(entry);
     this.#updateClipping();
     return entry;
   }
+
+  /** After a plane was changed from outside (e.g. moved along an alignment). */
+  updatePlane() { this.#updateClipping(); }
 
   /** Planets position langs dets akse (i meter). */
   getPlanePos(entry) {
@@ -534,6 +540,7 @@ export class Viewer extends EventTarget {
   setPlanePos(entry, pos) {
     entry.plane.constant = -pos / entry.plane.normal.dot(entry.axisVec);
     this.#updateHelper(entry);
+    this.dispatchEvent(new Event('planeschanged'));
   }
 
   /** Område planet kan flyttes i, ud fra scenens bounding box. */
@@ -586,6 +593,7 @@ export class Viewer extends EventTarget {
   setHelpersVisible(v) { this.showPlaneHelpers = v; this.#updateClipping(); }
 
   #updateClipping() {
+    this.dispatchEvent(new Event('planeschanged'));
     this.renderer.clippingPlanes = this.planes.filter((p) => p.enabled).map((p) => p.plane);
     sectionFill.active.value = this.renderer.clippingPlanes.length && this.sectionFillOn !== false ? 1 : 0;
     for (const p of this.planes) this.#updateHelper(p);

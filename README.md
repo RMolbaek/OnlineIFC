@@ -9,7 +9,7 @@ The interface is in **English**, **Danish**, **German** and **Hindi** (language 
 ### Review
 - **Open files** (IFC2x3, IFC4, IFC4x3): drag and drop them anywhere in the window at any time, or click the drop area on the start screen / *Open IFC*. Dropped files are recognised by type: `.ifc` models are added to the view, `.bcf`/`.bcfzip` go to *Issues*, `.ids` opens the IDS check, and `.onlineifc.json` opens a workspace.
 - **Federation:** several models are shown in one view. The first model defines the coordinate system and the following models are placed relative to it using their own coordinates.
-- **Wrong length units:** some exporters state a unit that does not match the coordinates, e.g. *millimetre* while the coordinates are metres. Such a model would be 1000× too small and far away from the others. OnlineIFC detects the clear cases (a model of a few metres at projected coordinates, or two models that only fit together with the correction), corrects the scale and tells you. The *Unit* field on the model card changes it by hand; projects remember the choice.
+- **Wrong length units:** some exporters state a unit that does not match the coordinates, e.g. *millimetre* while the coordinates are metres. Such a model would be 1000× too small and far away from the others. OnlineIFC detects the clear cases (a model of a few metres at projected coordinates, or two models that only fit together with the correction), corrects the scale and tells you.
 - **Sections:** horizontal plan section, vertical sections (X/Y), a section parallel to a clicked face, and a section box around the selection. Every plane can be moved with a slider, stepped with ‹ › by a chosen step length (e.g. 0.5 m), placed at a typed position (↑/↓ in the field steps too), flipped, disabled or removed. Cut faces are coloured red.
 - **Colours:** colour and opacity per model, *Colour by model* gives every model its own colour, *Original* restores the colours from the IFC file.
 - **Toolbar menus:** *View*, *Section* and *Visibility* open menus where every tool has a short description.
@@ -64,6 +64,18 @@ The **Issues** tab creates issues from the current view. The camera, section pla
 ### Alignments and stationing (IFC4x3)
 Models with `IfcAlignment` show the alignment in 3D with station marks (**Visibility → Show alignments**). The vertical profile is computed from the alignment's vertical segments and the start station from `IfcReferent` / `Pset_Stationing`. Spot measurements show **station**, **lateral offset** (left positive, as in IFC) and the **height above the vertical profile**, and distances show the station range. Stations are written as `km+m` (`1+234.567`) or in metres. Under **Visibility → Stationing** the station marks can be automatic, every 1–1000 m, any other interval, or off (only the line).
 
+**Section → Cross section at station** adds a section plane perpendicular to the alignment. Type the station (`1+234.5`, `1+234,5` or `1234.5`) in the plane's field, or step along the alignment with ‹ › and the step length; the plane turns with the curves. With several alignments, choose which one the plane follows. The 2D drawing of a station section uses the offset from the alignment as its x axis (right positive, looking towards higher stations) and shows the axis as a dash-dot line with the station (also in DXF, layer `ALIGNMENT_AXIS`). Saved views and BCF viewpoints bring the station plane back.
+
+Cross sections get letters (A–A, B–B …). In 3D and on plan drawings each one is shown as a classic **section mark**: a dash-dot line across the alignment with arrows in the viewing direction and the letter at both ends. Plan drawings also show the alignment axis with station ticks inside the drawing, and a cross section at a station does not cut the plan. In the 2D drawing dialog of a station plane, **Series** writes one PDF page per station (from, to, every x m). All pages use the same scale and extent, with the axis at the same place.
+
+**Section window:** the ▣ button of a section plane opens a window with the live 2D cut of that plane, next to the 3D view. There you step through the sections with ‹ ›, the arrow keys or a typed station, and set the step length. The model shows the section mark of the current cut at the same time. The window has a grid (offset from the axis and height), zoom (wheel), pan (drag), *Fit* (`F`), and shows the coordinates under the cursor. ⧉ pops it out into a browser window of its own, e.g. on a second screen, and closing that window puts it back.
+
+### Long profile
+**Section → Long profile** unrolls the model along an alignment or along a **line you draw**. Choose *Draw a new line*, click points in the view (on elements, or at the height of the last point), then press Enter or double click. Backspace removes the last point and Esc cancels. The visible elements are cut with the vertical surface that follows the path, so the drawing has the station along and the height up. You set the range (from–to station) and the height exaggeration (1–50×). The red line is the vertical profile of the alignment, or the heights of the clicked points of a drawn line. Station and height grid lines are chosen for the paper scale, and the profile heights are written under the stations. The profile is previewed in the dialog and exported as PDF, SVG or DXF (DXF heights are exaggerated like the drawing). Drawn lines also work for cross sections at a station and for driving, and projects remember them.
+
+### Go to station / drive along
+**View → Go to station / drive along** puts the camera at eye height on an alignment (or a drawn line), looking ahead. Type a station and press Enter (↑/↓ step), or press ▶ to drive at 5–200 km/h. The camera follows the curves and the vertical profile, and ⇄ changes the direction. Dragging the view or pressing Esc pauses.
+
 ### Measure
 **Measure** (toolbar or `M`) opens the measuring panel with three tools:
 - **Distance:** point to point. *Lock X/Y* keeps the second point on the vertical line through the first point, so only the height (Z) is measured. Shows the distance, the horizontal distance, the height difference (ΔZ), ΔX/ΔY and the slope. Dashed lines show the horizontal and vertical components.
@@ -73,11 +85,7 @@ Models with `IfcAlignment` show the alignment in 3D with station marks (**Visibi
 Points snap to corners, edge midpoints and edges (shown by the marker shape); snapping can be turned off. Values are shown in m or mm, every measurement can be zoomed to or removed, and *Copy all* copies the values to the clipboard. Points cut away by section planes cannot be picked. With several models, coordinates refer to the first model's coordinate system.
 
 ### Map under the model
-**Map** drapes an orthophoto (Esri World Imagery) or OpenStreetMap under the models, optionally with an **OpenRailwayMap** layer (infrastructure, max speed, signals, electrification or track gauge).
-- If the first model has `IfcMapConversion` (IFC4+), it is used automatically.
-- Otherwise enter the coordinate system (EPSG code, e.g. `EPSG:25832`) and, if needed, the map coordinates of the model origin and a rotation. If the model coordinates already are map coordinates (e.g. UTM in metres), leave them at 0.
-- Common European systems are built in; other EPSG codes are looked up on epsg.io.
-- The map is loaded by the browser from the tile servers (internet needed). The model itself is not sent anywhere. Sources are credited in the corner of the view.
+The map underlay (`src/map.js`) is switched off for now: its placement still needs testing before it lands reliably in the right place.
 
 ### Edit metadata
 Turn on **Edit** (toolbar, properties panel or the `E` key):
@@ -154,6 +162,7 @@ Built with [three.js](https://threejs.org), [three-mesh-bvh](https://github.com/
 | `src/bcf.js`, `src/issues.js` | BCF read/write and the Issues tab |
 | `src/drawing.js` | 2D drawings from section planes (PDF, SVG, DXF) |
 | `src/alignment.js` | IFC4x3 alignments and stationing |
+| `src/secview.js` | section window: live 2D cut of a plane, stepping, pop-out window |
 | `src/map.js` | map underlay, georeferencing and coordinate conversion (proj4) |
 | `src/ifc.js`, `src/model.js` | loading IFC, metadata and metadata editing (web-ifc) |
 | `src/python.js`, `src/python-worker.js` | Pyodide/IfcOpenShell worker and merge logic |

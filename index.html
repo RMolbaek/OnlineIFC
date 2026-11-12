@@ -48,6 +48,7 @@
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="toggle-ortho"><span class="mi-icon mi-check" id="ortho-check">☐</span><span class="mi-text"><b data-i18n="mi.ortho"></b><small data-i18n="mi.orthoDesc"></small></span><kbd>O</kbd></button>
           <button class="menu-item" data-action="walk"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="13" cy="4" r="2"/><path d="M10 21l2-6 3 3v3M8 12l3-4 4 2 3 3M11 8l-1 5"/></svg></span><span class="mi-text"><b data-i18n="mi.walk"></b><small data-i18n="mi.walkDesc"></small></span><kbd>W</kbd></button>
+          <button class="menu-item" data-action="drive"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M6 21l3-18M18 21l-3-18M7.5 12h9M8.5 6h7M6.8 17h10.4"/></svg></span><span class="mi-text"><b data-i18n="drive.menu"></b><small data-i18n="drive.menuDesc"></small></span></button>
           <div class="menu-sep"></div>
           <div class="menu-head" data-i18n="mi.storeys"></div>
           <div id="storey-items"></div>
@@ -62,6 +63,8 @@
           <button class="menu-item" data-plane="y"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M2 12h20M6 12V5h12v7"/></svg></span><span class="mi-text"><b data-i18n="mi.plan"></b><small data-i18n="mi.planDesc"></small></span></button>
           <button class="menu-item" data-plane="x"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M5 7h14v12H5"/></svg></span><span class="mi-text"><b data-i18n="mi.secX"></b><small data-i18n="mi.secXDesc"></small></span></button>
           <button class="menu-item" data-plane="z"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M5 19 19 5M7 9h10v10H7"/></svg></span><span class="mi-text"><b data-i18n="mi.secY"></b><small data-i18n="mi.secYDesc"></small></span></button>
+          <button class="menu-item" data-action="plane-station"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 18c5-1 8-6 18-12M12 5v14M9 12h6"/></svg></span><span class="mi-text"><b data-i18n="st.menu"></b><small data-i18n="st.menuDesc"></small></span></button>
+          <button class="menu-item" data-action="profile"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 17l5-6 4 3 4-7 5 5M3 21h18"/></svg></span><span class="mi-text"><b data-i18n="prof.menu"></b><small data-i18n="prof.menuDesc"></small></span></button>
           <button class="menu-item" data-action="plane-face"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 18 10 6h10l-6 12zM12 12l-4 8"/></svg></span><span class="mi-text"><b data-i18n="mi.face"></b><small data-i18n="mi.faceDesc"></small></span></button>
           <button class="menu-item" data-action="section-box"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8"/></svg></span><span class="mi-text"><b data-i18n="mi.box"></b><small data-i18n="mi.boxDesc"></small></span></button>
           <button class="menu-item" data-action="drawing"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 15h16M9 15v5"/></svg></span><span class="mi-text"><b data-i18n="mi.drawing"></b><small data-i18n="mi.drawingDesc"></small></span></button>
@@ -118,9 +121,7 @@
         <button data-action="compare" data-i18n-title="tb.compareTitle">
           <svg viewBox="0 0 24 24"><path d="M8 3v18M16 3v18M3 8h5M16 16h5M3 16h5M16 8h5"/></svg><span data-i18n="tb.compare"></span>
         </button>
-        <button data-action="map" data-i18n-title="tb.mapTitle">
-          <svg viewBox="0 0 24 24"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14"/></svg><span data-i18n="tb.map"></span>
-        </button>
+<!-- map underlay: hidden until its placement has been tested more (src/map.js) -->
       </div>
 
       <div class="spacer"></div>
@@ -226,6 +227,17 @@
             </div>
             <p class="welcome-text" data-i18n="welcome.text"></p>
             <p class="muted small" data-i18n="welcome.local"></p>
+          </div>
+          <div class="tool-hint" id="tool-hint" hidden></div>
+          <div class="drive-panel" id="drive-panel" hidden>
+            <b data-i18n="drive.title"></b>
+            <select id="drive-path" data-i18n-title="st.alignment"></select>
+            <input id="drive-station" class="station-input" type="text" inputmode="decimal" data-i18n-title="drive.stationTitle" />
+            <button class="btn xs" id="drive-play" data-action="drive-play" data-i18n-title="drive.play">▶</button>
+            <button class="btn xs" data-action="drive-dir" id="drive-dir" data-i18n-title="drive.dir">→</button>
+            <label><select id="drive-speed"><option value="5">5</option><option value="20">20</option><option value="40">40</option><option value="80" selected>80</option><option value="120">120</option><option value="200">200</option></select> km/h</label>
+            <label><span data-i18n="drive.eye"></span> <input id="drive-eye" type="number" step="0.5" value="3.5" /> m</label>
+            <button class="btn xs" data-action="drive-close" data-i18n-title="common.close">✕</button>
           </div>
           <div class="planes-panel" id="planes-panel" hidden>
             <div class="planes-head">
@@ -400,15 +412,53 @@
       <label class="chk"><input type="checkbox" id="drw-bg" checked /> <span data-i18n="drw.background"></span></label>
       <label class="field"><span data-i18n="drw.colors"></span>
         <select id="drw-colors">
+          <option value="shown" data-i18n="drw.colShown" selected></option>
           <option value="class" data-i18n="drw.colClass"></option>
-          <option value="shown" data-i18n="drw.colShown"></option>
           <option value="original" data-i18n="drw.colOriginal"></option>
           <option value="mono" data-i18n="drw.mono"></option>
         </select></label>
+      <fieldset class="series" id="drw-series" hidden>
+        <label class="chk"><input type="checkbox" id="ser-on" /> <b data-i18n="ser.on"></b></label>
+        <div class="grid3">
+          <label class="field"><span data-i18n="ser.from"></span><input id="ser-from" type="text" inputmode="decimal" /></label>
+          <label class="field"><span data-i18n="ser.to"></span><input id="ser-to" type="text" inputmode="decimal" /></label>
+          <label class="field"><span data-i18n="ser.step"></span><input id="ser-step" type="number" min="0.1" step="any" value="25" /></label>
+        </div>
+        <p class="muted small" data-i18n="ser.note"></p>
+      </fieldset>
       <p class="muted small" data-i18n="drw.note"></p>
       <div class="dialog-btns">
         <button class="btn" data-action="drawing-cancel" data-i18n="common.cancel"></button>
         <button class="btn primary" data-action="drawing-run" data-i18n="drw.export"></button>
+      </div>
+    </dialog>
+
+    <dialog id="profile-dialog" class="wide">
+      <h2 data-i18n="prof.title"></h2>
+      <p class="muted small" data-i18n="prof.intro"></p>
+      <div class="prof-row">
+        <label class="field"><span data-i18n="prof.path"></span><select id="prof-path"></select></label>
+        <button class="btn" data-action="prof-draw" data-i18n="prof.draw"></button>
+        <button class="btn" data-action="prof-remove-line" id="prof-remove-line" data-i18n="prof.removeLine"></button>
+      </div>
+      <div class="grid3 prof-grid">
+        <label class="field"><span data-i18n="prof.from"></span><input id="prof-from" type="text" inputmode="decimal" /></label>
+        <label class="field"><span data-i18n="prof.to"></span><input id="prof-to" type="text" inputmode="decimal" /></label>
+        <label class="field"><span data-i18n="prof.exag"></span>
+          <select id="prof-exag"><option value="1">1×</option><option value="2">2×</option><option value="5">5×</option><option value="10" selected>10×</option><option value="20">20×</option><option value="50">50×</option></select></label>
+        <label class="field"><span data-i18n="drw.paper"></span>
+          <select id="prof-paper"><option value="A4">A4</option><option value="A3" selected>A3</option><option value="A2">A2</option><option value="A1">A1</option><option value="A0">A0</option><option value="auto" data-i18n="drw.paperAuto"></option></select></label>
+        <label class="field"><span data-i18n="drw.colors"></span>
+          <select id="prof-colors"><option value="shown" data-i18n="drw.colShown" selected></option><option value="class" data-i18n="drw.colClass"></option><option value="original" data-i18n="drw.colOriginal"></option><option value="mono" data-i18n="drw.mono"></option></select></label>
+        <label class="chk prof-fill"><input type="checkbox" id="prof-fill" checked /> <span data-i18n="drw.fill"></span></label>
+      </div>
+      <div class="prof-preview" id="prof-preview"><p class="muted small" data-i18n="prof.previewHint"></p></div>
+      <div class="dialog-btns">
+        <form method="dialog"><button class="btn" data-i18n="common.close"></button></form>
+        <button class="btn" data-action="prof-export" data-fmt="dxf">DXF</button>
+        <button class="btn" data-action="prof-export" data-fmt="svg">SVG</button>
+        <button class="btn" data-action="prof-export" data-fmt="pdf">PDF</button>
+        <button class="btn primary" data-action="prof-show" data-i18n="prof.show"></button>
       </div>
     </dialog>
 

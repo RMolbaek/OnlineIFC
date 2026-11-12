@@ -102,8 +102,17 @@ export async function readAlignments(model) {
 
 /** Height of the vertical profile at distance s (null without a profile). */
 export function heightAt(al, s) {
-  const v = al.vertical;
-  if (!v.length) return null;
+  const v = al.vertical || [];
+  if (!v.length) {
+    // a drawn line: heights of its points, interpolated
+    if (!al.zs) return null;
+    const { cum, zs } = al;
+    if (s <= 0) return zs[0];
+    let k = 1;
+    while (k < cum.length - 1 && cum[k] < s) k++;
+    const L = cum[k] - cum[k - 1] || 1;
+    return zs[k - 1] + ((zs[k] - zs[k - 1]) * Math.min(1, Math.max(0, (s - cum[k - 1]) / L)));
+  }
   let seg = v[0];
   for (const x of v) if (s >= x.s0 - 1e-9) seg = x;
   const d = Math.min(Math.max(s - seg.s0, 0), seg.L || 0);
@@ -260,5 +269,64 @@ export class AlignmentLayer {
       if (!best || Math.abs(r.offset) < Math.abs(best.offset)) best = { ...r, alignment: al };
     }
     return best;
+  }
+}
+
+/**
+ * Section marks of cross sections at stations, shown in 3D: a dash-dot line across the alignment
+ * with arrows in the viewing direction and the section letter at both ends (A–A).
+ * items: [{A: [x, y], B: [x, y], v: [dx, dy], z, half, letter, label}] in IFC coordinates.
+ */
+export class SectionMarks {
+  constructor(viewer, container) {
+    this.viewer = viewer;
+    this.group = new THREE.Group();
+    viewer.scene.add(this.group);
+    this.layer = document.createElement('div');
+    this.layer.className = 'measure-layer section-marks';
+    container.append(this.layer);
+    this.labels = [];
+    viewer.renderHooks.push(() => this.#place());
+  }
+
+  set(items) {
+    for (const o of [...this.group.children]) { this.group.remove(o); o.geometry?.dispose(); o.material?.dispose(); }
+    for (const l of this.labels) l.el.remove();
+    this.labels = [];
+    const col = 0xc0392b;
+    const W = (p, z) => this.viewer.fromIfc(p[0], p[1], z);
+    for (const it of items) {
+      const { A, B, v, z, half } = it;
+      const arr = half * 0.28;
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints([W(A, z), W(B, z)]), new THREE.LineDashedMaterial({ color: col, dashSize: half * 0.12, gapSize: half * 0.05, depthTest: false }));
+      line.computeLineDistances();
+      const tris = [], stubs = [];
+      for (const E of [A, B]) {
+        const st = [E[0] + v[0] * arr * 0.55, E[1] + v[1] * arr * 0.55];
+        const tip = [E[0] + v[0] * arr, E[1] + v[1] * arr];
+        const px = -v[1] * arr * 0.3, py = v[0] * arr * 0.3;
+        stubs.push(W(E, z), W(st, z));
+        tris.push(W(tip, z), W([st[0] + px, st[1] + py], z), W([st[0] - px, st[1] - py], z));
+        const el = document.createElement('div');
+        el.className = 'm-label section-mark';
+        el.textContent = it.letter;
+        el.title = it.label;
+        this.layer.append(el);
+        this.labels.push({ el, at: W([E[0] + v[0] * arr * 1.7, E[1] + v[1] * arr * 1.7], z) });
+      }
+      const stub = new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(stubs), new THREE.LineBasicMaterial({ color: col, depthTest: false }));
+      const head = new THREE.Mesh(new THREE.BufferGeometry().setFromPoints(tris), new THREE.MeshBasicMaterial({ color: col, side: THREE.DoubleSide, depthTest: false }));
+      for (const o of [line, stub, head]) { o.renderOrder = 26; o.frustumCulled = false; this.group.add(o); }
+    }
+    this.viewer.requestRender?.();
+  }
+
+  #place() {
+    for (const l of this.labels) {
+      const s = this.viewer.toScreen(l.at);
+      if (!s) { l.el.style.display = 'none'; continue; }
+      l.el.style.display = '';
+      l.el.style.transform = `translate(${s.x}px, ${s.y}px) translate(-50%, -50%)`;
+    }
   }
 }
