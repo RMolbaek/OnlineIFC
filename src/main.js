@@ -1612,7 +1612,26 @@ function openDrawingDialog(plane = null) {
   const m = viewer.models[0];
   const pSel = plane || planes[0];
   $('#drw-name').value = `${m ? m.name.replace(/\.ifc$/i, '') : 'Model'} – ${t(AXIS_LABEL[pSel.axis] || 'planes.face')}`;
+  // the options chosen last time
+  try {
+    const saved = JSON.parse(localStorage.getItem(DRW_OPTS) || 'null');
+    if (saved) for (const [id, v] of Object.entries(saved)) {
+      const el = $(`#${id}`);
+      if (!el) continue;
+      if (el.type === 'checkbox') el.checked = !!v;
+      else if ([...el.options].some((o) => o.value === v)) el.value = v;
+    }
+  } catch { /* ignore */ }
   $('#drawing-dialog').showModal();
+}
+const DRW_OPTS = 'onlineifc.drawingOptions';
+function saveDrawingOptions() {
+  const out = {};
+  for (const id of ['drw-format', 'drw-paper', 'drw-scale', 'drw-colors', 'drw-fill', 'drw-bg']) {
+    const el = $(`#${id}`);
+    if (el) out[id] = el.type === 'checkbox' ? el.checked : el.value;
+  }
+  try { localStorage.setItem(DRW_OPTS, JSON.stringify(out)); } catch { /* ignore */ }
 }
 
 async function exportDrawing() {
@@ -1622,6 +1641,7 @@ async function exportDrawing() {
   const scaleVal = $('#drw-scale').value;
   const opts = { paper: $('#drw-paper').value, scale: scaleVal === 'fit' ? 'fit' : +scaleVal, fill: $('#drw-fill').checked, mono: $('#drw-colors').value === 'mono', colors: $('#drw-colors').value };
   $('#drawing-dialog').close();
+  saveDrawingOptions();
   let section;
   try {
     section = await withLoading(async (progress) => { progress(t('drw.cutting'), 0.3); await new Promise((r) => setTimeout(r, 30)); return computeSection(viewer, entry); });
