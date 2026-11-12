@@ -24,7 +24,7 @@
       <div class="brand"><span class="logo"></span>OnlineIFC</div>
 
       <label class="btn primary" data-i18n-title="tb.openTitle">
-        <input id="file-input" type="file" accept=".ifc,.IFC,.json" multiple hidden />
+        <input id="file-input" type="file" accept=".ifc,.IFC,.json,.bcf,.bcfzip,.ids" multiple hidden />
         <svg viewBox="0 0 24 24"><path d="M4 20h16M12 4v12m0 0-5-5m5 5 5-5"/></svg>
         <span data-i18n="tb.open"></span>
       </label>
@@ -193,15 +193,17 @@
 
       <div class="center">
         <div class="viewport" id="viewport">
-          <div class="drop-overlay" id="drop-overlay"><div data-i18n="drop.hint"></div></div>
           <div class="welcome" id="welcome">
-            <h1 data-i18n="welcome.title"></h1>
-            <p data-i18n="welcome.text"></p>
-            <label class="btn primary big">
-              <input id="file-input-2" type="file" accept=".ifc,.IFC" multiple hidden />
-              <span data-i18n="welcome.choose"></span>
+            <label class="drop-zone" id="drop-zone">
+              <input id="file-input-2" type="file" accept=".ifc,.IFC,.json,.bcf,.bcfzip,.ids" multiple hidden />
+              <svg class="drop-icon" viewBox="0 0 24 24"><path d="M12 3 21 8v8l-9 5-9-5V8z"/><path d="M12 3v18M3 8l9 5 9-5"/></svg>
+              <h1 data-i18n="welcome.drop"></h1>
+              <p class="muted" data-i18n="welcome.or"></p>
+              <span class="btn primary big" data-i18n="welcome.choose"></span>
+              <p class="muted small" data-i18n="welcome.types"></p>
             </label>
-            <p class="muted" data-i18n="welcome.local"></p>
+            <p class="welcome-text" data-i18n="welcome.text"></p>
+            <p class="muted small" data-i18n="welcome.local"></p>
           </div>
           <div class="planes-panel" id="planes-panel" hidden>
             <div class="planes-head">
@@ -441,5 +443,6 @@
     </dialog>
 
     <script type="module" src="/src/main.js"></script>
+    <div class="drop-overlay" id="drop-overlay"><div><svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M4 20h16"/></svg><b data-i18n="drop.hint"></b><small data-i18n="welcome.types"></small></div></div>
   </body>
 </html>

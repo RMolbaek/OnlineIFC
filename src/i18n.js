@@ -21,10 +21,8 @@ const en = {
   'tree.search': 'Search structure (name, class, GUID)…', 'tree.empty': 'Load a model to see its structure.',
   'tree.toggleVisibility': 'Show/hide', 'tree.results': '{n} results', 'tree.resultsLimited': '{n} results – showing the first {limit}',
   'classes.empty': 'Load a model to see its IFC classes.', 'classes.toggle': 'Show/hide class',
-  'drop.hint': 'Drop IFC files to load them',
   'welcome.title': 'Review IFC models in your browser',
-  'welcome.text': 'Load one or more models – they are combined in one view using their coordinates. Edit metadata, merge models and run Python scripts with IfcOpenShell.',
-  'welcome.choose': 'Choose IFC files', 'welcome.local': 'Files are processed locally in your browser and are never uploaded.',
+  'welcome.text': 'Load one or more models – they are combined in one view using their coordinates. Edit metadata, merge models and run Python scripts with IfcOpenShell.', 'welcome.local': 'Files are processed locally in your browser and are never uploaded.',
   // sections
   'planes.title': 'Sections', 'planes.fill': 'Colour cut faces', 'planes.helpers': 'Show planes', 'planes.clear': 'Remove all',
   'planes.active': 'Active', 'planes.flip': 'Flip direction', 'planes.remove': 'Remove section',
@@ -452,6 +450,12 @@ const en = {
   'qto.rowTitle': 'Click to select these elements',
   'qto.csv': 'Export CSV',
   'help.q': 'Quantity takeoff table',
+  'welcome.drop': 'Drag and drop IFC files here',
+  'welcome.or': 'or',
+  'welcome.choose': 'Choose files',
+  'welcome.types': 'IFC models · BCF issues (.bcf/.bcfzip) · IDS (.ids) · workspace (.onlineifc.json)',
+  'drop.hint': 'Drop the files to open them',
+  'msg.unknownFiles': 'These files cannot be opened here: {names}',
 };
 
 const da = {
@@ -472,10 +476,8 @@ const da = {
   'tree.search': 'Søg i struktur (navn, klasse, GUID)…', 'tree.empty': 'Indlæs en model for at se dens struktur.',
   'tree.toggleVisibility': 'Vis/skjul', 'tree.results': '{n} resultater', 'tree.resultsLimited': '{n} resultater – viser de første {limit}',
   'classes.empty': 'Indlæs en model for at se dens IFC-klasser.', 'classes.toggle': 'Vis/skjul klasse',
-  'drop.hint': 'Slip IFC-filer for at indlæse dem',
   'welcome.title': 'Gennemse IFC-modeller i browseren',
-  'welcome.text': 'Indlæs én eller flere modeller – de lægges sammen i samme visning ud fra deres koordinater. Redigér metadata, flet modeller og kør Python-scripts med IfcOpenShell.',
-  'welcome.choose': 'Vælg IFC-filer', 'welcome.local': 'Filerne behandles lokalt i din browser og uploades ikke.',
+  'welcome.text': 'Indlæs én eller flere modeller – de lægges sammen i samme visning ud fra deres koordinater. Redigér metadata, flet modeller og kør Python-scripts med IfcOpenShell.', 'welcome.local': 'Filerne behandles lokalt i din browser og uploades ikke.',
   'planes.title': 'Snit', 'planes.fill': 'Farv snitflader', 'planes.helpers': 'Vis planer', 'planes.clear': 'Fjern alle',
   'planes.active': 'Aktiv', 'planes.flip': 'Vend snitretning', 'planes.remove': 'Fjern snit',
   'planes.x': 'Snit X', 'planes.y': 'Snit Y', 'planes.plan': 'Plan', 'planes.face': 'Flade', 'planes.boxPart': 'Kasse',
@@ -896,6 +898,12 @@ const da = {
   'qto.rowTitle': 'Klik for at vælge disse elementer',
   'qto.csv': 'Eksportér CSV',
   'help.q': 'Mængdeudtræk som tabel',
+  'welcome.drop': 'Træk og slip IFC-filer her',
+  'welcome.or': 'eller',
+  'welcome.choose': 'Vælg filer',
+  'welcome.types': 'IFC-modeller · BCF-sager (.bcf/.bcfzip) · IDS (.ids) · arbejdsfil (.onlineifc.json)',
+  'drop.hint': 'Slip filerne for at åbne dem',
+  'msg.unknownFiles': 'Disse filer kan ikke åbnes her: {names}',
 };
 
 const de = {
@@ -916,10 +924,8 @@ const de = {
   'tree.search': 'Struktur durchsuchen (Name, Klasse, GUID)…', 'tree.empty': 'Laden Sie ein Modell, um seine Struktur zu sehen.',
   'tree.toggleVisibility': 'Ein-/ausblenden', 'tree.results': '{n} Treffer', 'tree.resultsLimited': '{n} Treffer – die ersten {limit} werden angezeigt',
   'classes.empty': 'Laden Sie ein Modell, um seine IFC-Klassen zu sehen.', 'classes.toggle': 'Klasse ein-/ausblenden',
-  'drop.hint': 'IFC-Dateien hier ablegen, um sie zu laden',
   'welcome.title': 'IFC-Modelle im Browser prüfen',
-  'welcome.text': 'Laden Sie ein oder mehrere Modelle – sie werden anhand ihrer Koordinaten in einer Ansicht kombiniert. Metadaten bearbeiten, Modelle zusammenführen und Python-Skripte mit IfcOpenShell ausführen.',
-  'welcome.choose': 'IFC-Dateien wählen', 'welcome.local': 'Die Dateien werden lokal im Browser verarbeitet und nicht hochgeladen.',
+  'welcome.text': 'Laden Sie ein oder mehrere Modelle – sie werden anhand ihrer Koordinaten in einer Ansicht kombiniert. Metadaten bearbeiten, Modelle zusammenführen und Python-Skripte mit IfcOpenShell ausführen.', 'welcome.local': 'Die Dateien werden lokal im Browser verarbeitet und nicht hochgeladen.',
   'planes.title': 'Schnitte', 'planes.fill': 'Schnittflächen färben', 'planes.helpers': 'Ebenen zeigen', 'planes.clear': 'Alle entfernen',
   'planes.active': 'Aktiv', 'planes.flip': 'Richtung umkehren', 'planes.remove': 'Schnitt entfernen',
   'planes.x': 'Schnitt X', 'planes.y': 'Schnitt Y', 'planes.plan': 'Grundriss', 'planes.face': 'Fläche', 'planes.boxPart': 'Box',
@@ -1340,6 +1346,12 @@ const de = {
   'qto.rowTitle': 'Klicken, um diese Elemente auszuwählen',
   'qto.csv': 'CSV exportieren',
   'help.q': 'Mengenermittlung als Tabelle',
+  'welcome.drop': 'IFC-Dateien hierher ziehen und ablegen',
+  'welcome.or': 'oder',
+  'welcome.choose': 'Dateien wählen',
+  'welcome.types': 'IFC-Modelle · BCF-Themen (.bcf/.bcfzip) · IDS (.ids) · Arbeitsdatei (.onlineifc.json)',
+  'drop.hint': 'Dateien ablegen, um sie zu öffnen',
+  'msg.unknownFiles': 'Diese Dateien können hier nicht geöffnet werden: {names}',
 };
 
 const hi = {
@@ -1359,10 +1371,8 @@ const hi = {
   'tree.search': 'संरचना में खोजें (नाम, क्लास, GUID)…', 'tree.empty': 'संरचना देखने के लिए एक मॉडल लोड करें।',
   'tree.toggleVisibility': 'दिखाएँ/छिपाएँ', 'tree.results': '{n} परिणाम', 'tree.resultsLimited': '{n} परिणाम – पहले {limit} दिखाए जा रहे हैं',
   'classes.empty': 'IFC क्लास देखने के लिए एक मॉडल लोड करें।', 'classes.toggle': 'क्लास दिखाएँ/छिपाएँ',
-  'drop.hint': 'लोड करने के लिए IFC फ़ाइलें यहाँ छोड़ें',
   'welcome.title': 'ब्राउज़र में IFC मॉडल देखें',
-  'welcome.text': 'एक या अधिक मॉडल लोड करें – उनके निर्देशांकों के अनुसार उन्हें एक दृश्य में जोड़ा जाता है। मेटाडेटा संपादित करें, मॉडल मिलाएँ और IfcOpenShell के साथ Python स्क्रिप्ट चलाएँ।',
-  'welcome.choose': 'IFC फ़ाइलें चुनें', 'welcome.local': 'फ़ाइलें आपके ब्राउज़र में ही प्रोसेस होती हैं और कभी अपलोड नहीं होतीं।',
+  'welcome.text': 'एक या अधिक मॉडल लोड करें – उनके निर्देशांकों के अनुसार उन्हें एक दृश्य में जोड़ा जाता है। मेटाडेटा संपादित करें, मॉडल मिलाएँ और IfcOpenShell के साथ Python स्क्रिप्ट चलाएँ।', 'welcome.local': 'फ़ाइलें आपके ब्राउज़र में ही प्रोसेस होती हैं और कभी अपलोड नहीं होतीं।',
   'planes.title': 'सेक्शन', 'planes.fill': 'कटी सतहों को रंगें', 'planes.helpers': 'प्लेन दिखाएँ', 'planes.clear': 'सभी हटाएँ',
   'planes.active': 'सक्रिय', 'planes.flip': 'दिशा उलटें', 'planes.remove': 'सेक्शन हटाएँ', 'planes.x': 'सेक्शन X', 'planes.y': 'सेक्शन Y',
   'planes.plan': 'प्लान', 'planes.face': 'सतह', 'planes.boxPart': 'बॉक्स',
@@ -1718,6 +1728,12 @@ const hi = {
   'qto.rowTitle': 'इन तत्वों को चुनने के लिए क्लिक करें',
   'qto.csv': 'CSV निर्यात करें',
   'help.q': 'मात्रा अनुमान तालिका',
+  'welcome.drop': 'IFC फ़ाइलें यहाँ खींचकर छोड़ें',
+  'welcome.or': 'या',
+  'welcome.choose': 'फ़ाइलें चुनें',
+  'welcome.types': 'IFC मॉडल · BCF इश्यू (.bcf/.bcfzip) · IDS (.ids) · वर्कस्पेस (.onlineifc.json)',
+  'drop.hint': 'खोलने के लिए फ़ाइलें छोड़ें',
+  'msg.unknownFiles': 'ये फ़ाइलें यहाँ नहीं खोली जा सकतीं: {names}',
 };
 
 const DICTS = { en, da, de, hi };

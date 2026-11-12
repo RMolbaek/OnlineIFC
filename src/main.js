@@ -112,9 +112,24 @@ async function openFiles(files) {
   const all = [...files];
   const list = all.filter((f) => /\.ifc$/i.test(f.name));
   const workspaces = all.filter((f) => /\.json$/i.test(f.name));
-  if (!list.length && !workspaces.length) { toast(t('msg.chooseIfc')); return; }
+  const bcfs = all.filter((f) => /\.(bcf|bcfzip)$/i.test(f.name));
+  const idss = all.filter((f) => /\.ids$/i.test(f.name) || (/\.xml$/i.test(f.name) && $('#ids-dialog').open));
+  const rest = all.filter((f) => ![list, workspaces, bcfs, idss].some((g) => g.includes(f)));
+  if (rest.length) toast(t('msg.unknownFiles', { names: rest.map((f) => f.name).join(', ') }));
+  if (!list.length && !workspaces.length && !bcfs.length && !idss.length) return;
   if (list.length) await openIfcFiles(list);
   for (const w of workspaces) await views.openWorkspace(w);
+  for (const b of bcfs) {
+    await issues.importFile(b);
+    $('.tab[data-tab="issues"]').click();
+  }
+  if (idss.length) {
+    // put the IDS file into the IDS dialog and open it
+    const dt = new DataTransfer();
+    dt.items.add(idss[0]);
+    if (!$('#ids-dialog').open) openIdsDialog();
+    if ($('#ids-dialog').open) $('#ids-file').files = dt.files;
+  }
 }
 
 async function openIfcFiles(list) {
@@ -181,18 +196,34 @@ for (const input of [$('#file-input'), $('#file-input-2')]) {
   input.addEventListener('change', (e) => { openFiles(e.target.files); e.target.value = ''; });
 }
 
-// Drag and drop
-const vp = $('#viewport');
+// Drag and drop: files can be dropped anywhere in the window at any time.
+// Capture phase, so editors (Python, CodeMirror) and dialogs do not swallow dropped files.
+const hasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 let dragDepth = 0;
-window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; vp.classList.add('dragging'); });
-window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; vp.classList.remove('dragging'); } });
-window.addEventListener('dragover', (e) => e.preventDefault());
-window.addEventListener('drop', (e) => {
+const endDrag = () => { dragDepth = 0; document.body.classList.remove('dragging'); };
+window.addEventListener('dragenter', (e) => {
+  if (!hasFiles(e)) return;
   e.preventDefault();
-  dragDepth = 0;
-  vp.classList.remove('dragging');
-  if (e.dataTransfer?.files?.length) openFiles(e.dataTransfer.files);
-});
+  dragDepth++;
+  document.body.classList.add('dragging');
+}, true);
+window.addEventListener('dragleave', (e) => {
+  if (!hasFiles(e)) return;
+  if (--dragDepth <= 0 || !e.relatedTarget) endDrag();
+}, true);
+window.addEventListener('dragover', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+}, true);
+window.addEventListener('drop', (e) => {
+  if (!hasFiles(e)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  endDrag();
+  if (e.dataTransfer.files.length) openFiles(e.dataTransfer.files);
+}, true);
+window.addEventListener('blur', endDrag);
 
 function download(name, data, type = 'application/octet-stream') {
   const url = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type }));
@@ -435,7 +466,7 @@ function dataUrlToBlob(url) {
 function setPickPlaneMode(on) {
   state.pickPlaneMode = on;
   $('[data-action="plane-face"]').classList.toggle('on', on);
-  vp.classList.toggle('picking', on);
+  $('#viewport').classList.toggle('picking', on);
   const hint = $('#mode-hint');
   hint.hidden = !on;
   hint.textContent = t('planes.faceHint');

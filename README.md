@@ -7,7 +7,7 @@ The interface is in **English**, **Danish**, **German** and **Hindi** (language 
 ## Features
 
 ### Review
-- Open one or more `.ifc` files (IFC2x3, IFC4, IFC4x3) with the button or drag and drop.
+- **Open files** (IFC2x3, IFC4, IFC4x3): drag and drop them anywhere in the window at any time, or click the drop area on the start screen / *Open IFC*. Dropped files are recognised by type: `.ifc` models are added to the view, `.bcf`/`.bcfzip` go to *Issues*, `.ids` opens the IDS check, and `.onlineifc.json` opens a workspace.
 - **Federation:** several models are shown in one view. The first model defines the coordinate system and the following models are placed relative to it using their own coordinates.
 - **Sections:** horizontal plan section, vertical sections (X/Y), a section parallel to a clicked face, and a section box around the selection. Every plane can be moved with a slider, flipped, disabled or removed. Cut faces are coloured red.
 - **Colours:** colour and opacity per model, *Colour by model* gives every model its own colour, *Original* restores the colours from the IFC file.
