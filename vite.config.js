@@ -21,7 +21,23 @@ function buildInfo() {
 // base: './' makes the built site work from any sub folder (e.g. GitHub Pages).
 export default defineConfig({
   base: './',
-  build: { target: 'es2022', chunkSizeWarningLimit: 5000 },
+  build: {
+    target: 'es2022',
+    chunkSizeWarningLimit: 4000,
+    // The big libraries get files of their own: they rarely change, so after an update of the app
+    // the browser (and the offline cache) only fetches the small application file again.
+    rolldownOptions: {
+      output: {
+        advancedChunks: {
+          groups: [
+            { name: 'web-ifc', test: /node_modules[\\/]web-ifc/ },
+            { name: 'three', test: /node_modules[\\/](three|three-mesh-bvh)[\\/]/ },
+            { name: 'editor', test: /node_modules[\\/](codemirror|@codemirror|@lezer|crelt|style-mod|w3c-keyname|@marijn)/ },
+          ],
+        },
+      },
+    },
+  },
   optimizeDeps: { exclude: ['web-ifc'] },
   worker: { format: 'es' },
   define: { __BUILD_INFO__: JSON.stringify(buildInfo()) },
