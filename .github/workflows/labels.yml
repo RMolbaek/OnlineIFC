@@ -1,0 +1,27 @@
+name: Sync labels
+
+# Creates or updates the issue labels listed in .github/labels.json.
+# Labels that are not in the file are left alone.
+on:
+  push:
+    paths: ['.github/labels.json', '.github/workflows/labels.yml']
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  labels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create or update labels
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          jq -c '.[]' .github/labels.json | while read -r l; do
+            name=$(jq -r .name <<<"$l")
+            gh label create "$name" --color "$(jq -r .color <<<"$l")" --description "$(jq -r .description <<<"$l")" --force
+            echo "✓ $name"
+          done
