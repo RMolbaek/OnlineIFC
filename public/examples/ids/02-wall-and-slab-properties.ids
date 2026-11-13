@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ids:ids xmlns:ids="http://standards.buildingsmart.org/IDS" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.buildingsmart.org/IDS http://standards.buildingsmart.org/IDS/1.0/ids.xsd">
+  <ids:info>
+    <ids:title>Example 2 – Wall and slab properties</ids:title>
+    <ids:version>1.0</ids:version>
+    <ids:description>Walls state whether they are external, load bearing and their fire rating; slabs state whether they are load bearing (Pset_WallCommon / Pset_SlabCommon).</ids:description>
+    <ids:purpose>Example</ids:purpose>
+  </ids:info>
+  <ids:specifications>
+    <ids:specification name="Walls: external and load bearing" ifcVersion="IFC4" description="Walls have Pset_WallCommon.IsExternal and Pset_WallCommon.LoadBearing (true / false).">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCWALL"/><xs:enumeration value="IFCWALLSTANDARDCASE"/></xs:restriction></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:property dataType="IFCBOOLEAN" cardinality="required"><ids:propertySet><ids:simpleValue>Pset_WallCommon</ids:simpleValue></ids:propertySet><ids:baseName><ids:simpleValue>IsExternal</ids:simpleValue></ids:baseName></ids:property>
+          <ids:property dataType="IFCBOOLEAN" cardinality="required"><ids:propertySet><ids:simpleValue>Pset_WallCommon</ids:simpleValue></ids:propertySet><ids:baseName><ids:simpleValue>LoadBearing</ids:simpleValue></ids:baseName></ids:property>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="Walls: fire rating" ifcVersion="IFC4" description="Walls have a fire rating in Pset_WallCommon.FireRating, e.g. REI 60." instructions="Fill in the fire rating, e.g. REI 60.">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCWALL"/><xs:enumeration value="IFCWALLSTANDARDCASE"/></xs:restriction></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:property dataType="IFCLABEL" cardinality="required"><ids:propertySet><ids:simpleValue>Pset_WallCommon</ids:simpleValue></ids:propertySet><ids:baseName><ids:simpleValue>FireRating</ids:simpleValue></ids:baseName></ids:property>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="Slabs: load bearing" ifcVersion="IFC4" description="Slabs have Pset_SlabCommon.LoadBearing (true / false).">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><ids:simpleValue>IFCSLAB</ids:simpleValue></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:property dataType="IFCBOOLEAN" cardinality="required"><ids:propertySet><ids:simpleValue>Pset_SlabCommon</ids:simpleValue></ids:propertySet><ids:baseName><ids:simpleValue>LoadBearing</ids:simpleValue></ids:baseName></ids:property>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="Walls: thermal transmittance (U-value)" ifcVersion="IFC4" description="Walls have a U-value in Pset_WallCommon.ThermalTransmittance." instructions="Fill in the U-value in W/(m²·K).">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCWALL"/><xs:enumeration value="IFCWALLSTANDARDCASE"/></xs:restriction></ids:name></ids:entity>
+      </ids:applicability>
+      <ids:requirements>
+        <ids:property dataType="IFCTHERMALTRANSMITTANCEMEASURE" cardinality="required"><ids:propertySet><ids:simpleValue>Pset_WallCommon</ids:simpleValue></ids:propertySet><ids:baseName><ids:simpleValue>ThermalTransmittance</ids:simpleValue></ids:baseName></ids:property>
+      </ids:requirements>
+    </ids:specification>
+    <ids:specification name="Walls: at least 10 cm thick" ifcVersion="IFC4" description="A value check: the wall width in BaseQuantities is between 0.10 m and 1.00 m.">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCWALL"/><xs:enumeration value="IFCWALLSTANDARDCASE"/></xs:restriction></ids:name></ids:entity>
+      </ids:applicability>
+      <ids:requirements>
+        <ids:property dataType="IFCLENGTHMEASURE" cardinality="required"><ids:propertySet><ids:simpleValue>BaseQuantities</ids:simpleValue></ids:propertySet><ids:baseName><ids:simpleValue>Width</ids:simpleValue></ids:baseName><ids:value><xs:restriction base="xs:double"><xs:minInclusive value="0.1"/><xs:maxInclusive value="1"/></xs:restriction></ids:value></ids:property>
+      </ids:requirements>
+    </ids:specification>
+  </ids:specifications>
+</ids:ids>

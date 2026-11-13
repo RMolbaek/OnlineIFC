@@ -18,7 +18,7 @@ import '@fontsource/jetbrains-mono/latin-ext-500.css';
 // OnlineIFC – user interface.
 import { Viewer } from './viewer.js';
 import { loadIfcFile } from './ifc.js';
-import { isSpatialType, KIND_TYPES, COLOR_STYLES, colorStyle } from './model.js';
+import { isSpatialType, KIND_TYPES, COLOR_STYLES, colorStyle, OKABE_ITO } from './model.js';
 import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js';
 import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
@@ -35,8 +35,8 @@ import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
 import { readAlignments, AlignmentLayer, SectionMarks, pointAt, heightAt, project, formatStation } from './alignment.js';
 import { computeSection, computeProfile, planeAxes, layout, toSvg, toPdf, toPdfPages, toDxf, renderBackground, SCALES, AXIS_COLOR } from './drawing.js';
-import { runIdsCheck, colorIdsResult, idsCsv, specSummary } from './ids.js';
-import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS } from './compare.js';
+import { runIdsCheck, colorIdsResult, idsCsv, specSummary, setIdsColors, IDS_EXAMPLES } from './ids.js';
+import { compareModels, showComparison, clearComparison, comparisonCsv, geomText, summaryText, CMP_COLORS, setCompareColors } from './compare.js';
 
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
@@ -606,7 +606,9 @@ document.addEventListener('click', (e) => {
     screenshot: () => download(`onlineifc-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`, dataUrlToBlob(viewer.screenshot())),
     help: () => $('#help-dialog').showModal(),
     'color-by-model': () => {
-      viewer.models.forEach((m, i) => m.setColor(PALETTE[i % PALETTE.length]));
+      // with the colour-blind friendly style, the models get Okabe–Ito colours
+      const pal = colorStyle.name === 'cvd' ? OKABE_ITO.slice(0, 7) : PALETTE;
+      viewer.models.forEach((m, i) => m.setColor(pal[i % pal.length]));
       renderModels();
       projects.touch?.();
     },
@@ -2445,11 +2447,21 @@ function renderColorStyles() {
 }
 function setColorStyle(name) {
   colorStyle.name = COLOR_STYLES[name] !== undefined ? name : 'original';
+  applyCvdColors();
   for (const m of viewer.models) m.refreshColors();
+  if (comparison) { showComparison(comparison, { showUnchanged: comparison.showUnchanged }); renderComparison(); }
   viewer.invalidate?.();
   try { localStorage.setItem('onlineifc.colorStyle', colorStyle.name); } catch { /* ignore */ }
 }
 try { const v = localStorage.getItem('onlineifc.colorStyle'); if (v && v in COLOR_STYLES) colorStyle.name = v; } catch { /* ignore */ }
+/** The colour-blind friendly style also changes the comparison and IDS colours (3D and panels). */
+function applyCvdColors() {
+  const cvd = colorStyle.name === 'cvd';
+  setCompareColors(cvd);
+  setIdsColors(cvd);
+  document.documentElement.toggleAttribute('data-cvd', cvd);
+}
+applyCvdColors();
 
 let storeyPlane = null;
 function showStorey(st) {
@@ -2626,19 +2638,47 @@ function openIdsDialog() {
   if (!viewer.models.length) return toast(t('msg.loadFirst'));
   $('#ids-models').replaceChildren(...viewer.models.map((m) => h('label', { class: 'chk' },
     h('input', { type: 'checkbox', value: String(m.uid), checked: true }), h('span', { text: `${modelTitle(m)} · ${m.schema}` }))));
+  renderIdsExamples();
   $('#ids-dialog').showModal();
 }
 
+/** The example IDS files: choose one instead of a file of your own (and download it to look inside). */
+function renderIdsExamples() {
+  const sel = $('#ids-example');
+  const keep = sel.value;
+  sel.replaceChildren(h('option', { value: '', text: t('ids.exampleNone') }),
+    ...IDS_EXAMPLES.map((x) => h('option', { value: x.file, text: t(`ids.ex.${x.key}`) })));
+  sel.value = keep;
+  updateIdsExample();
+}
+function updateIdsExample() {
+  const ex = IDS_EXAMPLES.find((x) => x.file === $('#ids-example').value);
+  const dl = $('#ids-example-dl');
+  dl.hidden = !ex;
+  if (ex) { dl.href = `examples/ids/${ex.file}`; dl.setAttribute('download', ex.file); }
+  $('#ids-example-desc').textContent = ex ? t(`ids.ex.${ex.key}Desc`) : '';
+}
+$('#ids-example').addEventListener('change', () => { if ($('#ids-example').value) $('#ids-file').value = ''; updateIdsExample(); });
+$('#ids-file').addEventListener('change', () => { if ($('#ids-file').files.length) { $('#ids-example').value = ''; updateIdsExample(); } });
+
 async function runIds() {
   const file = $('#ids-file').files[0];
-  if (!file) return toast(t('ids.chooseFile'));
+  const example = $('#ids-example').value;
+  if (!file && !example) return toast(t('ids.chooseFile'));
   const uids = $$('#ids-models input:checked').map((i) => +i.value);
   const models = viewer.models.filter((m) => uids.includes(m.uid));
   if (!models.length) return toast(t('msg.loadFirst'));
+  let text;
+  if (file) { text = await file.text(); idsName = file.name; } else {
+    try {
+      const r = await fetch(`examples/ids/${example}`);
+      if (!r.ok) throw new Error(String(r.status));
+      text = await r.text();
+    } catch { return toast(t('ids.failed')); }
+    idsName = example;
+  }
   $('#ids-dialog').close();
-  const text = await file.text();
-  idsName = file.name;
-  const res = await runIdsCheck(python, models, text, file.name);
+  const res = await runIdsCheck(python, models, text, idsName);
   if (!res) { toast(t('ids.failed')); return; }
   idsResults = res;
   idsOpen.clear();

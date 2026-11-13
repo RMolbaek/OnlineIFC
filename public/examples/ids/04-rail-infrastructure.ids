@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ids:ids xmlns:ids="http://standards.buildingsmart.org/IDS" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.buildingsmart.org/IDS http://standards.buildingsmart.org/IDS/1.0/ids.xsd">
+  <ids:info>
+    <ids:title>Example 4 – Rail infrastructure (IFC 4.3)</ids:title>
+    <ids:version>1.0</ids:version>
+    <ids:description>An IFC 4.3 rail model has a named alignment, named referents (stations) along it, and signals that are named and lie in the railway. Try it on an IFC4X3 model with an alignment.</ids:description>
+    <ids:purpose>Example</ids:purpose>
+  </ids:info>
+  <ids:specifications>
+    <ids:specification name="The model has a named alignment" ifcVersion="IFC4X3_ADD2" description="At least one IfcAlignment, and every alignment has a Name." instructions="Export the track alignment with the model.">
+      <ids:applicability minOccurs="1" maxOccurs="unbounded">
+        <ids:entity><ids:name><ids:simpleValue>IFCALIGNMENT</ids:simpleValue></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:attribute cardinality="required"><ids:name><ids:simpleValue>Name</ids:simpleValue></ids:name></ids:attribute>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="Referents have a name" ifcVersion="IFC4X3_ADD2" description="Referents (e.g. stations / kilometre posts along the alignment) have a Name.">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><ids:simpleValue>IFCREFERENT</ids:simpleValue></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:attribute cardinality="required"><ids:name><ids:simpleValue>Name</ids:simpleValue></ids:name></ids:attribute>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="Signals are named and in the railway" ifcVersion="IFC4X3_ADD2" description="Signals have a Name and are contained in the railway or one of its parts.">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><ids:simpleValue>IFCSIGNAL</ids:simpleValue></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:attribute cardinality="required"><ids:name><ids:simpleValue>Name</ids:simpleValue></ids:name></ids:attribute>
+          <ids:partOf relation="IFCRELCONTAINEDINSPATIALSTRUCTURE" cardinality="required"><ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCRAILWAY"/><xs:enumeration value="IFCRAILWAYPART"/><xs:enumeration value="IFCFACILITYPART"/><xs:enumeration value="IFCSITE"/></xs:restriction></ids:name></ids:entity></ids:partOf>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="No proxy elements" ifcVersion="IFC4X3_ADD2" description="The model contains no IfcBuildingElementProxy: every element has a real IFC class (IFC 4.3 has classes for rail, road, bridge and earthworks).">
+      <ids:applicability minOccurs="0" maxOccurs="0">
+        <ids:entity><ids:name><ids:simpleValue>IFCBUILDINGELEMENTPROXY</ids:simpleValue></ids:name></ids:entity>
+      </ids:applicability>
+    </ids:specification>
+  </ids:specifications>
+</ids:ids>

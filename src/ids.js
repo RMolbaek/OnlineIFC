@@ -5,6 +5,16 @@ import { t, fmtNum } from './i18n.js';
 import { getPythonConfig } from './config.js';
 
 export const IDS_COLORS = { pass: 0x2fb344, fail: 0xe03131 };
+/** Colour-blind friendly (Okabe-Ito): blue = passes, vermilion = fails. */
+export function setIdsColors(cvd) { Object.assign(IDS_COLORS, cvd ? { pass: 0x0072b2, fail: 0xd55e00 } : { pass: 0x2fb344, fail: 0xe03131 }); }
+
+/** Example IDS files shipped with the app (public/examples/ids). */
+export const IDS_EXAMPLES = [
+  { file: '01-basic-information.ids', key: 'basic' },
+  { file: '02-wall-and-slab-properties.ids', key: 'props' },
+  { file: '03-materials-and-classification.ids', key: 'mat' },
+  { file: '04-rail-infrastructure.ids', key: 'rail' },
+];
 
 /** Python code that validates the model with the given key against /tmp/check.ids. */
 function idsCode(key) {

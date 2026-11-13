@@ -17,7 +17,7 @@ The toolbar groups the functions: **View**, **Section**, **Visibility**, **Align
 - **Wrong length units:** some exporters state a unit that does not match the coordinates, e.g. *millimetre* while the coordinates are metres. Such a model would be 1000× too small and far away from the others. OnlineIFC detects the clear cases (a model of a few metres at projected coordinates, or two models that only fit together with the correction), corrects the scale and tells you.
 - **Sections:** horizontal plan section, vertical sections (X/Y), a section parallel to a clicked face, and a section box around the selection. Every plane can be moved with a slider, stepped with ‹ › by a chosen step length (e.g. 0.5 m), placed at a typed position (↑/↓ in the field steps too), flipped, disabled or removed. Cut faces are shown in a darker tone of the element colour with diagonal hatching, so a cut is easy to tell from a surface. *Colour cut faces* and *Hatch cut faces* in the section panel turn this off (the hatching is remembered).
 - **Colours:** colour and opacity per model. *Colour by model* gives every model its own colour; click the colour square on a model card to choose another one. *Original colours* restores the colours from the IFC file. Projects remember the model colours.
-- **Colour style** (*View* menu): shows the original colours as *Original*, *Muted*, *Pastel*, *Light grey* (nearly white, the shape first) or *Vivid*. The choice is remembered.
+- **Colour style** (*View* menu): shows the original colours as *Original*, *Muted*, *Colour-blind friendly*, *Light grey* (nearly white, the shape first) or *Vivid*. The choice is remembered. *Colour-blind friendly* uses the Okabe–Ito palette, whose colours stay apart with the common kinds of colour blindness: every file colour snaps to the Okabe–Ito colour of its hue (greys stay grey), *Colour by model* uses Okabe–Ito colours, and compare and IDS results use blue / vermilion / yellow instead of green / red.
 - **Toolbar menus:** *View*, *Section* and *Visibility* open menus where every tool has a short description.
 - **Axis cross:** an X/Y/Z axis indicator in the top-left corner of the 3D view always shows the directions (IFC axes, Z up).
 - **Side panels** can be hidden (‹ / › buttons) to give the 3D view more room.
@@ -58,6 +58,17 @@ The **Filters** tab indexes the attributes, storey, type, material, property set
 
 ### IDS check
 **IDS** checks models against an `.ids` file (buildingSMART Information Delivery Specification) with IfcOpenShell's **ifctester**, running in the browser. Results are listed per specification with the requirements and the failing elements and their reasons. Failing elements can be selected, results coloured pass/fail, and everything exported as CSV. ifctester is installed the first time (a few seconds).
+
+**Example IDS files** (in the IDS dialog, or in [`public/examples/ids`](public/examples/ids)) show what a check can do. They can be run directly or downloaded to look inside:
+
+| File | Checks | Try it on |
+|---|---|---|
+| `01-basic-information.ids` | building elements have a name and lie on a storey; no `IfcBuildingElementProxy` (a *prohibited* specification) | IFC4 building models |
+| `02-wall-and-slab-properties.ids` | `Pset_WallCommon` (IsExternal, LoadBearing, FireRating, ThermalTransmittance), `Pset_SlabCommon.LoadBearing`, and a value check: wall width 0.10–1.00 m | IFC4 building models |
+| `03-materials-and-classification.ids` | structural parts have a material; building elements have a classification (any system) | IFC4 building models |
+| `04-rail-infrastructure.ids` | at least one named `IfcAlignment` (a *required* specification), named referents (stations), signals named and contained in the railway, no proxies | IFC4X3 rail models |
+
+On the FZK house, examples 1–3 give a mix of passes and failures (e.g. the U-value and wall width pass, the fire rating and classification fail).
 
 ### Issues (BCF)
 The **Issues** tab creates issues from the current view. The camera, section planes, visibility, selection and colours are saved as a BCF viewpoint with a snapshot. Issues have type, status, priority, assignee and comments (optionally with their own view), and clicking an issue restores its view. **Export** writes a `.bcfzip` in BCF 2.1 (default, the most widely supported) or 3.0, validated against the buildingSMART schemas. **Import** reads BCF 2.0, 2.1 and 3.0 files from other tools (BIMcollab, Solibri, Revit, Trimble Connect …).

@@ -6,6 +6,11 @@ import { keyLabel } from './filters.js';
 import { fmtValue } from './ifc.js';
 
 export const CMP_COLORS = { added: 0x2fb344, removed: 0xe03131, changed: 0xf59f00, unchanged: 0xc8ccd2 };
+const CMP_DEFAULT = { ...CMP_COLORS };
+// colour-blind friendly (Okabe–Ito): blue = added, vermilion = removed, yellow = changed
+const CMP_CVD = { added: 0x0072b2, removed: 0xd55e00, changed: 0xf0e442, unchanged: 0xc8ccd2 };
+/** Switches the comparison colours for the colour-blind friendly style. */
+export function setCompareColors(cvd) { Object.assign(CMP_COLORS, cvd ? CMP_CVD : CMP_DEFAULT); }
 const MOVE_TOL = 0.002; // metres
 const REL_TOL = 0.002; // relative change of volume/area that counts as changed geometry
 
