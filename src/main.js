@@ -473,6 +473,11 @@ const contextMenu = new ContextMenu({
   },
   setModelVisible: (m, on) => { m.setVisible(on); renderModels(); refreshVisibilityUi(); },
 });
+// The browser's own menu: the "contextmenu" event can reach our menu (it opens under the cursor when
+// the button is released, before the event on Windows) or a panel over the 3D view; never show it there.
+document.addEventListener('contextmenu', (e) => {
+  if (e.target.closest?.('#viewport, .ctx-menu')) e.preventDefault();
+}, true);
 viewer.addEventListener('context', ({ hit, originalEvent: e }) => {
   if (measure.mode || state.pickPlaneMode || walk.active) return;
   contextMenu.openForHit(hit, e.clientX, e.clientY);
@@ -514,6 +519,7 @@ document.addEventListener('click', (e) => {
     'drive-play': () => setDrivePlaying(!drive.playing),
     'drive-dir': () => { drive.dir = -drive.dir; $('#drive-dir').textContent = drive.dir > 0 ? '→' : '←'; drivePose(); },
     'drive-close': () => closeDrive(),
+    'model-group-new': () => newModelGroup(),
     'ann-all': () => { for (const b of $$('#ann-classes input')) b.checked = true; },
     'ann-none': () => { for (const b of $$('#ann-classes input')) b.checked = false; },
     fit: () => fitSelection(),
@@ -762,38 +768,157 @@ function breakableName(name) {
   return out;
 }
 
+// ------------------------------------------------------------------ model browser
+// Models can be put in named groups that are switched on and off as a whole (a model is shown when
+// both its own switch and its group's are on), and can get an alias; the file name stays visible.
+state.modelGroups = []; // [{id, name, visible, open}]
+let dragModel = null;
+const groupOf = (m) => state.modelGroups.find((g) => g.id === m.groupId) || null;
+const modelTitle = (m) => (m.alias ? `${m.alias} (${m.name})` : m.name);
+
+function setModelGroup(m, g) {
+  m.groupId = g?.id || null;
+  m.setGroupHidden(g ? !g.visible : false);
+  afterModelsChanged();
+  projects.touch?.();
+}
+
+function setGroupVisible(g, on) {
+  g.visible = on;
+  for (const m of viewer.models) if (m.groupId === g.id) m.setGroupHidden(!on);
+  afterModelsChanged();
+  refreshVisibilityUi?.();
+  projects.touch?.();
+}
+
+function newModelGroup(models = []) {
+  const g = { id: `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, name: t('mg.defaultName', { n: state.modelGroups.length + 1 }), visible: true, open: true };
+  state.modelGroups.push(g);
+  for (const m of models) { m.groupId = g.id; m.setGroupHidden(false); }
+  afterModelsChanged();
+  projects.touch?.();
+  // start renaming it right away
+  setTimeout(() => $(`.mgroup[data-group="${g.id}"] .mg-rename`)?.click(), 0);
+  return g;
+}
+
+/** Replaces a text with an input; Enter or leaving the field saves, Esc cancels. */
+function inlineEdit(span, value, placeholder, save) {
+  const input = h('input', { type: 'text', class: 'inline-edit', value: value || '', placeholder });
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = (ok) => { if (done) return; done = true; if (ok) save(input.value.trim()); else renderModels(); };
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); e.stopPropagation(); });
+  input.addEventListener('blur', () => finish(true));
+}
+
 function renderModels() {
   const list = $('#model-list');
   list.replaceChildren();
   $('#models-empty').hidden = viewer.models.length > 0;
   $('#model-actions').hidden = viewer.models.length === 0;
+  // groups whose models are all gone stay until removed; models of a removed group are loose
+  const loose = viewer.models.filter((m) => !groupOf(m));
+  for (const g of state.modelGroups) list.append(groupSection(g, viewer.models.filter((m) => m.groupId === g.id)));
+  if (state.modelGroups.length) list.append(groupSection(null, loose));
+  else for (const m of loose) list.append(modelCard(m));
+}
 
-  for (const m of viewer.models) {
-    const colorInput = h('input', { type: 'color', value: m.overrideColor ? `#${m.overrideColor.getHexString()}` : '#b0b0b0', title: t('models.color') });
-    const dot = h('span', { class: 'swatch-dot' });
-    dot.style.background = m.overrideColor ? `#${m.overrideColor.getHexString()}` : 'conic-gradient(#e15759, #edc948, #59a14f, #4e79a7, #e15759)';
-    colorInput.addEventListener('input', () => { m.setColor(colorInput.value); dot.style.background = colorInput.value; });
+/** A group in the model browser (null: the models without a group). Models can be dropped on it. */
+function groupSection(g, models) {
+  const sec = h('section', { class: `mgroup${g ? '' : ' loose'}${g && !g.visible ? ' off' : ''}`, 'data-group': g?.id || '' });
+  if (g) {
+    const vis = h('input', { type: 'checkbox', checked: g.visible, title: t('mg.show') });
+    vis.addEventListener('change', () => setGroupVisible(g, vis.checked));
+    const name = h('span', { class: 'mg-name', text: g.name, title: g.name });
+    const rename = () => inlineEdit(name, g.name, t('mg.defaultName', { n: '' }), (v) => { if (v) g.name = v; renderModels(); projects.touch?.(); });
+    name.addEventListener('dblclick', rename);
+    sec.append(h('div', { class: 'mg-head' },
+      h('button', { class: 'mg-caret', text: g.open ? '▾' : '▸', 'aria-label': t('mg.toggle'), onclick: () => { g.open = !g.open; renderModels(); } }),
+      vis, name,
+      h('span', { class: 'mg-count', text: String(models.length) }),
+      h('button', { class: 'icon-btn mg-zoom', title: t('mg.zoom'), text: '⤢', onclick: () => { const b = new THREE.Box3(); for (const m of models) if (m.visible) b.union(m.getBox()); if (!b.isEmpty()) viewer.fitBox(b); } }),
+      h('button', { class: 'icon-btn mg-rename', title: t('mg.rename'), text: '✎', onclick: rename }),
+      h('button', { class: 'icon-btn', title: t('mg.delete'), text: '✕', onclick: () => {
+        if (models.length && !confirm(t('mg.deleteConfirm', { name: g.name }))) return;
+        for (const m of models) { m.groupId = null; m.setGroupHidden(false); }
+        state.modelGroups = state.modelGroups.filter((x) => x !== g);
+        afterModelsChanged();
+        projects.touch?.();
+      } })));
+    if (g.open) {
+      const body = h('div', { class: 'mg-body' }, models.map(modelCard));
+      if (!models.length) body.append(h('div', { class: 'mg-empty', text: t('mg.dropHere') }));
+      sec.append(body);
+    }
+  } else {
+    sec.append(h('div', { class: 'mg-head' }, h('span', { class: 'mg-name muted', text: t('mg.loose') }), h('span', { class: 'mg-count', text: String(models.length) })));
+    sec.append(h('div', { class: 'mg-body' }, models.length ? models.map(modelCard) : h('div', { class: 'mg-empty', text: t('mg.dropHere') })));
+  }
+  // drop a dragged model card here
+  sec.addEventListener('dragover', (e) => { if (!dragModel) return; e.preventDefault(); sec.classList.add('drop'); });
+  sec.addEventListener('dragleave', (e) => { if (!sec.contains(e.relatedTarget)) sec.classList.remove('drop'); });
+  sec.addEventListener('drop', (e) => {
+    e.preventDefault();
+    sec.classList.remove('drop');
+    if (dragModel) { const m = dragModel; dragModel = null; if (g) g.open = true; setModelGroup(m, g); }
+  });
+  return sec;
+}
 
-    const opacity = h('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: String(m.opacity) });
-    const opVal = h('span', { class: 'muted', text: `${Math.round(m.opacity * 100)} %` });
-    opacity.addEventListener('input', () => { m.setOpacity(+opacity.value); opVal.textContent = `${Math.round(+opacity.value * 100)} %`; });
+/** The card of a model: a compact head (switch, name, alias, file name) and details to fold out. */
+function modelCard(m) {
+  const open = m.cardOpen ?? viewer.models.length <= 2;
+  const colorInput = h('input', { type: 'color', value: m.overrideColor ? `#${m.overrideColor.getHexString()}` : '#b0b0b0', title: t('models.color') });
+  const dot = h('span', { class: 'swatch-dot' });
+  dot.style.background = m.overrideColor ? `#${m.overrideColor.getHexString()}` : 'conic-gradient(#e15759, #edc948, #59a14f, #4e79a7, #e15759)';
+  colorInput.addEventListener('input', () => { m.setColor(colorInput.value); dot.style.background = colorInput.value; });
 
-    const vis = h('input', { type: 'checkbox', title: t('models.visible'), checked: m.visible });
-    vis.addEventListener('change', () => { m.setVisible(vis.checked); renderStatus(); });
+  const opacity = h('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: String(m.opacity) });
+  const opVal = h('span', { class: 'muted', text: `${Math.round(m.opacity * 100)} %` });
+  opacity.addEventListener('input', () => { m.setOpacity(+opacity.value); opVal.textContent = `${Math.round(+opacity.value * 100)} %`; });
 
-    const changes = m.changes.length
-      ? h('details', { class: 'changes' },
-        h('summary', {}, h('span', { class: 'badge-mod', text: t('models.modified', { n: m.changes.length }) })),
-        h('ol', {}, m.changes.slice(-50).reverse().map((c) => h('li', { text: c.description }))))
-      : null;
+  const vis = h('input', { type: 'checkbox', title: t('models.visible'), checked: m.ownVisible !== false });
+  vis.addEventListener('change', () => { m.setVisible(vis.checked); renderStatus(); afterModelsChanged(); projects.touch?.(); });
 
-    const card = h('div', { class: 'card' },
-      h('div', { class: 'card-head' }, vis, dot, h('span', { class: 'card-name', title: m.name }, breakableName(m.name))),
-      h('div', { class: 'card-meta', text: `${m.schema} · ${t('models.elements', { n: fmtNum(m.elementIds.size) })} · ${fmtBytes(m.fileSize)}` }),
+  const changes = m.changes.length
+    ? h('details', { class: 'changes' },
+      h('summary', {}, h('span', { class: 'badge-mod', text: t('models.modified', { n: m.changes.length }) })),
+      h('ol', {}, m.changes.slice(-50).reverse().map((c) => h('li', { text: c.description }))))
+    : null;
+
+  // name: the alias (if any) in bold, the file name always below it
+  const label = h('span', { class: 'card-name', title: m.name }, breakableName(m.alias || m.name));
+  const editAlias = () => inlineEdit(label, m.alias, m.name, (v) => { m.alias = v || null; afterModelsChanged(); projects.touch?.(); });
+  label.addEventListener('dblclick', editAlias);
+  const sub = h('span', { class: 'card-file' }, m.alias ? breakableName(m.name) : null,
+    h('span', { class: 'muted', text: `${m.alias ? ' · ' : ''}${m.schema} · ${t('models.elements', { n: fmtNum(m.elementIds.size) })}` }));
+
+  // group: choose one, or make a new one with this model
+  const groupSel = h('select', { title: t('mg.group') },
+    h('option', { value: '', text: t('mg.none') }),
+    state.modelGroups.map((g) => h('option', { value: g.id, text: g.name, selected: g.id === m.groupId })),
+    h('option', { value: '__new', text: t('mg.newOption') }));
+  groupSel.addEventListener('change', () => {
+    if (groupSel.value === '__new') { newModelGroup([m]); return; }
+    setModelGroup(m, state.modelGroups.find((g) => g.id === groupSel.value) || null);
+  });
+
+  const card = h('div', { class: `card model-card${open ? ' open' : ''}${m.visible ? '' : ' off'}`, draggable: 'true' },
+    h('div', { class: 'card-head' },
+      h('button', { class: 'mg-caret', text: open ? '▾' : '▸', 'aria-label': t('models.details'), onclick: () => { m.cardOpen = !open; renderModels(); } }),
+      vis, dot,
+      h('span', { class: 'card-title' }, label, sub),
+      h('button', { class: 'icon-btn', title: t('models.aliasTitle'), text: '✎', onclick: editAlias })),
+    open ? h('div', { class: 'card-body' },
+      h('div', { class: 'card-meta', text: `${fmtBytes(m.fileSize)}` }),
       changes,
       h('div', { class: 'card-row' }, h('label', { text: t('models.color') }), colorInput,
         h('button', { class: 'btn xs', onclick: () => { m.setColor(null); renderModels(); }, text: t('models.original') })),
       h('div', { class: 'card-row' }, h('label', { text: t('models.transparency') }), opacity, opVal),
+      h('div', { class: 'card-row' }, h('label', { text: t('mg.group') }), groupSel),
       h('div', { class: 'card-btns' },
         h('button', { class: 'btn sm', onclick: () => viewer.fitBox(m.getBox()), text: t('models.zoom') }),
         h('button', { class: `btn sm${m.changes.length ? ' primary-outline' : ''}`, onclick: () => saveIfc(m), text: t('models.downloadIfc') }),
@@ -809,11 +934,17 @@ function renderModels() {
             afterModelsChanged();
           },
           text: t('models.remove'),
-        }),
-      ),
-    );
-    list.append(card);
-  }
+        }))) : null);
+  // drag the card onto a group (not when the drag starts in a field)
+  card.addEventListener('dragstart', (e) => {
+    if (e.target.closest?.('input, select, button') && e.target !== card) { e.preventDefault(); return; }
+    dragModel = m;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', m.name);
+    card.classList.add('dragging');
+  });
+  card.addEventListener('dragend', () => { dragModel = null; card.classList.remove('dragging'); $$('.mgroup.drop').forEach((x) => x.classList.remove('drop')); });
+  return card;
 }
 
 async function saveIfc(model) {
@@ -862,7 +993,7 @@ function renderTree() {
   const ul = h('ul');
   for (const m of viewer.models) {
     const modelNode = { expressID: -1, children: [m.tree] };
-    ul.append(treeNode(m, modelNode, { open: true, label: m.name, rootModel: true }));
+    ul.append(treeNode(m, modelNode, { open: true, label: modelTitle(m), rootModel: true }));
   }
   root.append(h('div', { class: 'tree' }, ul));
 }
@@ -1040,7 +1171,7 @@ function renderTreeSearch(q) {
         h('span', { class: 'caret' }),
         h('span', { class: 'lbl', text: item.name }),
         h('span', { class: 'cls', text: item.cls }),
-        viewer.models.length > 1 ? h('span', { class: 'count', text: m.name }) : null,
+        viewer.models.length > 1 ? h('span', { class: 'count', text: m.displayName }) : null,
       );
       const ids = m.elementIds.has(item.id) ? [item.id] : [];
       const rowKey = `tree:${m.uid}:${item.id}`;
@@ -1093,7 +1224,7 @@ function renderClasses() {
       row.addEventListener('dblclick', () => { const b = m.getBox(ids); if (!b.isEmpty()) viewer.fitBox(b); });
       ul.append(h('li', {}, row));
     }
-    root.append(h('div', { class: 'tree' }, h('div', { class: 'node model-root' }, h('span', { class: 'lbl', text: m.name })), ul));
+    root.append(h('div', { class: 'tree' }, h('div', { class: 'node model-root' }, h('span', { class: 'lbl', text: modelTitle(m) })), ul));
   }
 }
 
@@ -2073,6 +2204,7 @@ const projects = new ProjectManager({
   viewer, views, issues, state, h, toast,
   clearModels: () => {
     drawnPaths.length = 0;
+    state.modelGroups = [];
     for (const m of [...viewer.models]) viewer.removeModel(m);
     state.selection.clear();
     state.treeKeys.clear();
@@ -2081,8 +2213,25 @@ const projects = new ProjectManager({
   },
   openFiles: (files, keys) => openIfcFiles(files, keys),
   afterRestore: () => { updateSpacesUi(); afterModelsChanged(); },
-  getExtra: () => (drawnPaths.length ? { lines: drawnPaths.map((p) => ({ name: p.name, pts: p.poly.map((q, k) => [q[0], q[1], p.zs[k]]) })) } : null),
-  setExtra: (x) => { drawnPaths.length = 0; for (const l of x?.lines || []) drawnPaths.push(makePath(l.name, l.pts)); updateAlignments(); },
+  getExtra: () => ({
+    lines: drawnPaths.map((p) => ({ name: p.name, pts: p.poly.map((q, k) => [q[0], q[1], p.zs[k]]) })),
+    groups: state.modelGroups.map(({ id, name, visible, open }) => ({ id, name, visible, open })),
+    models: viewer.models.map((m) => ({ key: projects.keys.get(m) || null, name: m.name, alias: m.alias || null, group: m.groupId || null })),
+  }),
+  setExtra: (x) => {
+    drawnPaths.length = 0;
+    for (const l of x?.lines || []) drawnPaths.push(makePath(l.name, l.pts));
+    state.modelGroups = (x?.groups || []).map((g) => ({ ...g }));
+    for (const m of viewer.models) {
+      const info = (x?.models || []).find((i) => (i.key && i.key === projects.keys.get(m)) || i.name === m.name);
+      m.alias = info?.alias || null;
+      m.groupId = info?.group || null;
+      const g = groupOf(m);
+      m.setGroupHidden(g ? !g.visible : false);
+    }
+    updateAlignments();
+    renderModels();
+  },
 });
 viewer.addEventListener('modelremoved', ({ model }) => projects.modelRemoved(model));
 projects.addEventListener('change', () => { renderProjectBar(); if (!viewer.models.length) renderRecentProjects(); if ($('#projects-dialog').open) renderProjectsDialog(); });
@@ -2355,7 +2504,7 @@ const idsOpen = new Set(); // "modelUid:specIndex" of expanded specifications
 function openIdsDialog() {
   if (!viewer.models.length) return toast(t('msg.loadFirst'));
   $('#ids-models').replaceChildren(...viewer.models.map((m) => h('label', { class: 'chk' },
-    h('input', { type: 'checkbox', value: String(m.uid), checked: true }), h('span', { text: `${m.name} (${m.schema})` }))));
+    h('input', { type: 'checkbox', value: String(m.uid), checked: true }), h('span', { text: `${modelTitle(m)} · ${m.schema}` }))));
   $('#ids-dialog').showModal();
 }
 
@@ -2444,7 +2593,7 @@ const cmpOpen = { added: true, removed: true, changed: true };
 
 function openCompareDialog() {
   if (viewer.models.length < 2) return toast(t('cmp.needTwo'));
-  const opts = viewer.models.map((m, i) => [String(m.uid), `${i + 1}. ${m.name}`]);
+  const opts = viewer.models.map((m, i) => [String(m.uid), `${i + 1}. ${modelTitle(m)}`]);
   $('#cmp-old').replaceChildren(...opts.map(([v, l], i) => h('option', { value: v, text: l, selected: i === 0 })));
   $('#cmp-new').replaceChildren(...opts.map(([v, l], i) => h('option', { value: v, text: l, selected: i === opts.length - 1 })));
   $('#compare-dialog').showModal();
@@ -2628,7 +2777,7 @@ function openMergeDialog() {
   const list = $('#merge-models');
   list.replaceChildren(...viewer.models.map((m) => h('label', { class: 'chk' },
     h('input', { type: 'checkbox', value: String(m.uid), checked: true }),
-    h('span', { text: `${m.name} (${m.schema})` }))));
+    h('span', { text: `${modelTitle(m)} · ${m.schema}` }))));
   $('#merge-dialog').showModal();
 }
 
@@ -2774,4 +2923,4 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator && (location.protocol =
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('service worker', e)));
 }
 
-window.onlineIfc = { viewer, state, openFiles, python, measure, views, walk, drawnPaths };
+window.onlineIfc = { viewer, state, openFiles, python, measure, views, walk, drawnPaths, projects };

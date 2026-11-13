@@ -218,7 +218,7 @@ export function breakPoints(layers, { classes = null, angle = 10, facet = 0.25, 
   return out;
 }
 
-export const ANNOT_COLOR = '#1f5fa8';
+export const ANNOT_COLOR = '#0B6F69';
 
 /**
  * Annotation marks of the break points for a layout (null: DXF, about 1:100):
@@ -302,7 +302,7 @@ function annotationMarks(section, lay) {
   return out;
 }
 
-export const AXIS_COLOR = '#c0392b';
+export const AXIS_COLOR = '#C8372D';
 
 // ----------------------------------------------------------- long profile
 const niceStep = (range, maxCount, steps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]) =>
@@ -752,7 +752,7 @@ export function toSvg(section, lay, info, opts) {
   out.push(`<line x1="${m / 2}" y1="${ty}" x2="${lay.W - m / 2}" y2="${ty}" stroke="#000" stroke-width="0.35"/>`);
   out.push(`<g font-family="Helvetica, Arial, sans-serif" fill="#000">${titleLines(info, lay, opts).map((l) => `<text x="${m}" y="${f2(ty + l.y)}" font-size="${l.size}"${l.bold ? ' font-weight="bold"' : ''}>${escXml(l.text)}</text>`).join('')}</g>`);
   const tm = titleMark(info, lay, opts);
-  out.push(`<g><path d="M${tm.line.map((p) => p.map(f2).join(' ')).join('L')}" fill="none" stroke="#0F1B2D" stroke-width="${f2(tm.w)}" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${f2(tm.dot[0])}" cy="${f2(tm.dot[1])}" r="${f2(tm.dot[2])}" fill="#2B72D6"/></g>`);
+  out.push(`<g><path d="M${tm.line.map((p) => p.map(f2).join(' ')).join('L')}" fill="none" stroke="#0C2A30" stroke-width="${f2(tm.w)}" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${f2(tm.dot[0])}" cy="${f2(tm.dot[1])}" r="${f2(tm.dot[2])}" fill="#0E8C84"/></g>`);
   out.push(scaleBarSvg(lay, ty));
   out.push(legendSvg(section, lay, ty, opts));
   out.push('</svg>');
@@ -867,10 +867,10 @@ function pdfPage(section, lay, info, opts) {
   c.push('0 0 0 rg', ...titleLines(info, lay, { ...opts, legend: false }).map((l) => text(m, ty + l.y, l.size, l.text, l.bold)));
   // the mark after the last title line: the profile and its point (circle from four Béziers)
   const tm = titleMark(info, lay, { ...opts, legend: false });
-  c.push(`q 0.059 0.106 0.176 RG ${(tm.w * k).toFixed(3)} w 1 J 1 j ${P(...tm.line[0])} m ${tm.line.slice(1).map((q) => `${P(...q)} l`).join(' ')} S Q`);
+  c.push(`q 0.047 0.165 0.188 RG ${(tm.w * k).toFixed(3)} w 1 J 1 j ${P(...tm.line[0])} m ${tm.line.slice(1).map((q) => `${P(...q)} l`).join(' ')} S Q`);
   {
     const [cx, cy, r] = tm.dot, q = 0.5523 * r;
-    c.push(`q 0.169 0.447 0.839 rg ${P(cx + r, cy)} m ${P(cx + r, cy - q)} ${P(cx + q, cy - r)} ${P(cx, cy - r)} c ${P(cx - q, cy - r)} ${P(cx - r, cy - q)} ${P(cx - r, cy)} c ${P(cx - r, cy + q)} ${P(cx - q, cy + r)} ${P(cx, cy + r)} c ${P(cx + q, cy + r)} ${P(cx + r, cy + q)} ${P(cx + r, cy)} c f Q`);
+    c.push(`q 0.055 0.549 0.518 rg ${P(cx + r, cy)} m ${P(cx + r, cy - q)} ${P(cx + q, cy - r)} ${P(cx, cy - r)} c ${P(cx - q, cy - r)} ${P(cx - r, cy - q)} ${P(cx - r, cy)} c ${P(cx - r, cy + q)} ${P(cx - q, cy + r)} ${P(cx, cy + r)} c ${P(cx + q, cy + r)} ${P(cx + r, cy + q)} ${P(cx + r, cy)} c f Q`);
   }
   // scale bar
   const step = niceBar(lay);

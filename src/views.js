@@ -49,7 +49,7 @@ export class ViewsPanel {
     const { viewer, state } = this.ctx;
     const vp = captureViewpoint({ viewer, selection: state.selection, spacesVisible: state.spacesVisible });
     const models = viewer.models.map((m) => ({
-      name: m.name, visible: m.visible, opacity: m.opacity,
+      name: m.name, visible: m.ownVisible !== false, opacity: m.opacity,
       color: m.overrideColor ? `#${m.overrideColor.getHexString()}` : null,
     }));
     const opacity = {};
