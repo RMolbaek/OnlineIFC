@@ -615,6 +615,9 @@ body.sv-popup { margin: 0; height: 100vh; background: var(--bg); }
 .ids-icon { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 700; color: #fff; flex-shrink: 0; }
 .ids-icon.ok { background: var(--ok); }
 .ids-icon.bad { background: var(--bad); }
+.noscript-info { max-width: 640px; margin: 24px auto; line-height: 1.5; }
+.noscript-info h2 { font-family: var(--display); }
+.noscript-info ul { text-align: left; display: inline-block; margin: 0 auto; }
 .ids-ex-row { display: flex; gap: 6px; align-items: center; }
 .ids-ex-row select { flex: 1; min-width: 0; }
 .ids-ex-row a.btn { text-decoration: none; }

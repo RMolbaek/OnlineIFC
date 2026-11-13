@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /py/
+
+Sitemap: https://vispecta.com/sitemap.xml
