@@ -2,7 +2,7 @@
 // and a gentle reveal on scroll. The language is shared with the app (same storage key).
 (() => {
   // Rasmus' LinkedIn profile; the links stay hidden while this is empty
-  const LINKEDIN = '';
+  const LINKEDIN = 'https://www.linkedin.com/in/rasmus-roien-molb%C3%A6k-71647085';
 
   const T = {
     da: {
