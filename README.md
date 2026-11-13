@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://vispecta.com"><b>Open Vispecta</b></a> · Beta · <a href="LICENSE">AGPL-3.0</a> · <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="https://vispecta.com"><b>Open Vispecta</b></a> · <a href="https://vispecta.com/about/">About</a> · Beta · <a href="LICENSE">AGPL-3.0</a> · <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
 # Vispecta
