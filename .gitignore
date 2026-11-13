@@ -1,3 +1,5 @@
 node_modules
 dist
 .DS_Store
+# the Python runtime, collected at build time (scripts/fetch-python.mjs)
+public/py

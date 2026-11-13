@@ -39,8 +39,17 @@ export async function renderVersion(el, h) {
   const line1 = h('div', {}, h('b', { text: `${t('about.version')}: ` }), versionLabel(),
     commitLink ? h('span', { class: 'muted' }, ' · ', commitLink) : null,
     BUILD.date ? h('span', { class: 'muted', text: ` · ${fmtDate(BUILD.date)}` }) : null);
-  const line2 = h('div', { class: 'muted small', text: t('about.checking') });
+  // Checking for a newer release asks GitHub, so it only happens when the user clicks
+  const line2 = h('div', { class: 'small' });
   el.replaceChildren(line1, line2);
+  const check = () => showLatest(line2, h);
+  if (latest) check();
+  else line2.replaceChildren(h('button', { class: 'btn xs', text: t('about.checkUpdate'), title: t('about.checkUpdateTitle'), onclick: check }));
+}
+
+async function showLatest(line2, h) {
+  line2.className = 'muted small';
+  line2.textContent = t('about.checking');
   try {
     const r = await fetchLatest();
     const link = h('a', { href: r.url, target: '_blank', rel: 'noopener', text: r.name && r.name.trim() && r.name.trim() !== r.tag ? `${r.tag} – ${r.name.trim()}` : r.tag });

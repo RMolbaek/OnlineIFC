@@ -105,9 +105,6 @@ Cross sections get letters (A–A, B–B …). In 3D and on plan drawings each o
 
 Points snap to corners, edge midpoints and edges (shown by the marker shape); snapping can be turned off. Values are shown in m or mm, every measurement can be zoomed to or removed, and *Copy all* copies the values to the clipboard. Points cut away by section planes cannot be picked. With several models, coordinates refer to the first model's coordinate system.
 
-### Map under the model
-The map underlay (`src/map.js`) is switched off for now: its placement still needs testing before it lands reliably in the right place.
-
 ### Edit metadata
 Turn on **Edit** (toolbar, properties panel or the `E` key):
 - Edit string attributes (`Name`, `Description`, `ObjectType`, `Tag`, `LongName` …) directly in the properties panel.
@@ -176,7 +173,7 @@ npm run build    # static build in dist/
 npm run preview  # preview the build
 ```
 
-Built with [three.js](https://threejs.org), [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh), [web-ifc](https://github.com/ThatOpen/engine_web-ifc) (viewing and metadata editing), [Pyodide](https://pyodide.org) + [IfcOpenShell](https://ifcopenshell.org) (Python, merging and IDS), [proj4js](https://proj4js.org), [fflate](https://github.com/101arrowz/fflate) and [CodeMirror](https://codemirror.net). It is a static site with no backend.
+Built with [three.js](https://threejs.org), [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh), [web-ifc](https://github.com/ThatOpen/engine_web-ifc) (viewing and metadata editing), [Pyodide](https://pyodide.org) + [IfcOpenShell](https://ifcopenshell.org) (Python and IDS), [fflate](https://github.com/101arrowz/fflate) and [CodeMirror](https://codemirror.net). It is a static site with no backend.
 
 | File | Purpose |
 | --- | --- |
@@ -190,16 +187,24 @@ Built with [three.js](https://threejs.org), [three-mesh-bvh](https://github.com/
 | `src/drawing.js` | 2D drawings from section planes (PDF, SVG, DXF) |
 | `src/alignment.js` | IFC4x3 alignments and stationing |
 | `src/secview.js` | section window: live 2D cut of a plane, stepping, pop-out window |
-| `src/map.js` | map underlay, georeferencing and coordinate conversion (proj4) |
 | `src/ifc.js`, `src/model.js` | loading IFC, metadata and metadata editing (web-ifc) |
 | `src/python.js`, `src/python-worker.js` | Pyodide/IfcOpenShell worker and merge logic |
 | `src/scripting.js`, `src/examples.js` | Python panel and example scripts |
 | `src/i18n.js` | translations (en/da/de/hi) |
-| `src/config.js` | where Pyodide and the IfcOpenShell wheel are loaded from |
+| `src/config.js` | where the Python runtime is loaded from |
+| `scripts/fetch-python.mjs`, `scripts/python-wheels.json` | collects the Python runtime into `public/py` at build time (pinned, sha256-checked) |
 
 ### Python runtime sources
 
-By default Pyodide is loaded from jsDelivr and the IfcOpenShell wheel from `ifcopenshell.github.io/wasm-wheels`. The pure-Python dependencies (`lark`, `isodate`, and for IDS `ifctester`, `xmlschema`, `elementpath`) come from PyPI. To self-host (offline or on an intranet), copy the files and change `src/config.js`, or set an override in the browser:
+The built site serves the Python runtime itself, so the Python panel and the IDS check contact no other server. `npm run build` first runs `scripts/fetch-python.mjs`, which collects into `public/py` (not committed):
+
+- Pyodide's core files from the pinned npm package `pyodide`;
+- the Pyodide packages IfcOpenShell needs (numpy, shapely, micropip …) from the Pyodide distribution, checked against the sha256 in `pyodide-lock.json`;
+- IfcOpenShell, its pure-Python dependencies and ifctester, pinned with their sha256 in `scripts/python-wheels.json`.
+
+That is about 58 MB, loaded only when Python or IDS is first used. Packages that are not hosted (e.g. pandas) stay on jsDelivr and are only fetched when a script of your own imports them.
+
+`npm run build:app` builds without collecting the runtime; then (and in `npm run dev` before `npm run fetch-python`) Pyodide comes from jsDelivr, IfcOpenShell from `ifcopenshell.github.io` and the rest from PyPI. To use another mirror, set an override in the browser:
 
 ```js
 localStorage.setItem('onlineifc.python', JSON.stringify({
@@ -219,6 +224,18 @@ The `dist/` folder can also be put on any other static host (Netlify, Azure Stat
 ### Installable app (PWA)
 
 The built site has a web app manifest and a service worker (`public/sw.js`). In Chrome or Edge, use *Install* in the address bar to get Vispecta as an app with its own window. After the first visit it works offline, and the installed app can open `.ifc` files directly (*Open with* in the file explorer). The service worker only caches the app itself; IFC files never leave the computer. It is only registered in the built app (`npm run build`), not in the dev server.
+
+## Privacy
+
+Vispecta is a static website without a backend, cookies, analytics or tracking.
+
+- **Your files are never uploaded.** IFC, BCF and IDS files are read and processed in your browser (WebAssembly). Projects and settings are saved only in this browser (IndexedDB, localStorage).
+- **What the site loads:** everything – the app, fonts, web-ifc and the Python runtime (Pyodide, IfcOpenShell, ifctester) – comes from vispecta.com itself (hosted on GitHub Pages, which, like any web host, sees the visitor's IP address).
+- **Other servers are contacted only when you ask for it:**
+  - *Check for updates* in the About dialog asks the GitHub API for the latest release;
+  - a Python script of your own that imports a package which is not hosted (e.g. pandas) fetches it from jsDelivr, and `micropip.install` in your script fetches from PyPI.
+
+  No model data is sent in either case.
 
 ## Status
 

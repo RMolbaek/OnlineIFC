@@ -312,7 +312,6 @@
           <div class="float cmp-panel" id="cmp-panel" hidden></div>
           <div class="float cmp-panel ids-panel" id="ids-panel" hidden></div>
           <div class="mode-hint" id="mode-hint" hidden></div>
-          <div class="map-attribution" id="map-attribution" hidden></div>
           <div class="statusbar" id="statusbar"></div>
         </div>
 
@@ -371,54 +370,6 @@
       </div>
     </dialog>
 
-    <dialog id="map-dialog" class="wide">
-      <h2 data-i18n="map.title"></h2>
-      <p class="muted small" data-i18n="map.intro"></p>
-      <div class="map-detected" id="map-detected"></div>
-      <fieldset class="map-georef">
-        <label class="chk"><input type="radio" name="map-source" value="model" id="map-src-model" /> <span data-i18n="map.fromModel"></span></label>
-        <label class="chk"><input type="radio" name="map-source" value="manual" id="map-src-manual" /> <span data-i18n="map.manual"></span></label>
-        <div class="map-manual" id="map-manual">
-          <label class="field"><span data-i18n="map.crs"></span>
-            <input id="map-crs" type="text" list="map-crs-list" placeholder="EPSG:25832" />
-            <datalist id="map-crs-list"></datalist>
-          </label>
-          <div class="grid3">
-            <label class="field"><span data-i18n="map.e0"></span><input id="map-e0" type="number" step="any" value="0" /></label>
-            <label class="field"><span data-i18n="map.n0"></span><input id="map-n0" type="number" step="any" value="0" /></label>
-            <label class="field"><span data-i18n="map.rotation"></span><input id="map-rot" type="number" step="any" value="0" /></label>
-          </div>
-          <p class="muted small" data-i18n="map.manualHelp"></p>
-        </div>
-      </fieldset>
-      <div class="grid3">
-        <label class="field"><span data-i18n="map.basemap"></span>
-          <select id="map-basemap">
-            <option value="ortho" data-i18n="map.ortho"></option>
-            <option value="osm" data-i18n="map.osm"></option>
-            <option value="none" data-i18n="map.noBase"></option>
-          </select>
-        </label>
-        <label class="field"><span data-i18n="map.railway"></span>
-          <select id="map-railway">
-            <option value="" data-i18n="map.noRailway"></option>
-            <option value="standard" data-i18n="map.rwStandard"></option>
-            <option value="maxspeed" data-i18n="map.rwMaxspeed"></option>
-            <option value="signals" data-i18n="map.rwSignals"></option>
-            <option value="electrification" data-i18n="map.rwElectrification"></option>
-            <option value="gauge" data-i18n="map.rwGauge"></option>
-          </select>
-        </label>
-        <label class="field"><span data-i18n="map.radius"></span><input id="map-radius" type="number" min="0" step="10" placeholder="auto" /></label>
-      </div>
-      <label class="field"><span data-i18n="map.opacity"></span><input id="map-opacity" type="range" min="0.1" max="1" step="0.05" value="1" /></label>
-      <p class="muted small" data-i18n="map.note"></p>
-      <div class="dialog-btns">
-        <button class="btn" data-action="map-remove" data-i18n="map.remove"></button>
-        <button class="btn" data-action="map-close" data-i18n="common.close"></button>
-        <button class="btn primary" data-action="map-show" data-i18n="map.show"></button>
-      </div>
-    </dialog>
 
     <dialog id="drawing-dialog">
       <h2 data-i18n="drw.title"></h2>

@@ -1,0 +1,26 @@
+name: Bug report
+description: Something does not work as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: From the About dialog (ⓘ in the top right corner), e.g. "1.0.0 · 38ddab5".
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      placeholder: e.g. Chrome 131 on Windows 11
+  - type: textarea
+    id: model
+    attributes:
+      label: Model
+      description: Which kind of IFC file (schema, exporting program, size)? Attach a small file that shows the problem only if you are allowed to share it.
