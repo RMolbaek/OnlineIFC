@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { execSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
 // Version shown in the About dialog: the latest GitHub release (git tag) plus the number of
 // changes since it, and the commit. Falls back to package.json when git is not available.
@@ -40,5 +40,9 @@ export default defineConfig({
   },
   optimizeDeps: { exclude: ['web-ifc'] },
   worker: { format: 'es' },
-  define: { __BUILD_INFO__: JSON.stringify(buildInfo()) },
+  define: {
+    __BUILD_INFO__: JSON.stringify(buildInfo()),
+    // the site serves the Python runtime itself when scripts/fetch-python.mjs has collected it
+    __PY_SELF_HOSTED__: JSON.stringify(existsSync(new URL('./public/py/pyodide/pyodide.mjs', import.meta.url))),
+  },
 });

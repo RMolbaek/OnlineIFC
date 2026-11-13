@@ -4,7 +4,7 @@ Thank you for wanting to help! Vispecta is an IFC viewer for infrastructure proj
 
 ## Report a bug
 
-Open an [issue](https://github.com/vispecta-app/vispecta/issues) with:
+Open an [issue](https://github.com/vispecta-app/vispecta/issues/new/choose) (choose *Bug report*) with:
 
 - what you did, what you expected and what happened;
 - the browser and operating system;
@@ -13,7 +13,7 @@ Open an [issue](https://github.com/vispecta-app/vispecta/issues) with:
 
 ## Suggest a feature
 
-Open an issue and describe the task from your work: which models, what you need to see or check, and how you do it today. Ideas from real infrastructure projects (rail, road, bridges, utilities) are especially welcome.
+Open an issue (choose *Idea or feature request*) and describe the task from your work: which models, what you need to see or check, and how you do it today. Ideas from real infrastructure projects (rail, road, bridges, utilities) are especially welcome.
 
 ## Contribute code
 

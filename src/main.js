@@ -30,7 +30,6 @@ import { ContextMenu } from './contextmenu.js';
 import { renderVersion } from './version.js';
 import { ProjectManager } from './projects.js';
 import { SectionViewer } from './secview.js';
-import { MapLayer, COMMON_CRS, normaliseCrs } from './map.js';
 import { FilterPanel, keyLabel } from './filters.js';
 import { IssuesPanel } from './issues.js';
 import { readAlignments, AlignmentLayer, SectionMarks, pointAt, heightAt, project, formatStation } from './alignment.js';
@@ -67,7 +66,6 @@ walk.addEventListener('change', () => {
   renderStatus();
 });
 walk.addEventListener('speed', () => renderStatus());
-const mapLayer = new MapLayer(viewer);
 const alignmentLayer = new AlignmentLayer(viewer, $('#viewport'));
 measure.alignments = alignmentLayer;
 const state = {
@@ -294,7 +292,6 @@ function afterModelsChanged() {
   $('#welcome').hidden = viewer.models.length > 0;
   if (!viewer.models.length) renderRecentProjects();
   renderProjectBar();
-  if (!viewer.models.length && mapLayer.visible) { mapLayer.remove(); updateMapUi(); }
   if (state.storey && !viewer.models.includes(state.storey.model)) state.storey = null;
   updateStoreyMenu();
   renderAll();
@@ -556,7 +553,6 @@ document.addEventListener('click', (e) => {
     about: () => { renderVersion($('#about-version'), h); $('#about-dialog').showModal(); },
     'toggle-left': () => setPanelHidden('left', !document.body.classList.contains('hide-left')),
     'toggle-right': () => setPanelHidden('right', !document.body.classList.contains('hide-right')),
-    map: () => openMapDialog(),
     compare: () => openCompareDialog(),
     ids: () => openIdsDialog(),
     drawing: () => openDrawingDialog(),
@@ -566,9 +562,6 @@ document.addEventListener('click', (e) => {
     'ids-run': () => runIds(),
     'compare-cancel': () => $('#compare-dialog').close(),
     'compare-run': () => runCompare(),
-    'map-close': () => $('#map-dialog').close(),
-    'map-show': () => showMap(),
-    'map-remove': () => { mapLayer.remove(); updateMapUi(); $('#map-dialog').close(); },
     'plane-face': () => {
       if (!viewer.models.length) return toast(t('msg.loadFirst'));
       setPickPlaneMode(!state.pickPlaneMode);
@@ -2860,77 +2853,6 @@ for (const r of $$('[data-sel-opacity]')) {
   });
 }
 $('#measure-lock-xy').addEventListener('change', (e) => { measure.lockXY = e.target.checked; });
-
-// ========================================================================== map
-const MAP_KEY = 'onlineifc.map';
-function loadMapSettings() {
-  try { return JSON.parse(localStorage.getItem(MAP_KEY) || '{}') || {}; } catch { return {}; }
-}
-
-function openMapDialog() {
-  if (!viewer.models.length) return toast(t('msg.loadFirst'));
-  const ref = viewer.models[0];
-  const saved = loadMapSettings();
-  const mc = ref.georef?.map;
-  $('#map-detected').textContent = mc
-    ? t('map.detected', { crs: mc.crs || '?', e: mc.eastings.toFixed(2), n: mc.northings.toFixed(2), rot: ((Math.atan2(mc.b, mc.a) * 180) / Math.PI).toFixed(3), name: ref.name })
-    : t('map.notDetected', { name: ref.name });
-  $('#map-detected').classList.toggle('ok', !!mc);
-  $('#map-src-model').disabled = !mc;
-  const source = mc && saved.source !== 'manual' ? 'model' : 'manual';
-  $(`#map-src-${source}`).checked = true;
-  $('#map-crs-list').replaceChildren(...COMMON_CRS.map(([code, name]) => h('option', { value: code, text: name })));
-  $('#map-crs').value = saved.crs || (mc && normaliseCrs(mc.crs)) || 'EPSG:25832';
-  $('#map-e0').value = saved.e0 ?? 0;
-  $('#map-n0').value = saved.n0 ?? 0;
-  $('#map-rot').value = saved.rotation ?? 0;
-  $('#map-basemap').value = saved.basemap || 'ortho';
-  $('#map-railway').value = saved.railway ?? '';
-  $('#map-radius').value = saved.radius || '';
-  $('#map-opacity').value = saved.opacity || 1;
-  updateMapSource();
-  $('#map-dialog').showModal();
-}
-
-function updateMapSource() {
-  const manual = $('#map-src-manual').checked;
-  for (const el of $$('#map-manual input')) el.disabled = !manual;
-  $('#map-manual').classList.toggle('disabled', !manual);
-}
-for (const r of $$('input[name="map-source"]')) r.addEventListener('change', updateMapSource);
-$('#map-opacity').addEventListener('input', (e) => mapLayer.setOpacity(+e.target.value));
-
-async function showMap() {
-  const opts = {
-    source: $('#map-src-model').checked ? 'model' : 'manual',
-    crs: $('#map-crs').value.trim(),
-    e0: $('#map-e0').value, n0: $('#map-n0').value, rotation: $('#map-rot').value,
-    basemap: $('#map-basemap').value, railway: $('#map-railway').value,
-    radius: $('#map-radius').value, opacity: $('#map-opacity').value,
-  };
-  try { localStorage.setItem(MAP_KEY, JSON.stringify(opts)); } catch { /* ignore */ }
-  $('#map-dialog').close();
-  try {
-    const res = await withLoading(async (progress) => {
-      progress(t('map.loading'), 0);
-      return mapLayer.show(opts, (f) => progress(t('map.loading'), f));
-    });
-    if (res.failed) toast(t('map.someFailed', { n: res.failed, total: res.tiles }));
-    else toast(t('map.shown', { crs: res.crs, lat: res.lat.toFixed(5), lon: res.lon.toFixed(5) }), true);
-  } catch (e) {
-    console.error(e);
-    const known = { NO_CRS: 'map.errNoCrs', NO_MODEL: 'msg.loadFirst', BAD_COORDS: 'map.errCoords', TILES_FAILED: 'map.errTiles', NO_LAYER: 'map.errNoLayer' };
-    toast(known[e.message] ? t(known[e.message]) : t('map.errOther', { error: e.message }));
-  }
-  updateMapUi();
-}
-
-function updateMapUi() {
-  for (const b of $$('.toolbar [data-action="map"]')) b.classList.toggle('on', mapLayer.visible);
-  const attr = $('#map-attribution');
-  attr.hidden = !mapLayer.visible;
-  attr.textContent = mapLayer.attribution;
-}
 
 // ======================================================================== merge
 function openMergeDialog() {

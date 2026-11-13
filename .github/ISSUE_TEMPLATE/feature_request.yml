@@ -1,0 +1,16 @@
+name: Idea or feature request
+description: Suggest something new or a change
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: task
+    attributes:
+      label: The task
+      description: What are you trying to do in your work (rail, road, bridge, utilities …), and how do you do it today?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: The idea
+      description: What could Vispecta do to help? Sketches or screenshots are welcome.
