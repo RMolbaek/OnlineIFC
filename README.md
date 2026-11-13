@@ -1,6 +1,12 @@
-# Vispecta
+<p align="center">
+  <a href="https://vispecta.com"><img src="docs/images/vispecta-banner.png" alt="Vispecta – IFC viewer for infrastructure projects" width="820"></a>
+</p>
 
-**IFC viewer for infrastructure** – [vispecta.com](https://vispecta.com)
+<p align="center">
+  <a href="https://vispecta.com"><b>Open Vispecta</b></a> · Beta · <a href="LICENSE">AGPL-3.0</a> · <a href="CONTRIBUTING.md">Contributing</a>
+</p>
+
+# Vispecta
 
 An IFC viewer and editor that runs entirely in the browser. Files are processed locally (WebAssembly) and are never uploaded.
 

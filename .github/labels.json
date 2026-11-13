@@ -1,0 +1,11 @@
+[
+  { "name": "bug", "color": "d73a4a", "description": "Something does not work as expected" },
+  { "name": "enhancement", "color": "a2eeef", "description": "Idea or feature request" },
+  { "name": "drawings", "color": "0E8C84", "description": "2D drawings, sections, annotation, PDF/DXF" },
+  { "name": "alignment", "color": "F08A24", "description": "IfcAlignment, stationing, long profiles" },
+  { "name": "model-browser", "color": "0C2A30", "description": "Models, groups, structure, visibility" },
+  { "name": "ids-bcf", "color": "2CC8BC", "description": "IDS check and BCF issues" },
+  { "name": "python", "color": "3572A5", "description": "Python panel and scripts" },
+  { "name": "ui", "color": "C8C8C8", "description": "Interface, languages, themes" },
+  { "name": "performance", "color": "C8372D", "description": "Large models, speed, memory" }
+]
