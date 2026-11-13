@@ -174,7 +174,7 @@ export class SectionViewer {
     const st = this.ctx.station(p);
     if (document.activeElement !== this.stationIn && this.win?.document.activeElement !== this.stationIn) this.stationIn.value = st ?? '';
     this.stepIn.value = String(this.ctx.getStep());
-    if (this.win) this.win.document.title = `${this.ctx.title(p)} – OnlineIFC`;
+    if (this.win) this.win.document.title = `${this.ctx.title(p)} – Vispecta`;
   }
 
   fit() {
@@ -328,12 +328,12 @@ export class SectionViewer {
 
   /** Into a browser window of its own (e.g. a second screen). */
   popOut() {
-    const w = window.open('', 'onlineifc-section', 'width=960,height=640');
+    const w = window.open('', 'vispecta-section', 'width=960,height=640');
     if (!w) { this.ctx.toast?.(this.ctx.t('sv.blocked')); return; }
     let css = '';
     for (const sh of document.styleSheets) { try { for (const rule of sh.cssRules) css += `${rule.cssText}\n`; } catch { /* other origin (fonts) */ } }
     w.document.open();
-    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>OnlineIFC</title><style>${css}</style></head><body class="sv-popup"></body></html>`);
+    w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Vispecta</title><style>${css}</style></head><body class="sv-popup"></body></html>`);
     w.document.close();
     for (const a of ['data-theme', 'lang']) { const val = document.documentElement.getAttribute(a); if (val) w.document.documentElement.setAttribute(a, val); }
     this.saved = this.el.getAttribute('style') || '';

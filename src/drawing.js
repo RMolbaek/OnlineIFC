@@ -712,7 +712,7 @@ function titleLines(info, lay, opts = {}) {
   const lines = [{ text: fit(String(info.title ?? ''), 5, maxW, true), size: 5, bold: true, y: 7 }];
   sub.forEach((t, i) => lines.push({ text: t, size: 3.2, y: 11.8 + i * 3.8 }));
   const scaleText = info.exag && info.exag !== 1 ? `1:${lay.scale} / 1:${+(lay.scale / info.exag).toFixed(2)} (${info.exag}×)` : `1:${lay.scale}`;
-  lines.push({ text: fit(`${scaleText}  ·  ${info.date}  ·  OnlineIFC`, 3, maxW), size: 3, y: sub.length > 1 ? 20.2 : 18.5 });
+  lines.push({ text: fit(`${scaleText}  ·  ${info.date}  ·  Vispecta`, 3, maxW), size: 3, y: sub.length > 1 ? 20.2 : 18.5 });
   return lines;
 }
 
@@ -901,7 +901,7 @@ function pdfBytes(objs, title) {
   });
   const xref = len;
   push(`xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${offsets.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('')}`);
-  push(`trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info << /Producer (OnlineIFC) /Title (${pdfStr(String(title ?? '').replace(/[–—]/g, '-').replace(/[^\x20-\xff]/g, '?'))}) >> >>\nstartxref\n${xref}\n%%EOF\n`);
+  push(`trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info << /Producer (Vispecta) /Title (${pdfStr(String(title ?? '').replace(/[–—]/g, '-').replace(/[^\x20-\xff]/g, '?'))}) >> >>\nstartxref\n${xref}\n%%EOF\n`);
   const out = new Uint8Array(len);
   let o = 0;
   for (const p of parts) { out.set(p, o); o += p.length; }

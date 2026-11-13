@@ -1,20 +1,22 @@
-# OnlineIFC
+# Vispecta
+
+**IFC viewer for infrastructure** – [vispecta.com](https://vispecta.com)
 
 An IFC viewer and editor that runs entirely in the browser. Files are processed locally (WebAssembly) and are never uploaded.
 
 The interface is in **English**, **Danish**, **German** and **Hindi** (language picker in the top right corner; the choice is remembered). There is a light and a dark theme (moon/sun button).
 
-OnlineIFC is a private project by Rasmus Roien Molbaek. It grows out of the needs met in infrastructure projects: alignments and stationing, cross sections and long profiles, combining the models of several disciplines, and quick checks of metadata.
+Vispecta is an open-source project by Rasmus Roien Molbaek (MIT licence). It grows out of the needs met in infrastructure projects: alignments and stationing, cross sections and long profiles, combining the models of several disciplines, and quick checks of metadata.
 
 ## Features
 The toolbar groups the functions: **View**, **Section**, **Visibility**, **Alignment** (stationing, cross sections, long profiles, drive along, draw a line), **Measure**, **Edit** and **Tools** (merge, compare, IDS check, quantity takeoff, Python). On small screens the side panels are drawers over the 3D view.
 
 
 ### Review
-- **Open files** (IFC2x3, IFC4, IFC4x3): drag and drop them anywhere in the window at any time, or click the drop area on the start screen / *Open IFC*. Dropped files are recognised by type: `.ifc` models are added to the view, `.bcf`/`.bcfzip` go to *Issues*, `.ids` opens the IDS check, and `.onlineifc.json` opens a workspace.
+- **Open files** (IFC2x3, IFC4, IFC4x3): drag and drop them anywhere in the window at any time, or click the drop area on the start screen / *Open IFC*. Dropped files are recognised by type: `.ifc` models are added to the view, `.bcf`/`.bcfzip` go to *Issues*, `.ids` opens the IDS check, and `.vispecta.json` opens a workspace.
 - **Federation:** several models are shown in one view. The first model defines the coordinate system and the following models are placed relative to it using their own coordinates.
 - **Groups and aliases:** in the Models tab, *+ New group* makes a named group. Drag model cards onto a group, or choose the group on the card. A group is switched on and off as a whole, and a model is shown when both its own switch and its group's are on. A model can get an alias (✎ or double click); the file name stays visible under it, and the alias is used in the structure tree, menus and dialogs. Cards fold to one line. Projects remember groups, aliases and switches.
-- **Wrong length units:** some exporters state a unit that does not match the coordinates, e.g. *millimetre* while the coordinates are metres. Such a model would be 1000× too small and far away from the others. OnlineIFC detects the clear cases (a model of a few metres at projected coordinates, or two models that only fit together with the correction), corrects the scale and tells you.
+- **Wrong length units:** some exporters state a unit that does not match the coordinates, e.g. *millimetre* while the coordinates are metres. Such a model would be 1000× too small and far away from the others. Vispecta detects the clear cases (a model of a few metres at projected coordinates, or two models that only fit together with the correction), corrects the scale and tells you.
 - **Sections:** horizontal plan section, vertical sections (X/Y), a section parallel to a clicked face, and a section box around the selection. Every plane can be moved with a slider, stepped with ‹ › by a chosen step length (e.g. 0.5 m), placed at a typed position (↑/↓ in the field steps too), flipped, disabled or removed. Cut faces are shown in a darker tone of the element colour with diagonal hatching, so a cut is easy to tell from a surface. *Colour cut faces* and *Hatch cut faces* in the section panel turn this off (the hatching is remembered).
 - **Colours:** colour and opacity per model. *Colour by model* gives every model its own colour; click the colour square on a model card to choose another one. *Original colours* restores the colours from the IFC file. Projects remember the model colours.
 - **Colour style** (*View* menu): shows the original colours as *Original*, *Muted*, *Colour-blind friendly*, *Light grey* (nearly white, the shape first) or *Vivid*. The choice is remembered. *Colour-blind friendly* uses the Okabe–Ito palette, whose colours stay apart with the common kinds of colour blindness: every file colour snaps to the Okabe–Ito colour of its hue (greys stay grey), *Colour by model* uses Okabe–Ito colours, and compare and IDS results use blue / vermilion / yellow instead of green / red.
@@ -34,15 +36,15 @@ The toolbar groups the functions: **View**, **Section**, **Visibility**, **Align
 
 ### Projects (remembered locally)
 
-- OnlineIFC remembers what you worked on, **only in this browser on this computer** (IndexedDB) – nothing is uploaded. A project is created automatically when you open a model and saved automatically: the IFC files (including metadata edits), the saved views, the issues and the last view (camera, sections, visibility, colours, transparency, X-ray).
+- Vispecta remembers what you worked on, **only in this browser on this computer** (IndexedDB) – nothing is uploaded. A project is created automatically when you open a model and saved automatically: the IFC files (including metadata edits), the saved views, the issues and the last view (camera, sections, visibility, colours, transparency, X-ray).
 - The start screen shows the **recent projects**; click one to continue where you stopped. The *Models* tab shows the current project (rename it there); *Projects* lists all projects with their size, and can start a new project, delete projects, remove the prepared geometry to free space, or turn the saving off.
 - **Large models open faster the second time:** the prepared geometry and the spatial structure are stored with the file (in a test 93 MB / 240,000 elements: 15.5 s the first time, 5.2 s from the project). Files are recognised by a fingerprint of their content, so a changed file is prepared again.
-- The browser may remove the data when the disk is almost full; OnlineIFC asks it to keep the data (persistent storage). Clearing the browser's site data removes the projects.
+- The browser may remove the data when the disk is almost full; Vispecta asks it to keep the data (persistent storage). Clearing the browser's site data removes the projects.
 
 ### Saved views and workspace
 
 - **Views tab:** save the current view under a name (camera, sections, visibility, colours, transparency, selection, X-ray) with a thumbnail, and click it to return. Views refer to elements by GlobalId, so they also work on a newer version of the model. They are kept in the browser.
-- **Workspace file** (`.onlineifc.json`): saves the views, the issues and the current view in one small file to share or to continue later. The IFC files are not included; open them together with the workspace file (or afterwards).
+- **Workspace file** (`.vispecta.json`; files from before the rename, `.onlineifc.json`, still open): saves the views, the issues and the current view in one small file to share or to continue later. The IFC files are not included; open them together with the workspace file (or afterwards).
 
 ### Quantity takeoff
 
@@ -216,4 +218,16 @@ The `dist/` folder can also be put on any other static host (Netlify, Azure Stat
 
 ### Installable app (PWA)
 
-The built site has a web app manifest and a service worker (`public/sw.js`). In Chrome or Edge, use *Install* in the address bar to get OnlineIFC as an app with its own window. After the first visit it works offline, and the installed app can open `.ifc` files directly (*Open with* in the file explorer). The service worker only caches the app itself; IFC files never leave the computer. It is only registered in the built app (`npm run build`), not in the dev server.
+The built site has a web app manifest and a service worker (`public/sw.js`). In Chrome or Edge, use *Install* in the address bar to get Vispecta as an app with its own window. After the first visit it works offline, and the installed app can open `.ifc` files directly (*Open with* in the file explorer). The service worker only caches the app itself; IFC files never leave the computer. It is only registered in the built app (`npm run build`), not in the dev server.
+
+## Status
+
+Vispecta is in **beta**: not every feature has been tested thoroughly, so expect bugs. Reports are very welcome.
+
+## Contributing
+
+Ideas, bug reports and pull requests are welcome – see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Licence
+
+[MIT](LICENSE) © 2026 Rasmus Roien Molbaek

@@ -15,7 +15,7 @@ import '@fontsource/jetbrains-mono/latin-400.css';
 import '@fontsource/jetbrains-mono/latin-ext-400.css';
 import '@fontsource/jetbrains-mono/latin-500.css';
 import '@fontsource/jetbrains-mono/latin-ext-500.css';
-// OnlineIFC – user interface.
+// Vispecta – user interface.
 import { Viewer } from './viewer.js';
 import { loadIfcFile } from './ifc.js';
 import { isSpatialType, KIND_TYPES, COLOR_STYLES, colorStyle, OKABE_ITO } from './model.js';
@@ -603,7 +603,7 @@ document.addEventListener('click', (e) => {
     'measure-close': () => { setMeasureMode(null); measurePanelClosed = true; renderMeasure(); },
     'measure-clear': () => measure.clear(),
     'measure-copy': () => { navigator.clipboard?.writeText(measure.toText()); toast(t('measure.copied'), true); },
-    screenshot: () => download(`onlineifc-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`, dataUrlToBlob(viewer.screenshot())),
+    screenshot: () => download(`vispecta-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.png`, dataUrlToBlob(viewer.screenshot())),
     help: () => $('#help-dialog').showModal(),
     'color-by-model': () => {
       // with the colour-blind friendly style, the models get Okabe–Ito colours

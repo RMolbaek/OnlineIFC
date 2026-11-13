@@ -210,7 +210,7 @@ function markupXml(topic, files, version) {
 }
 
 /** Builds a .bcfzip (Uint8Array). files: [{name, project (IfcProject GlobalId), date}] */
-export function exportBcf(topics, files, version = '2.1', projectName = 'OnlineIFC') {
+export function exportBcf(topics, files, version = '2.1', projectName = 'Vispecta') {
   const zip = {};
   zip['bcf.version'] = strToU8(`${XML_HEAD}<Version VersionId="${version}"${version === '2.1' ? ' xsi:noNamespaceSchemaLocation="version.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' : ''}>${version === '2.1' ? '<DetailedVersion>2.1</DetailedVersion>' : ''}</Version>`);
   const projectId = uuid();

@@ -185,7 +185,7 @@ def merge_keys(keys):
 
 
 class App:
-    """Bridge between your script and the OnlineIFC viewer.
+    """Bridge between your script and the Vispecta viewer.
 
     app.update(model)               reload a loaded model in the viewer with your changes
     app.add_model(file, "x.ifc")    open a new ifcopenshell.file in the viewer
@@ -242,7 +242,7 @@ class App:
     _result = None  # a JSON string returned to the viewer (used by built-in tools such as IDS)
 
     def __repr__(self):
-        return "<OnlineIFC app: update(), add_model(), download(), select(), merge()>"
+        return "<Vispecta app: update(), add_model(), download(), select(), merge()>"
 
 
 app = App()

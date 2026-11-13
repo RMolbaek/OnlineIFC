@@ -34,11 +34,11 @@ import ifcopenshell.api
 
 targets = selection or model.by_type("IfcWall")
 for e in targets:
-    pset = ifcopenshell.util.element.get_pset(e, "OnlineIFC_Review")
+    pset = ifcopenshell.util.element.get_pset(e, "Vispecta_Review")
     if pset:
         pset = model.by_id(pset["id"])
     else:
-        pset = ifcopenshell.api.run("pset.add_pset", model, product=e, name="OnlineIFC_Review")
+        pset = ifcopenshell.api.run("pset.add_pset", model, product=e, name="Vispecta_Review")
     ifcopenshell.api.run("pset.edit_pset", model, pset=pset, properties={
         "Status": "Checked",
         "Checked": True,
