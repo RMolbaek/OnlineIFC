@@ -1817,7 +1817,7 @@ function stationRow(p) {
 }
 
 // ------------------------------------------------------------------ drawn lines
-// Lines drawn by the user work like alignments (station 0 at the first point): long profiles,
+// Lines drawn by the user work like alignments (station 0 at the first point): longitudinal profiles,
 // cross sections at a station and driving along them.
 const drawnPaths = [];
 function makePath(name, pts) {
@@ -1889,7 +1889,7 @@ function removeDrawnPath(path) {
 
 viewer.container.addEventListener('dblclick', () => { if (lineTool.active) finishLineTool(true); });
 
-// ------------------------------------------------------------------ long profile
+// ------------------------------------------------------------------ longitudinal profile
 let profileResult = null; // {section, info, opts}
 
 /** Station of a path as text (km+m for alignments, metres along for drawn lines too). */

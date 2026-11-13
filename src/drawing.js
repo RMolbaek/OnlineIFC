@@ -304,12 +304,12 @@ function annotationMarks(section, lay) {
 
 export const AXIS_COLOR = '#C8372D';
 
-// ----------------------------------------------------------- long profile
+// ----------------------------------------------------------- longitudinal profile
 const niceStep = (range, maxCount, steps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]) =>
   steps.find((x) => range / x <= maxCount) || steps[steps.length - 1];
 
 /**
- * Long profile along a path (an alignment or a drawn line): the visible elements are cut with
+ * Longitudinal profile along a path (an alignment or a drawn line): the visible elements are cut with
  * the vertical surface that follows the path, and unrolled. Drawing coordinates: x = station,
  * y = height × exag. path: {poly: [[x, y]] (IFC), cum, length, station0, name}; heightOf(s) gives
  * the profile line of the path (or null). opts: {from, to (distance along), exag, fmt(station)}.
