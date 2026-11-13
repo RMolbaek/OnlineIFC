@@ -620,6 +620,18 @@ export class Viewer extends EventTarget {
 
   setSectionFill(v) { this.sectionFillOn = v; this.#updateClipping(); }
 
+  /** Hatching of the cut faces (on by default). */
+  setSectionHatch(v) {
+    this.sectionHatchOn = v;
+    sectionFill.hatch.value = v ? 1 : 0;
+    const r = this.renderer.getPixelRatio();
+    sectionFill.hatchSize.value.set(Math.round(8 * r), Math.max(1, Math.round(1.6 * r)));
+    this.invalidate();
+  }
+
+  /** The plane shown in the section window: its helper is drawn stronger, in the accent colour. */
+  setPlaneHighlight(entry) { this.highlightPlane = entry || null; for (const p of this.planes) this.#updateHelper(p); this.invalidate(); }
+
   setHelpersVisible(v) { this.showPlaneHelpers = v; this.#updateClipping(); }
 
   #updateClipping() {
@@ -643,6 +655,11 @@ export class Viewer extends EventTarget {
       this.helpers.add(mesh);
     }
     const h = entry.helper;
+    const hi = entry === this.highlightPlane;
+    h.material.color.setHex(hi ? 0x0e8c84 : 0x3aa0ff);
+    h.material.opacity = hi ? 0.16 : 0.08;
+    h.children[0].material.color.setHex(hi ? 0x0e8c84 : 0x3aa0ff);
+    h.children[0].material.opacity = hi ? 1 : 0.6;
     h.visible = this.showPlaneHelpers && entry.enabled && !entry.boxPart;
     const box = this.sceneBox();
     const size = box.isEmpty() ? 10 : box.getSize(new THREE.Vector3()).length() * 0.8;

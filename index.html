@@ -50,7 +50,16 @@
           <button class="menu-item" data-action="toggle-ortho"><span class="mi-icon mi-check" id="ortho-check">☐</span><span class="mi-text"><b data-i18n="mi.ortho"></b><small data-i18n="mi.orthoDesc"></small></span><kbd>O</kbd></button>
           <button class="menu-item" data-action="walk"><span class="mi-icon"><svg viewBox="0 0 24 24"><circle cx="13" cy="4" r="2"/><path d="M10 21l2-6 3 3v3M8 12l3-4 4 2 3 3M11 8l-1 5"/></svg></span><span class="mi-text"><b data-i18n="mi.walk"></b><small data-i18n="mi.walkDesc"></small></span><kbd>W</kbd></button>
           <div class="menu-sep"></div>
-          <div class="menu-head" data-i18n="mi.storeys"></div>
+          <div class="menu-head" data-i18n="cs.title"></div>
+          <div id="color-style-items"></div>
+        </div>
+      </div>
+
+      <div class="menu" id="storey-menu" hidden>
+        <button class="menu-btn" data-menu="storeys" data-i18n-title="sto.title">
+          <svg viewBox="0 0 24 24"><path d="M3 20h18M5 20V9h14v11M5 14.5h14M8 9V5h8v4"/></svg><span data-i18n="mi.storeys"></span><span class="menu-badge wide" id="storey-badge" hidden></span><span class="caret-down">▾</span>
+        </button>
+        <div class="menu-pop storey-pop" data-pop="storeys" hidden>
           <div id="storey-items"></div>
         </div>
       </div>
@@ -66,6 +75,8 @@
           <button class="menu-item" data-action="plane-face"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 18 10 6h10l-6 12zM12 12l-4 8"/></svg></span><span class="mi-text"><b data-i18n="mi.face"></b><small data-i18n="mi.faceDesc"></small></span></button>
           <button class="menu-item" data-action="section-box"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 8l8-4 8 4v8l-8 4-8-4zM4 8l8 4 8-4M12 12v8"/></svg></span><span class="mi-text"><b data-i18n="mi.box"></b><small data-i18n="mi.boxDesc"></small></span></button>
           <button class="menu-item" data-action="plane-station"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M3 18c5-1 8-6 18-12M12 5v14M9 12h6"/></svg></span><span class="mi-text"><b data-i18n="st.menu"></b><small data-i18n="st.menuDesc"></small></span></button>
+          <div class="menu-sep"></div>
+          <button class="menu-item" data-action="sv-auto"><span class="mi-icon mi-check" id="sv-auto-check">☐</span><span class="mi-text"><b data-i18n="sv.auto"></b><small data-i18n="sv.autoDesc"></small></span></button>
           <div class="menu-sep"></div>
           <button class="menu-item" data-action="drawing"><span class="mi-icon"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 15h16M9 15v5"/></svg></span><span class="mi-text"><b data-i18n="mi.drawing"></b><small data-i18n="mi.drawingDesc"></small></span></button>
           <div class="menu-sep"></div>
@@ -259,6 +270,7 @@
             </div>
             <div class="planes-opts">
               <label class="chk"><input type="checkbox" id="plane-fill" checked /> <span data-i18n="planes.fill"></span></label>
+              <label class="chk"><input type="checkbox" id="plane-hatch" checked /> <span data-i18n="planes.hatch"></span></label>
               <label class="chk"><input type="checkbox" id="plane-helpers" checked /> <span data-i18n="planes.helpers"></span></label>
               <label class="planes-step" data-i18n-title="planes.stepHint"><span data-i18n="planes.step"></span>
                 <input type="number" id="plane-step" min="0.001" step="any" value="1" /> m</label>

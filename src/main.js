@@ -18,7 +18,7 @@ import '@fontsource/jetbrains-mono/latin-ext-500.css';
 // OnlineIFC – user interface.
 import { Viewer } from './viewer.js';
 import { loadIfcFile } from './ifc.js';
-import { isSpatialType, KIND_TYPES } from './model.js';
+import { isSpatialType, KIND_TYPES, COLOR_STYLES, colorStyle } from './model.js';
 import { t, getLang, setLang, applyStaticTranslations, fmtNum } from './i18n.js';
 import { PythonPanel } from './scripting.js';
 import { MeasureTool } from './measure.js';
@@ -295,6 +295,8 @@ function afterModelsChanged() {
   if (!viewer.models.length) renderRecentProjects();
   renderProjectBar();
   if (!viewer.models.length && mapLayer.visible) { mapLayer.remove(); updateMapUi(); }
+  if (state.storey && !viewer.models.includes(state.storey.model)) state.storey = null;
+  updateStoreyMenu();
   renderAll();
 }
 
@@ -438,8 +440,9 @@ viewer.addEventListener('pick', ({ hit, originalEvent: e }) => {
     if (hit?.normal) {
       // Put the plane 2 cm behind the face so the cut becomes visible.
       const n = hit.normal.clone().normalize();
-      viewer.addPlane('custom', { normal: n, point: hit.point.clone().addScaledVector(n, -0.02) });
+      const p = viewer.addPlane('custom', { normal: n, point: hit.point.clone().addScaledVector(n, -0.02) });
       renderPlanes();
+      autoSecView(p);
     }
     setPickPlaneMode(false);
     return;
@@ -504,8 +507,9 @@ document.addEventListener('click', (e) => {
   if (btn.dataset.view) return viewer.setView(btn.dataset.view);
   if (btn.dataset.plane) {
     if (!viewer.models.length) return toast(t('msg.loadFirst'));
-    viewer.addPlane(btn.dataset.plane);
-    return renderPlanes();
+    const p = viewer.addPlane(btn.dataset.plane);
+    renderPlanes();
+    return autoSecView(p);
   }
   const actions = {
     'plane-station': () => addStationPlane(),
@@ -604,8 +608,10 @@ document.addEventListener('click', (e) => {
     'color-by-model': () => {
       viewer.models.forEach((m, i) => m.setColor(PALETTE[i % PALETTE.length]));
       renderModels();
+      projects.touch?.();
     },
-    'reset-colors': () => { for (const m of viewer.models) m.setColor(null); renderModels(); },
+    'reset-colors': () => { for (const m of viewer.models) m.setColor(null); renderModels(); projects.touch?.(); },
+    'sv-auto': () => setSvAuto(!svAuto),
   };
   actions[btn.dataset.action]?.();
 });
@@ -616,7 +622,8 @@ function toggleMenu(btn) {
   const open = pop.hidden;
   closeMenus();
   if (!open) return;
-  if (pop.dataset.pop === 'view') renderStoreyItems();
+  if (pop.dataset.pop === 'view') renderColorStyles();
+  if (pop.dataset.pop === 'storeys') renderStoreyItems();
   const r = btn.getBoundingClientRect();
   pop.hidden = false;
   pop.style.top = `${r.bottom + 4}px`;
@@ -872,9 +879,13 @@ function groupSection(g, models) {
 function modelCard(m) {
   const open = m.cardOpen ?? viewer.models.length <= 2;
   const colorInput = h('input', { type: 'color', value: m.overrideColor ? `#${m.overrideColor.getHexString()}` : '#b0b0b0', title: t('models.color') });
-  const dot = h('span', { class: 'swatch-dot' });
+  // the colour dot in the head is a colour picker too: click it to choose the model colour
+  const dotInput = h('input', { type: 'color', value: colorInput.value, tabindex: '-1' });
+  const dot = h('label', { class: 'swatch-dot', title: t('models.colorPick') }, dotInput);
   dot.style.background = m.overrideColor ? `#${m.overrideColor.getHexString()}` : 'conic-gradient(#e15759, #edc948, #59a14f, #4e79a7, #e15759)';
-  colorInput.addEventListener('input', () => { m.setColor(colorInput.value); dot.style.background = colorInput.value; });
+  const pickColor = (v) => { m.setColor(v); dot.style.background = v; colorInput.value = v; dotInput.value = v; projects.touch?.(); };
+  colorInput.addEventListener('input', () => pickColor(colorInput.value));
+  dotInput.addEventListener('input', () => pickColor(dotInput.value));
 
   const opacity = h('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: String(m.opacity) });
   const opVal = h('span', { class: 'muted', text: `${Math.round(m.opacity * 100)} %` });
@@ -916,7 +927,7 @@ function modelCard(m) {
       h('div', { class: 'card-meta', text: `${fmtBytes(m.fileSize)}` }),
       changes,
       h('div', { class: 'card-row' }, h('label', { text: t('models.color') }), colorInput,
-        h('button', { class: 'btn xs', onclick: () => { m.setColor(null); renderModels(); }, text: t('models.original') })),
+        h('button', { class: 'btn xs', onclick: () => { m.setColor(null); renderModels(); projects.touch?.(); }, text: t('models.original') })),
       h('div', { class: 'card-row' }, h('label', { text: t('models.transparency') }), opacity, opVal),
       h('div', { class: 'card-row' }, h('label', { text: t('mg.group') }), groupSel),
       h('div', { class: 'card-btns' },
@@ -937,7 +948,7 @@ function modelCard(m) {
         }))) : null);
   // drag the card onto a group (not when the drag starts in a field)
   card.addEventListener('dragstart', (e) => {
-    if (e.target.closest?.('input, select, button') && e.target !== card) { e.preventDefault(); return; }
+    if (e.target.closest?.('input, select, button, .swatch-dot') && e.target !== card) { e.preventDefault(); return; }
     dragModel = m;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', m.name);
@@ -1558,6 +1569,7 @@ function addStationPlane() {
   const entry = viewer.addPlane('custom', { normal: T.clone().negate(), point: P });
   setStationPlane(entry, best.al, best.r.s, 1);
   renderPlanes();
+  autoSecView(entry);
   setTimeout(() => $('.plane-row.station:last-child .val input')?.select(), 0);
 }
 
@@ -1610,7 +1622,7 @@ viewer.addEventListener('planeschanged', () => {
 
 // window with the live cut of one plane, to step through the sections next to the 3D view
 let secViewer = null;
-function openSecView(p) {
+function openSecView(p, { popOut = svAuto } = {}) {
   secViewer ||= new SectionViewer({
     t, h, toast,
     container: $('#viewport'),
@@ -1640,9 +1652,68 @@ function openSecView(p) {
     getStep: () => planeStep(),
     setStep: (v) => { $('#plane-step').value = String(v); $('#plane-step').dispatchEvent(new Event('change')); },
     colors: () => ({ colors: 'shown', fill: true }),
+    keyPlan: (pl) => keyPlan(pl),
+    hatch: () => $('#plane-hatch').checked,
+    onClose: () => viewer.setPlaneHighlight(null),
+    onPlane: (pl) => viewer.setPlaneHighlight(pl),
   });
   secViewer.open(p);
+  if (popOut && !secViewer.win) secViewer.popOut();
+  viewer.setPlaneHighlight(p);
 }
+
+/**
+ * Key plan of a section plane, in IFC plan coordinates (metres): outlines of the visible models,
+ * the alignments and the cut line with the view direction.
+ */
+function keyPlan(pl) {
+  const boxes = [];
+  for (const m of viewer.models.filter((x) => x.visible)) {
+    const b = m.getBox();
+    if (b.isEmpty()) continue;
+    const xs = [], ys = [];
+    for (const x of [b.min.x, b.max.x]) for (const z of [b.min.z, b.max.z]) { const q = viewer.toIfc(new THREE.Vector3(x, b.min.y, z)); xs.push(q.x); ys.push(q.y); }
+    boxes.push([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)]);
+  }
+  const lines = allAlignments().map((al) => al.poly.map((q) => [q[0], q[1]]));
+  // size of the key plan: the cut line is drawn in proportion to it
+  const xs = [], ys = [];
+  for (const b of boxes) xs.push(b[0], b[2]), ys.push(b[1], b[3]);
+  for (const l of lines) for (const q of l) xs.push(q[0]), ys.push(q[1]);
+  const D = xs.length ? Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) : 20;
+  let cut = null, note = null;
+  if (pl.station) {
+    const mk = stationMark(pl);
+    const half = Math.max(mk.half, 0.12 * D);
+    const dx = (mk.A[0] - mk.mid[0]) / mk.half, dy = (mk.A[1] - mk.mid[1]) / mk.half;
+    cut = { A: [mk.mid[0] + dx * half, mk.mid[1] + dy * half], B: [mk.mid[0] - dx * half, mk.mid[1] - dy * half], v: mk.v, letter: mk.letter };
+  } else if (Math.abs(pl.plane.normal.y) > 0.9) {
+    note = `${t('mi.plan')} ${viewer.getPlanePos(pl).toFixed(2)} m`;
+  } else {
+    const box = viewer.sceneBox();
+    const c = box.getCenter(new THREE.Vector3());
+    const P = pl.plane.projectPoint(c, new THREE.Vector3());
+    const P0 = viewer.toIfc(P), P1 = viewer.toIfc(P.clone().add(pl.plane.normal));
+    let nx = P1.x - P0.x, ny = P1.y - P0.y;
+    const len = Math.hypot(nx, ny) || 1;
+    nx /= len; ny /= len;
+    const half = 0.6 * D;
+    cut = { A: [P0.x + ny * half, P0.y - nx * half], B: [P0.x - ny * half, P0.y + nx * half], v: [nx, ny], letter: '' };
+  }
+  return { boxes, lines, cut, note };
+}
+
+/** "Open sections in a window of their own": new section planes open the section window, popped out. */
+let svAuto = false;
+try { svAuto = localStorage.getItem('onlineifc.svAuto') === '1'; } catch { /* ignore */ }
+function setSvAuto(on) {
+  svAuto = on;
+  try { localStorage.setItem('onlineifc.svAuto', on ? '1' : ''); } catch { /* ignore */ }
+  $('#sv-auto-check').textContent = on ? '☑' : '☐';
+  if (on) toast(t('sv.autoOn'), true);
+}
+$('#sv-auto-check').textContent = svAuto ? '☑' : '☐';
+function autoSecView(p) { if (svAuto && p && !p.boxPart) openSecView(p, { popOut: true }); }
 
 /** Drawing marks of the station planes for a plan drawing (classic section marks A–A). */
 function planSectionMarks() {
@@ -2094,6 +2165,14 @@ $('#plane-step').addEventListener('change', () => {
 });
 $('#plane-helpers').addEventListener('change', (e) => viewer.setHelpersVisible(e.target.checked));
 $('#plane-fill').addEventListener('change', (e) => viewer.setSectionFill(e.target.checked));
+// hatching of the cut faces: on by default, remembered
+try { if (localStorage.getItem('onlineifc.hatch') === '0') $('#plane-hatch').checked = false; } catch { /* ignore */ }
+viewer.setSectionHatch($('#plane-hatch').checked);
+$('#plane-hatch').addEventListener('change', (e) => {
+  viewer.setSectionHatch(e.target.checked);
+  secViewer?.render();
+  try { localStorage.setItem('onlineifc.hatch', e.target.checked ? '1' : '0'); } catch { /* ignore */ }
+});
 
 // ====================================================================== measure
 let lastMeasureMode = 'distance';
@@ -2216,7 +2295,7 @@ const projects = new ProjectManager({
   getExtra: () => ({
     lines: drawnPaths.map((p) => ({ name: p.name, pts: p.poly.map((q, k) => [q[0], q[1], p.zs[k]]) })),
     groups: state.modelGroups.map(({ id, name, visible, open }) => ({ id, name, visible, open })),
-    models: viewer.models.map((m) => ({ key: projects.keys.get(m) || null, name: m.name, alias: m.alias || null, group: m.groupId || null })),
+    models: viewer.models.map((m) => ({ key: projects.keys.get(m) || null, name: m.name, alias: m.alias || null, group: m.groupId || null, color: m.overrideColor ? `#${m.overrideColor.getHexString()}` : null })),
   }),
   setExtra: (x) => {
     drawnPaths.length = 0;
@@ -2226,6 +2305,7 @@ const projects = new ProjectManager({
       const info = (x?.models || []).find((i) => (i.key && i.key === projects.keys.get(m)) || i.name === m.name);
       m.alias = info?.alias || null;
       m.groupId = info?.group || null;
+      if (info && 'color' in info) m.setColor(info.color || null);
       const g = groupOf(m);
       m.setGroupHidden(g ? !g.visible : false);
     }
@@ -2305,32 +2385,71 @@ function allStoreys() {
   return out.sort((a, b) => (a.elevation ?? 0) - (b.elevation ?? 0));
 }
 
+/**
+ * The storey menu: one list per model (the model's name as heading when several models have
+ * storeys), highest storey first, the elevation to the right. Above it: show all, step up / down
+ * and the plan cut switch.
+ */
 function renderStoreyItems() {
   const box = $('#storey-items');
-  const list = allStoreys();
-  const multi = viewer.models.length > 1;
-  const item = (label, sub, onclick, active = false) => {
-    const b = h('button', { class: `menu-item small-item${active ? ' active' : ''}` },
-      h('span', { class: 'mi-icon', text: active ? '●' : '' }),
-      h('span', { class: 'mi-text' }, h('b', { text: label }), sub ? h('small', { text: sub }) : null));
-    b.addEventListener('click', () => { closeMenus(); onclick(); });
+  const list = allStoreys().filter((st) => st.model.visible);
+  const isActive = (st) => state.storey?.id === st.id && state.storey?.model === st.model;
+  const elev = (v) => (v === null ? '–' : `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(2).replace('.', ['da', 'de'].includes(getLang()) ? ',' : '.')}`);
+  const row = (st) => {
+    const b = h('button', { class: `sto-row${isActive(st) ? ' active' : ''}`, title: `${st.name}${st.elevation !== null ? ` · ${elev(st.elevation)} m` : ''}` },
+      h('span', { class: 'sto-dot' }), h('span', { class: 'sto-name', text: st.name }), h('span', { class: 'sto-elev', text: elev(st.elevation) }));
+    b.addEventListener('click', () => { closeMenus(); showStorey(st); });
     return b;
   };
-  const items = [];
-  if (!list.length) items.push(h('div', { class: 'menu-empty', text: t('mi.noStoreys') }));
-  else {
-    items.push(item(t('mi.allStoreys'), null, () => showStorey(null), !state.storey));
-    for (const st of [...list].reverse()) {
-      const sub = [st.elevation !== null ? `${st.elevation >= 0 ? '+' : ''}${st.elevation.toFixed(2)} m` : null, multi ? st.model.name : null].filter(Boolean).join(' · ');
-      items.push(item(st.name, sub, () => showStorey(st), state.storey?.id === st.id && state.storey?.model === st.model));
-    }
-    const cut = h('button', { class: 'menu-item small-item' }, h('span', { class: 'mi-icon mi-check', text: state.storeyCut ? '☑' : '☐' }),
-      h('span', { class: 'mi-text' }, h('b', { text: t('mi.storeyCut') }), h('small', { text: t('mi.storeyCutDesc') })));
-    cut.addEventListener('click', (e) => { e.stopPropagation(); state.storeyCut = !state.storeyCut; renderStoreyItems(); if (state.storey) showStorey(state.storey); });
-    items.push(cut);
-  }
-  box.replaceChildren(...items);
+  if (!list.length) { box.replaceChildren(h('div', { class: 'menu-empty', text: t('mi.noStoreys') })); return; }
+
+  const stepBtn = (text, title, dir) => h('button', { class: 'btn xs', text, title, onclick: (e) => { e.stopPropagation(); stepStorey(dir); renderStoreyItems(); } });
+  const cut = h('label', { class: 'sto-cut', title: t('mi.storeyCutDesc') },
+    h('input', { type: 'checkbox', checked: state.storeyCut, onchange: (e) => { state.storeyCut = e.target.checked; if (state.storey) showStorey(state.storey); } }),
+    h('span', { text: t('mi.storeyCut') }));
+  const head = h('div', { class: 'sto-head' },
+    h('button', { class: `btn xs${state.storey ? '' : ' active'}`, text: t('mi.allStoreys'), onclick: () => { closeMenus(); showStorey(null); } }),
+    h('span', { class: 'spacer' }),
+    stepBtn('▲', t('sto.up'), 1), stepBtn('▼', t('sto.down'), -1), cut);
+
+  const byModel = new Map();
+  for (const st of list) { if (!byModel.has(st.model)) byModel.set(st.model, []); byModel.get(st.model).push(st); }
+  const multi = byModel.size > 1;
+  const groups = [...byModel].map(([m, sts]) => h('div', { class: 'sto-group' },
+    multi ? h('div', { class: 'sto-model', title: m.name }, h('span', { text: m.displayName }), h('small', { text: String(sts.length) })) : null,
+    [...sts].reverse().map(row)));
+  box.replaceChildren(head, h('div', { class: 'sto-list' }, groups), h('div', { class: 'sto-foot', text: t('sto.hint') }));
 }
+
+/** The storey menu is shown when the visible models have storeys; its badge names the shown storey. */
+function updateStoreyMenu() {
+  const any = viewer.models.some((m) => m.visible) && allStoreys().some((st) => st.model.visible);
+  $('#storey-menu').hidden = !any;
+  const badge = $('#storey-badge');
+  badge.hidden = !state.storey;
+  if (state.storey) badge.textContent = state.storey.model.label(state.storey.id);
+}
+
+/** Colour styles for the original colours (View menu). */
+function renderColorStyles() {
+  const box = $('#color-style-items');
+  box.replaceChildren(...Object.keys(COLOR_STYLES).map((name) => {
+    const on = colorStyle.name === name;
+    const b = h('button', { class: `menu-item small-item${on ? ' active' : ''}` },
+      h('span', { class: `mi-icon cs-swatch cs-${name}` }),
+      h('span', { class: 'mi-text' }, h('b', { text: t(`cs.${name}`) }), h('small', { text: t(`cs.${name}Desc`) })),
+      on ? h('span', { class: 'mi-tick', text: '✓' }) : null);
+    b.addEventListener('click', (e) => { e.stopPropagation(); setColorStyle(name); renderColorStyles(); });
+    return b;
+  }));
+}
+function setColorStyle(name) {
+  colorStyle.name = COLOR_STYLES[name] !== undefined ? name : 'original';
+  for (const m of viewer.models) m.refreshColors();
+  viewer.invalidate?.();
+  try { localStorage.setItem('onlineifc.colorStyle', colorStyle.name); } catch { /* ignore */ }
+}
+try { const v = localStorage.getItem('onlineifc.colorStyle'); if (v && v in COLOR_STYLES) colorStyle.name = v; } catch { /* ignore */ }
 
 let storeyPlane = null;
 function showStorey(st) {
@@ -2339,6 +2458,7 @@ function showStorey(st) {
   if (!st) {
     showAll();
     renderPlanes();
+    updateStoreyMenu();
     return;
   }
   const ids = descendantIds(st.model, st.node);
@@ -2350,6 +2470,7 @@ function showStorey(st) {
   }
   refreshVisibilityUi();
   renderPlanes();
+  updateStoreyMenu();
   const b = st.model.getBox(ids);
   if (!b.isEmpty()) viewer.fitBox(b);
   toast(t('msg.storeyShown', { name: st.name }), true);

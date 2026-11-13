@@ -9,21 +9,62 @@ let nextUid = 1;
 const XRAY_OPACITY = 0.12;
 const PICK_MATERIAL = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide });
 
-/** Delte uniforms: når et snit er aktivt, farves bagsider (= indersiden af snitflader). */
+/**
+ * Shared uniforms: while a section is active, back faces (= the inside of cut solids) are drawn
+ * as a flat cut face in a darker tone of the element colour, optionally with diagonal hatching.
+ */
 export const sectionFill = {
   active: { value: 0 },
-  color: { value: new THREE.Color(0xd8443c) },
+  hatch: { value: 1 },
+  // spacing and line width of the hatching in device pixels
+  hatchSize: { value: new THREE.Vector2(9, 2) },
 };
+
+/**
+ * Colour styles for the original colours: the file colours, toned for a calmer or clearer picture.
+ * sat: saturation factor, mix/to: blend towards a colour, light: lightness shift.
+ */
+export const COLOR_STYLES = {
+  original: null,
+  muted: { sat: 0.55, mix: 0.18, to: 0xd9d6cf, light: 0.02 },
+  pastel: { sat: 0.7, mix: 0.45, to: 0xffffff, light: 0.04 },
+  light: { sat: 0.25, mix: 0.7, to: 0xeceae6, light: 0 },
+  vivid: { sat: 1.45, mix: 0, to: 0xffffff, light: -0.03 },
+};
+export const colorStyle = { name: 'original' };
+const tmpHsl = { h: 0, s: 0, l: 0 };
+const styleCache = new Map();
+/** The colour shown for a file colour in the current style. */
+export function styledColor(c) {
+  const st = COLOR_STYLES[colorStyle.name];
+  if (!st) return c;
+  const key = `${colorStyle.name}|${c.getHex()}`;
+  let out = styleCache.get(key);
+  if (!out) {
+    out = c.clone();
+    out.getHSL(tmpHsl);
+    out.setHSL(tmpHsl.h, Math.min(1, tmpHsl.s * st.sat), Math.min(1, Math.max(0, tmpHsl.l + st.light)));
+    if (st.mix) out.lerp(new THREE.Color(st.to), st.mix);
+    styleCache.set(key, out);
+  }
+  return out;
+}
 
 function installSectionFill(material) {
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uSectionActive = sectionFill.active;
-    shader.uniforms.uSectionColor = sectionFill.color;
+    shader.uniforms.uSectionHatch = sectionFill.hatch;
+    shader.uniforms.uHatchSize = sectionFill.hatchSize;
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform float uSectionActive;\nuniform vec3 uSectionColor;')
-      .replace('#include <color_fragment>', '#include <color_fragment>\nif (uSectionActive > 0.5 && !gl_FrontFacing) diffuseColor.rgb = uSectionColor;');
+      .replace('#include <common>', '#include <common>\nuniform float uSectionActive;\nuniform float uSectionHatch;\nuniform vec2 uHatchSize;')
+      .replace('#include <opaque_fragment>', `if (uSectionActive > 0.5 && !gl_FrontFacing) {
+  vec3 cutCol = diffuseColor.rgb * 0.72;
+  if (uSectionHatch > 0.5 && mod(gl_FragCoord.x + gl_FragCoord.y, uHatchSize.x) < uHatchSize.y) cutCol = diffuseColor.rgb * 0.34;
+  outgoingLight = cutCol;
+}
+#include <opaque_fragment>`);
   };
-  material.customProgramCacheKey = () => 'ifc-section';
+  material.customProgramCacheKey = () => 'ifc-section-2';
 }
 
 export class IfcModel {
@@ -96,7 +137,7 @@ export class IfcModel {
   // ------------------------------------------------------------------ udseende
   #applyMaterial(b) {
     const m = b.material;
-    m.color.copy(this.overrideColor || b.color);
+    m.color.copy(this.overrideColor || styledColor(b.color));
     const op = b.opacity * this.opacity * (this.xrayKeep ? XRAY_OPACITY : 1);
     const transparent = op < 0.999;
     if (m.transparent !== transparent) m.needsUpdate = true;
@@ -110,6 +151,9 @@ export class IfcModel {
     this.overrideColor = color ? new THREE.Color(color) : null;
     for (const b of this.buckets) this.#applyMaterial(b);
   }
+
+  /** Re-applies the colours (after the colour style changed). */
+  refreshColors() { for (const b of this.buckets) this.#applyMaterial(b); }
 
   setOpacity(op) {
     this.opacity = op;
@@ -228,7 +272,7 @@ export class IfcModel {
     const m = f.material;
     const { fadeOpacity, fadeColor } = f.userData;
     if (fadeColor !== undefined) m.color.setHex(fadeColor);
-    else m.color.copy(this.overrideColor || b.color);
+    else m.color.copy(this.overrideColor || styledColor(b.color));
     // A colour override makes the element opaque unless it has its own transparency
     const base = fadeColor !== undefined ? this.opacity : b.opacity * this.opacity;
     const op = base * fadeOpacity;

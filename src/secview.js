@@ -20,6 +20,7 @@ export class SectionViewer {
     this.view = null; // {x, y, w, h} viewBox in drawing metres (y flipped)
     this.win = null;
     try { this.showPoints = localStorage.getItem('onlineifc.sv.points') === '1'; } catch { this.showPoints = false; }
+    try { this.showKey = localStorage.getItem('onlineifc.sv.key') !== '0'; } catch { this.showKey = true; }
     this.busy = false;
     this.pending = false;
     this.#build();
@@ -42,12 +43,15 @@ export class SectionViewer {
         btn('⤢', t('sv.fit'), () => { this.fit(); this.render(); }),
         btn('⟳', t('sv.refresh'), () => this.update()),
         this.ptsBtn = btn('⌖', t('sv.points'), () => { this.showPoints = !this.showPoints; try { localStorage.setItem('onlineifc.sv.points', this.showPoints ? '1' : ''); } catch { /* ignore */ } this.update(); }),
+        this.keyBtn = btn('▦', t('sv.keyPlan'), () => { this.showKey = !this.showKey; try { localStorage.setItem('onlineifc.sv.key', this.showKey ? '1' : '0'); } catch { /* ignore */ } this.renderKey(); }),
         this.popBtn,
         btn('✕', t('common.close'), () => this.close())));
     this.svg = document.createElementNS(SVG, 'svg');
     this.svg.setAttribute('class', 'sv-svg');
     this.body = h('div', { class: 'sv-body' });
-    this.body.append(this.svg);
+    this.keySvg = document.createElementNS(SVG, 'svg');
+    this.keySvg.setAttribute('class', 'sv-key');
+    this.body.append(this.svg, this.keySvg);
     this.coord = h('span', { class: 'sv-coord' });
     this.info = h('span', { class: 'sv-info' });
     this.el = h('div', { class: 'secview', tabindex: '0' }, this.head, this.body, h('div', { class: 'sv-foot' }, this.coord, this.info));
@@ -109,6 +113,7 @@ export class SectionViewer {
   open(plane) {
     const fresh = plane !== this.plane;
     this.plane = plane;
+    this.ctx.onPlane?.(plane);
     this.el.hidden = false;
     if (fresh) this.view = null;
     this.update();
@@ -121,6 +126,7 @@ export class SectionViewer {
     this.el.hidden = true;
     this.plane = null;
     this.section = null;
+    this.ctx.onClose?.();
   }
 
   step(dir) { if (this.plane) this.ctx.step(this.plane, dir); }
@@ -133,6 +139,7 @@ export class SectionViewer {
       if (!next) return this.close();
       this.plane = next;
       this.view = null;
+      this.ctx.onPlane?.(next);
     }
     this.update();
   }
@@ -140,9 +147,11 @@ export class SectionViewer {
   update() {
     if (!this.plane) return;
     this.#updateHead();
+    this.renderKey();
     if (this.busy) { this.pending = true; return; }
     this.busy = true;
     setTimeout(() => {
+      if (!this.plane) { this.busy = false; this.pending = false; return; }
       try {
         const t0 = performance.now();
         this.section = this.ctx.compute(this.plane, this.showPoints);
@@ -220,8 +229,19 @@ export class SectionViewer {
     svg.append(g);
     const sec = this.section;
     if (sec) {
+      // hatching of the cut faces, like in the 3D view: dark diagonal lines a few pixels apart
+      const hatch = this.ctx.hatch?.() !== false;
+      if (hatch) {
+        const sz = 7 * px;
+        const pat = mk('pattern', { id: 'sv-hatch', patternUnits: 'userSpaceOnUse', width: sz, height: sz, patternTransform: 'rotate(45)' });
+        pat.append(mk('rect', { x: 0, y: 0, width: 1.3 * px, height: sz, fill: '#000', 'fill-opacity': 0.42, stroke: 'none' }));
+        const defs = mk('defs', {});
+        defs.append(pat);
+        svg.append(defs);
+      }
       for (const p of sectionPaths(sec, this.ctx.colors())) {
         svg.append(mk('path', { d: p.d, fill: p.fill, stroke: p.stroke, 'stroke-width': 1.2, 'fill-rule': 'evenodd', 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round' }));
+        if (hatch && p.fill && p.fill !== 'none') svg.append(mk('path', { d: p.d, fill: 'url(#sv-hatch)', stroke: 'none', 'fill-rule': 'evenodd' }));
       }
       // marks: the alignment axis
       for (const m of sec.marks || []) {
@@ -252,6 +272,58 @@ export class SectionViewer {
     for (const L of sec?.layers?.values() || []) n += L.elements;
     this.info.textContent = sec ? this.ctx.t('sv.info', { n, ms: this.ms ?? 0 }) : '';
     if (sec && !n) this.info.textContent = this.ctx.t('drw.empty');
+  }
+
+  /**
+   * Key plan in the corner: the visible models (outlines), alignments and the cut line with its
+   * view direction, so it is clear where the section is taken.
+   */
+  renderKey() {
+    const svg = this.keySvg;
+    this.keyBtn.classList.toggle('on', !!this.showKey);
+    const k = this.showKey && this.plane ? this.ctx.keyPlan?.(this.plane) : null;
+    svg.style.display = k ? '' : 'none';
+    svg.replaceChildren();
+    if (!k) return;
+    const mk = (tag, attrs) => { const e = document.createElementNS(SVG, tag); for (const [a, val] of Object.entries(attrs)) e.setAttribute(a, val); return e; };
+    const xs = [], ys = [];
+    const add = (q) => { xs.push(q[0]); ys.push(q[1]); };
+    for (const b of k.boxes) { add([b[0], b[1]]); add([b[2], b[3]]); }
+    for (const l of k.lines) for (const q of l) add(q);
+    if (k.cut) { add(k.cut.A); add(k.cut.B); }
+    if (!xs.length) { svg.style.display = 'none'; return; }
+    let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const W = 180, H = 130;
+    let w = Math.max(x1 - x0, 1), hh = Math.max(y1 - y0, 1);
+    if (w / hh < W / H) w = hh * W / H; else hh = w * H / W;
+    const pad = 0.1 * w;
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    w += 2 * pad; hh += 2 * pad * H / W;
+    svg.setAttribute('viewBox', `${cx - w / 2} ${-cy - hh / 2} ${w} ${hh}`);
+    const u = w / W; // metres per pixel
+    const ns = { 'vector-effect': 'non-scaling-stroke' };
+    for (const b of k.boxes) svg.append(mk('rect', { x: b[0], y: -b[3], width: Math.max(b[2] - b[0], u), height: Math.max(b[3] - b[1], u), class: 'kp-box', ...ns }));
+    for (const l of k.lines) if (l.length > 1) svg.append(mk('path', { d: `M${l.map((q) => `${q[0]} ${-q[1]}`).join('L')}`, class: 'kp-line', ...ns }));
+    if (k.cut) {
+      const { A, B, v } = k.cut;
+      svg.append(mk('path', { d: `M${A[0]} ${-A[1]}L${B[0]} ${-B[1]}`, class: 'kp-cut', ...ns }));
+      // arrows at both ends in the view direction
+      const s = 9 * u, nx = v[0], ny = v[1], px = -ny, py = nx;
+      for (const E of [A, B]) {
+        const tip = [E[0] + nx * s * 1.6, E[1] + ny * s * 1.6];
+        svg.append(mk('path', { d: `M${E[0] + px * s * 0.55} ${-(E[1] + py * s * 0.55)}L${tip[0]} ${-tip[1]}L${E[0] - px * s * 0.55} ${-(E[1] - py * s * 0.55)}Z`, class: 'kp-arrow' }));
+        if (k.cut.letter) {
+          const tx = mk('text', { x: E[0] + nx * s * 2.8, y: -(E[1] + ny * s * 2.8) + 3.5 * u, 'font-size': 10 * u, 'text-anchor': 'middle', class: 'kp-letter' });
+          tx.textContent = k.cut.letter;
+          svg.append(tx);
+        }
+      }
+    }
+    if (k.note) {
+      const tx = mk('text', { x: cx - w / 2 + 5 * u, y: -cy + hh / 2 - 5 * u, 'font-size': 9.5 * u, class: 'kp-note' });
+      tx.textContent = k.note;
+      svg.append(tx);
+    }
   }
 
   /** Into a browser window of its own (e.g. a second screen). */
