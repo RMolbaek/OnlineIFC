@@ -22,7 +22,7 @@
   </head>
   <body>
     <header class="toolbar">
-      <div class="brand"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><circle class="mark-dot" cx="32" cy="14" r="6"/><path class="mark-line" d="M6 30H19L28 48H36L45 30H58"/></svg><span class="brand-name">Vispecta</span></div>
+      <div class="brand"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><circle class="mark-dot" cx="32" cy="14" r="6"/><path class="mark-line" d="M6 30H19L28 48H36L45 30H58"/></svg><span class="brand-name">Vispecta</span><button class="beta-badge" data-action="about" data-i18n-title="beta.title">Beta</button></div>
 
       <label class="btn primary" data-i18n-title="tb.openTitle">
         <input id="file-input" type="file" accept=".ifc,.IFC,.json,.bcf,.bcfzip,.ids" multiple hidden />
@@ -548,6 +548,7 @@
     <dialog id="about-dialog">
       <div class="about-mark"><svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><circle class="mark-dot" cx="32" cy="14" r="6"/><path class="mark-line" d="M6 30H19L28 48H36L45 30H58"/></svg></div>
       <h2 data-i18n="about.title"></h2>
+      <p class="about-beta"><span class="beta-badge static">Beta</span><span data-i18n="about.beta"></span></p>
       <p data-i18n="about.purpose"></p>
       <p data-i18n="about.private"></p>
       <p data-i18n="about.hobby"></p>

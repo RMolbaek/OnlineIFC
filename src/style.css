@@ -141,6 +141,16 @@ input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); margi
 .toolbar > * { flex-shrink: 0; }
 .brand { display: flex; align-items: center; gap: 7px; font-family: var(--display); font-weight: 600; font-size: 16px; margin-right: 8px; letter-spacing: -0.025em; }
 .brand .mark { width: 26px; height: 26px; }
+/* "Beta" next to the name: the app is published as a beta */
+.beta-badge {
+  font: 700 10px/1 var(--font); letter-spacing: 0.08em; text-transform: uppercase;
+  color: #3a1d00; background: var(--trace, #F08A24); border: 0; border-radius: 4px; padding: 3px 5px 2px;
+  margin-left: 1px; align-self: center; cursor: pointer; flex: none;
+}
+.beta-badge:hover { filter: brightness(1.08); }
+.beta-badge.static { cursor: default; margin: 0 8px 0 0; }
+.about-beta { display: flex; align-items: flex-start; gap: 0; padding: 8px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border); font-size: var(--fs-sm); }
+.about-beta .beta-badge { margin-top: 1px; }
 /* the mark: a cross section (the profile) and the point that looks at it */
 .mark { fill: none; }
 .mark-line { stroke: var(--mark-line); stroke-width: 4.8; stroke-linecap: round; stroke-linejoin: round; }
@@ -711,6 +721,7 @@ dialog .qto-table td:first-child { color: var(--text); }
 /* ============================================================ 10 small screens */
 @media (max-width: 1250px) {
   .brand { font-size: 0; gap: 0; margin-right: 4px; }
+  .brand .beta-badge { font-size: 9px; margin-left: 3px; padding: 2px 4px 1px; }
   .toolbar { gap: 2px; }
 }
 @media (max-width: 900px) {
