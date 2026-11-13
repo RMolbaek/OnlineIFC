@@ -238,5 +238,3 @@ In short (the licence text is what counts):
 - **Change it and share it**, as long as your version is also under the AGPL-3.0 with its full source code.
 - If you **run a changed version as a service** for others (e.g. on a website), its users must be able to get the source code too.
 - So nobody can take Vispecta, close it and sell it as their own product.
-
-Versions published before 13 November 2026 were under the MIT licence.
