@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ids:ids xmlns:ids="http://standards.buildingsmart.org/IDS" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.buildingsmart.org/IDS http://standards.buildingsmart.org/IDS/1.0/ids.xsd">
+  <ids:info>
+    <ids:title>Example 3 – Materials and classification</ids:title>
+    <ids:version>1.0</ids:version>
+    <ids:description>Load-bearing parts have a material, and building elements are classified (any classification system, e.g. CCI, Uniclass or SfB).</ids:description>
+    <ids:purpose>Example</ids:purpose>
+  </ids:info>
+  <ids:specifications>
+    <ids:specification name="Structural parts have a material" ifcVersion="IFC4" description="Walls, slabs, beams and columns have a material.">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCWALL"/><xs:enumeration value="IFCWALLSTANDARDCASE"/><xs:enumeration value="IFCSLAB"/><xs:enumeration value="IFCBEAM"/><xs:enumeration value="IFCCOLUMN"/></xs:restriction></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:material cardinality="required"/>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="Building elements are classified" ifcVersion="IFC4" description="Building elements have a classification reference (any system)." instructions="Add a classification code, e.g. from CCI or Uniclass.">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCWALL"/><xs:enumeration value="IFCWALLSTANDARDCASE"/><xs:enumeration value="IFCSLAB"/><xs:enumeration value="IFCBEAM"/><xs:enumeration value="IFCCOLUMN"/><xs:enumeration value="IFCDOOR"/><xs:enumeration value="IFCWINDOW"/><xs:enumeration value="IFCMEMBER"/><xs:enumeration value="IFCROOF"/><xs:enumeration value="IFCSTAIR"/><xs:enumeration value="IFCRAILING"/></xs:restriction></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:classification cardinality="required"><ids:system><xs:restriction base="xs:string"><xs:pattern value=".+"/></xs:restriction></ids:system></ids:classification>
+        </ids:requirements>
+    </ids:specification>
+  </ids:specifications>
+</ids:ids>

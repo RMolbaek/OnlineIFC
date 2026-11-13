@@ -27,19 +27,42 @@ export const sectionFill = {
 export const COLOR_STYLES = {
   original: null,
   muted: { sat: 0.55, mix: 0.18, to: 0xd9d6cf, light: 0.02 },
-  pastel: { sat: 0.7, mix: 0.45, to: 0xffffff, light: 0.04 },
+  cvd: { cvd: true },
   light: { sat: 0.25, mix: 0.7, to: 0xeceae6, light: 0 },
   vivid: { sat: 1.45, mix: 0, to: 0xffffff, light: -0.03 },
 };
 export const colorStyle = { name: 'original' };
 const tmpHsl = { h: 0, s: 0, l: 0 };
 const styleCache = new Map();
+/**
+ * Okabe–Ito: a palette whose colours stay apart with the common kinds of colour blindness
+ * (red–green: protan / deutan, and blue–yellow: tritan).
+ */
+export const OKABE_ITO = ['#0072B2', '#E69F00', '#009E73', '#D55E00', '#56B4E9', '#CC79A7', '#F0E442', '#000000'];
+// hue ranges (degrees) of the file colours -> Okabe–Ito colour
+const CVD_HUES = [[15, 0xd55e00], [40, 0xe69f00], [75, 0xf0e442], [175, 0x009e73], [215, 0x56b4e9], [265, 0x0072b2], [330, 0xcc79a7], [360, 0xd55e00]];
+
+/** Colour-blind friendly: a file colour snaps to the Okabe–Ito colour of its hue; greys stay grey. */
+function cvdColor(c) {
+  const out = c.clone();
+  out.getHSL(tmpHsl);
+  if (tmpHsl.s < 0.12) return out; // grey, white, black: unchanged
+  const deg = tmpHsl.h * 360;
+  const hex = CVD_HUES.find(([lim]) => deg < lim)[1];
+  const l = tmpHsl.l;
+  out.setHex(hex).getHSL(tmpHsl);
+  // keep a little of the original lightness, so elements of the same hue stay apart
+  out.setHSL(tmpHsl.h, tmpHsl.s, Math.min(0.92, Math.max(0.12, 0.7 * tmpHsl.l + 0.3 * l)));
+  return out;
+}
+
 /** The colour shown for a file colour in the current style. */
 export function styledColor(c) {
   const st = COLOR_STYLES[colorStyle.name];
   if (!st) return c;
   const key = `${colorStyle.name}|${c.getHex()}`;
   let out = styleCache.get(key);
+  if (!out && st.cvd) { out = cvdColor(c); styleCache.set(key, out); }
   if (!out) {
     out = c.clone();
     out.getHSL(tmpHsl);

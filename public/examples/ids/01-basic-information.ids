@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ids:ids xmlns:ids="http://standards.buildingsmart.org/IDS" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://standards.buildingsmart.org/IDS http://standards.buildingsmart.org/IDS/1.0/ids.xsd">
+  <ids:info>
+    <ids:title>Example 1 – Basic information</ids:title>
+    <ids:version>1.0</ids:version>
+    <ids:description>Every building element has a name and lies on a storey, and the model has no proxy elements. Try it on a building model, e.g. the FZK house.</ids:description>
+    <ids:purpose>Example</ids:purpose>
+  </ids:info>
+  <ids:specifications>
+    <ids:specification name="Building elements have a name" ifcVersion="IFC4" description="Walls, slabs, beams, columns, doors, windows, members, roofs, stairs and railings have a Name.">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCWALL"/><xs:enumeration value="IFCWALLSTANDARDCASE"/><xs:enumeration value="IFCSLAB"/><xs:enumeration value="IFCBEAM"/><xs:enumeration value="IFCCOLUMN"/><xs:enumeration value="IFCDOOR"/><xs:enumeration value="IFCWINDOW"/><xs:enumeration value="IFCMEMBER"/><xs:enumeration value="IFCROOF"/><xs:enumeration value="IFCSTAIR"/><xs:enumeration value="IFCRAILING"/></xs:restriction></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:attribute cardinality="required"><ids:name><ids:simpleValue>Name</ids:simpleValue></ids:name></ids:attribute>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="Building elements are on a storey" ifcVersion="IFC4" description="Walls, slabs, columns, doors and windows are contained in a storey (IfcBuildingStorey)." instructions="Assign the element to a storey in the authoring tool.">
+      <ids:applicability minOccurs="0" maxOccurs="unbounded">
+        <ids:entity><ids:name><xs:restriction base="xs:string"><xs:enumeration value="IFCWALL"/><xs:enumeration value="IFCWALLSTANDARDCASE"/><xs:enumeration value="IFCSLAB"/><xs:enumeration value="IFCCOLUMN"/><xs:enumeration value="IFCDOOR"/><xs:enumeration value="IFCWINDOW"/></xs:restriction></ids:name></ids:entity>
+      </ids:applicability>
+        <ids:requirements>
+          <ids:partOf relation="IFCRELCONTAINEDINSPATIALSTRUCTURE" cardinality="required"><ids:entity><ids:name><ids:simpleValue>IFCBUILDINGSTOREY</ids:simpleValue></ids:name></ids:entity></ids:partOf>
+        </ids:requirements>
+    </ids:specification>
+    <ids:specification name="No proxy elements" ifcVersion="IFC4" description="The model contains no IfcBuildingElementProxy: every element has a real IFC class." instructions="Export the element with its proper IFC class instead of as a proxy.">
+      <ids:applicability minOccurs="0" maxOccurs="0">
+        <ids:entity><ids:name><ids:simpleValue>IFCBUILDINGELEMENTPROXY</ids:simpleValue></ids:name></ids:entity>
+      </ids:applicability>
+    </ids:specification>
+  </ids:specifications>
+</ids:ids>

@@ -215,7 +215,7 @@ select.lang { background: var(--panel-2); padding: 0 6px; }
 .cs-swatch { background-image: linear-gradient(135deg, var(--a) 0 33%, var(--b) 33% 66%, var(--c) 66%); }
 .cs-original { --a: #c0392b; --b: #e0b33a; --c: #4e79a7; }
 .cs-muted { --a: #a8726a; --b: #c4b48a; --c: #7f8fa0; }
-.cs-pastel { --a: #f0b8b0; --b: #f3e2a8; --c: #b4c8e0; }
+.cs-cvd { --a: #0072B2; --b: #E69F00; --c: #009E73; }
 .cs-light { --a: #ece6e2; --b: #eeebe0; --c: #e3e6ea; }
 .cs-vivid { --a: #e0201a; --b: #ffc400; --c: #1f6fd6; }
 
@@ -588,8 +588,8 @@ body.sv-popup { margin: 0; height: 100vh; background: var(--bg); }
 .cmp-group-head .caret { color: var(--muted); font-size: 10px; }
 .cmp-row { padding: 4px 6px; border-radius: var(--r-sm); cursor: pointer; border-left: 3px solid transparent; }
 .cmp-row:hover { background: var(--panel-2); }
-.cmp-row.added { border-left-color: #2fb344; }
-.cmp-row.removed { border-left-color: #e03131; }
+.cmp-row.added { border-left-color: var(--ok); }
+.cmp-row.removed { border-left-color: var(--bad); }
 .cmp-row.changed { border-left-color: #f59f00; }
 .cmp-row-head { display: flex; gap: 6px; align-items: baseline; }
 .cmp-row-head .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -604,8 +604,14 @@ body.sv-popup { margin: 0; height: 100vh; background: var(--bg); }
 :root[data-theme="dark"] :is(.ids-model.ok, .map-detected.ok) { background: #12301f; color: #6ee0a6; }
 :root[data-theme="dark"] .ids-model.bad { background: #3a1414; color: #ff9b9b; }
 .ids-icon { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 700; color: #fff; flex-shrink: 0; }
-.ids-icon.ok { background: #2fb344; }
-.ids-icon.bad { background: #e03131; }
+.ids-icon.ok { background: var(--ok); }
+.ids-icon.bad { background: var(--bad); }
+.ids-ex-row { display: flex; gap: 6px; align-items: center; }
+.ids-ex-row select { flex: 1; min-width: 0; }
+.ids-ex-row a.btn { text-decoration: none; }
+.ids-examples small { line-height: 1.35; }
+:root { --ok: #2fb344; --bad: #e03131; }
+:root[data-cvd] { --ok: #0072B2; --bad: #D55E00; }
 .ids-icon.na { background: #adb5bd; }
 .ids-spec-head { flex-wrap: wrap; }
 .ids-spec-name { flex: 1; min-width: 120px; }
