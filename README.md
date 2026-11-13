@@ -6,7 +6,7 @@ An IFC viewer and editor that runs entirely in the browser. Files are processed 
 
 The interface is in **English**, **Danish**, **German** and **Hindi** (language picker in the top right corner; the choice is remembered). There is a light and a dark theme (moon/sun button).
 
-Vispecta is an open-source project by Rasmus Roien Molbaek (MIT licence). It grows out of the needs met in infrastructure projects: alignments and stationing, cross sections and long profiles, combining the models of several disciplines, and quick checks of metadata.
+Vispecta is an open-source project by Rasmus Roien Molbaek (AGPL-3.0 licence). It grows out of the challenges I met in my work as an engineer in railway projects: alignments and stationing, cross sections and long profiles, combining the models of several disciplines, and quick checks of metadata.
 
 ## Features
 The toolbar groups the functions: **View**, **Section**, **Visibility**, **Alignment** (stationing, cross sections, long profiles, drive along, draw a line), **Measure**, **Edit** and **Tools** (merge, compare, IDS check, quantity takeoff, Python). On small screens the side panels are drawers over the 3D view.
@@ -230,4 +230,13 @@ Ideas, bug reports and pull requests are welcome – see [CONTRIBUTING.md](CONTR
 
 ## Licence
 
-[MIT](LICENSE) © 2026 Rasmus Roien Molbaek
+[GNU AGPL-3.0](LICENSE) © 2026 Rasmus Roien Molbaek
+
+In short (the licence text is what counts):
+
+- **Use it freely**, also at work and in commercial projects – for viewing, checking and drawing your models.
+- **Change it and share it**, as long as your version is also under the AGPL-3.0 with its full source code.
+- If you **run a changed version as a service** for others (e.g. on a website), its users must be able to get the source code too.
+- So nobody can take Vispecta, close it and sell it as their own product.
+
+Versions published before 13 November 2026 were under the MIT licence.

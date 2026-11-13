@@ -32,4 +32,4 @@ Open an issue and describe the task from your work: which models, what you need 
 
 ## Licence
 
-By contributing, you agree that your contributions are licensed under the [MIT licence](LICENSE).
+Vispecta is licensed under the [GNU AGPL-3.0](LICENSE). By contributing, you agree that your contributions are licensed under the same licence.
