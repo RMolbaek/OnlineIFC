@@ -1,7 +1,7 @@
 // Saved views (camera, visibility, colours, sections, selection) and the workspace file.
 // A view is a BCF-style viewpoint (elements are referenced by GlobalId, so views keep working
 // with a newer version of the model) plus some extra viewer state (model colour/opacity, X-ray).
-// The workspace file (.onlineifc.json) holds the saved views and the issues, but not the IFC files.
+// The workspace file (.vispecta.json; older ones are .onlineifc.json) holds the saved views and the issues, but not the IFC files.
 import { t, fmtNum } from './i18n.js';
 import { uuid, guidOf, guidIndex, captureViewpoint, applyViewpoint } from './bcf.js';
 
@@ -107,7 +107,7 @@ export class ViewsPanel {
       viewpoints: tp.viewpoints.map(({ _url, snapshot, ...vp }) => ({ ...vp, snapshot: snapshot ? toB64(snapshot) : null })),
     }));
     return JSON.stringify({
-      app: 'OnlineIFC', format: 'workspace', version: 1, saved: new Date().toISOString(),
+      app: 'Vispecta', format: 'workspace', version: 1, saved: new Date().toISOString(),
       models: viewer.models.map((m) => ({ name: m.name, schema: m.schema, fileSize: m.fileSize })),
       current: this.capture('current'),
       views: this.views,
@@ -118,7 +118,7 @@ export class ViewsPanel {
   saveWorkspace() {
     const { viewer, download } = this.ctx;
     const base = viewer.models[0]?.name.replace(/\.ifc$/i, '') || 'workspace';
-    download(`${base}.onlineifc.json`, new TextEncoder().encode(this.workspaceJson()), 'application/json');
+    download(`${base}.vispecta.json`, new TextEncoder().encode(this.workspaceJson()), 'application/json');
   }
 
   async openWorkspace(file) {

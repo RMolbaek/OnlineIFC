@@ -3,7 +3,7 @@
 import { t } from './i18n.js';
 
 /* global __BUILD_INFO__ */
-const REPO = 'RMolbaek/OnlineIFC';
+const REPO = 'vispecta-app/vispecta';
 export const BUILD = typeof __BUILD_INFO__ !== 'undefined' ? __BUILD_INFO__ : { release: '', ahead: 0, commit: '', date: '', version: '' };
 
 const fmtDate = (iso) => { try { return new Date(iso).toLocaleDateString(document.documentElement.lang || undefined, { year: 'numeric', month: 'short', day: 'numeric' }); } catch { return iso; } };

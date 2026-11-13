@@ -1,20 +1,22 @@
 {
-  "name": "online-ifc",
+  "name": "vispecta",
   "version": "1.0.0",
-  "description": "Online IFC viewer: federering, snit, farver og metadata",
+  "description": "Vispecta – IFC viewer for infrastructure: alignments, sections, long profiles and model checking, in the browser",
+  "license": "MIT",
+  "author": "Rasmus Roien Molbaek",
+  "homepage": "https://vispecta.com",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vispecta-app/vispecta.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vispecta-app/vispecta/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/RMolbaek/OnlineIFC.git"
-  },
-  "bugs": {
-    "url": "https://github.com/RMolbaek/OnlineIFC/issues"
-  },
-  "homepage": "https://github.com/RMolbaek/OnlineIFC#readme",
   "dependencies": {
     "@codemirror/commands": "6.11.1",
     "@codemirror/lang-python": "6.2.1",

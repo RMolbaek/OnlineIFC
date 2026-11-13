@@ -1,6 +1,6 @@
 {
-  "name": "OnlineIFC",
-  "short_name": "OnlineIFC",
+  "name": "Vispecta – IFC viewer for infrastructure",
+  "short_name": "Vispecta",
   "description": "Review, edit, merge and script IFC models in the browser. Files never leave your computer.",
   "id": "./",
   "start_url": "./",
@@ -21,7 +21,7 @@
       "accept": {
         "application/x-step": [".ifc"],
         "application/octet-stream": [".ifc"],
-        "application/json": [".onlineifc.json"]
+        "application/json": [".vispecta.json", ".onlineifc.json"]
       }
     }
   ]

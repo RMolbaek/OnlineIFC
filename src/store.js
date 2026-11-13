@@ -7,6 +7,7 @@
 //   projects  id -> {id, name, created, modified, files: [{key, name}], state, thumb}
 import * as THREE from 'three';
 
+// Storage keys keep the project's former name (onlineifc), so data saved in the browser stays.
 const DB_NAME = 'onlineifc';
 const DB_VERSION = 1;
 // Bump when the loader changes in a way that changes the geometry (invalidates the geometry cache).

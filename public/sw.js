@@ -1,11 +1,11 @@
-// OnlineIFC service worker: makes the app work offline and start quickly.
+// Vispecta service worker: makes the app work offline and start quickly.
 // - The page itself (navigation requests) is fetched from the network first, so a new version is
 //   picked up at once; the cached copy is used when offline.
 // - Build assets have content hashes in their names and never change, so they are served from the
 //   cache first. Other same-origin files (icons, manifest) use stale-while-revalidate.
 // - Requests to other origins (map tiles, Pyodide, Python wheels) are not touched.
 // IFC files are opened locally and never pass through here.
-const CACHE = 'onlineifc-v1';
+const CACHE = 'vispecta-v1';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './manifest.webmanifest', './icons/icon.svg'])).then(() => self.skipWaiting()));

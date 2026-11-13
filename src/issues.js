@@ -53,7 +53,7 @@ export class IssuesPanel {
     const vp = this.#viewpoint();
     const topic = {
       guid: uuid(), title, description, type, status: 'Open', priority, assignedTo, labels: [],
-      created: this.#now(), author: this.author || 'OnlineIFC', comments: [], viewpoints: [vp],
+      created: this.#now(), author: this.author || 'Vispecta', comments: [], viewpoints: [vp],
     };
     this.topics.unshift(topic);
     this.openGuid = topic.guid;
@@ -68,7 +68,7 @@ export class IssuesPanel {
 
   #touch(topic) {
     topic.modified = this.#now();
-    topic.modifiedAuthor = this.author || 'OnlineIFC';
+    topic.modifiedAuthor = this.author || 'Vispecta';
     this.dirty = true;
   }
 
@@ -92,7 +92,7 @@ export class IssuesPanel {
       name: m.name,
       project: fmtValue(m.api.GetLine(m.modelID, m.tree.expressID, false)?.GlobalId) || '',
     }));
-    const zip = exportBcf(this.topics, files, this.version, this.ctx.viewer.models[0]?.name || 'OnlineIFC');
+    const zip = exportBcf(this.topics, files, this.version, this.ctx.viewer.models[0]?.name || 'Vispecta');
     const stamp = new Date().toISOString().slice(0, 10);
     this.ctx.download(`issues-${stamp}.bcfzip`, zip, 'application/octet-stream');
     this.dirty = false;
@@ -192,7 +192,7 @@ export class IssuesPanel {
       if (!text) return;
       let vpGuid = null;
       if (withView.checked) { const vp = this.#viewpoint(); tp.viewpoints.push(vp); vpGuid = vp.guid; }
-      tp.comments.push({ guid: uuid(), date: this.#now(), author: this.author || 'OnlineIFC', text, viewpoint: vpGuid });
+      tp.comments.push({ guid: uuid(), date: this.#now(), author: this.author || 'Vispecta', text, viewpoint: vpGuid });
       this.#touch(tp);
       this.render();
     };
