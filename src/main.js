@@ -2706,8 +2706,11 @@ function renderIds() {
     report.specs.forEach((sp, i) => {
       const key = `${model.uid}:${i}`;
       const open = idsOpen.has(key);
+      // not applicable: skipped, or no elements where none are required (a "required" or
+      // "prohibited" specification with no elements has a result of its own)
+      const na = sp.skipped || (!sp.applicable && sp.cardinality !== 'required' && sp.cardinality !== 'prohibited');
       const head = h('button', { class: 'cmp-group-head ids-spec-head' },
-        h('span', { class: `ids-icon ${sp.skipped || !sp.applicable ? 'na' : sp.status ? 'ok' : 'bad'}`, text: sp.skipped || !sp.applicable ? '–' : sp.status ? '✓' : '✗' }),
+        h('span', { class: `ids-icon ${na ? 'na' : sp.status ? 'ok' : 'bad'}`, text: na ? '–' : sp.status ? '✓' : '✗' }),
         h('span', { class: 'ids-spec-name', text: sp.name || `#${i + 1}` }),
         h('span', { class: 'muted small', text: specSummary(sp) }),
         h('span', { class: 'caret', text: open ? '▾' : '▸' }));
