@@ -218,7 +218,7 @@ export function breakPoints(layers, { classes = null, angle = 10, facet = 0.25, 
   return out;
 }
 
-export const ANNOT_COLOR = '#1f5fa8';
+export const ANNOT_COLOR = '#0B6F69';
 
 /**
  * Annotation marks of the break points for a layout (null: DXF, about 1:100):
@@ -302,7 +302,7 @@ function annotationMarks(section, lay) {
   return out;
 }
 
-export const AXIS_COLOR = '#c0392b';
+export const AXIS_COLOR = '#C8372D';
 
 // ----------------------------------------------------------- long profile
 const niceStep = (range, maxCount, steps = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000]) =>
@@ -540,6 +540,20 @@ function marksPdf(section, lay, P, k, rgb) {
 }
 
 /** Joins segments into closed loops and open polylines (endpoints matched within 0.1 mm). */
+/**
+ * The mark of the app (a cross section and the point that looks at it) after the last line of the
+ * title block: {line: [[x, y]…], dot: [cx, cy, r], w} in paper mm (y down).
+ */
+function titleMark(info, lay, opts) {
+  const lines = titleLines(info, lay, opts);
+  const l = lines[lines.length - 1];
+  const ty = lay.H - lay.margin / 2 - lay.title;
+  const size = 4.2, k = size / 64;
+  const x0 = lay.margin + textW(l.text, l.size) * 0.92 + 1, y0 = ty + l.y - size * 0.72; // textW is generous
+  const P = (x, y) => [x0 + x * k, y0 + y * k];
+  return { line: [P(6, 30), P(19, 30), P(28, 48), P(36, 48), P(45, 30), P(58, 30)], dot: [...P(32, 14), 6 * k], w: 4.8 * k };
+}
+
 export function stitch(segs) {
   const key = (p) => `${Math.round(p[0] * 1e4)},${Math.round(p[1] * 1e4)}`;
   const adj = new Map();
@@ -737,6 +751,8 @@ export function toSvg(section, lay, info, opts) {
   const ty = lay.H - m / 2 - lay.title;
   out.push(`<line x1="${m / 2}" y1="${ty}" x2="${lay.W - m / 2}" y2="${ty}" stroke="#000" stroke-width="0.35"/>`);
   out.push(`<g font-family="Helvetica, Arial, sans-serif" fill="#000">${titleLines(info, lay, opts).map((l) => `<text x="${m}" y="${f2(ty + l.y)}" font-size="${l.size}"${l.bold ? ' font-weight="bold"' : ''}>${escXml(l.text)}</text>`).join('')}</g>`);
+  const tm = titleMark(info, lay, opts);
+  out.push(`<g><path d="M${tm.line.map((p) => p.map(f2).join(' ')).join('L')}" fill="none" stroke="#0C2A30" stroke-width="${f2(tm.w)}" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${f2(tm.dot[0])}" cy="${f2(tm.dot[1])}" r="${f2(tm.dot[2])}" fill="#0E8C84"/></g>`);
   out.push(scaleBarSvg(lay, ty));
   out.push(legendSvg(section, lay, ty, opts));
   out.push('</svg>');
@@ -849,6 +865,13 @@ function pdfPage(section, lay, info, opts) {
   const text = (x, y, size, s, bold = false) => `BT /${bold ? 'F2' : 'F1'} ${(size * k).toFixed(2)} Tf ${P(x, y)} Td (${pdfStr(s)}) Tj ET`;
   // the PDF has no class legend, so the title may use the space up to the scale bar
   c.push('0 0 0 rg', ...titleLines(info, lay, { ...opts, legend: false }).map((l) => text(m, ty + l.y, l.size, l.text, l.bold)));
+  // the mark after the last title line: the profile and its point (circle from four Béziers)
+  const tm = titleMark(info, lay, { ...opts, legend: false });
+  c.push(`q 0.047 0.165 0.188 RG ${(tm.w * k).toFixed(3)} w 1 J 1 j ${P(...tm.line[0])} m ${tm.line.slice(1).map((q) => `${P(...q)} l`).join(' ')} S Q`);
+  {
+    const [cx, cy, r] = tm.dot, q = 0.5523 * r;
+    c.push(`q 0.055 0.549 0.518 rg ${P(cx + r, cy)} m ${P(cx + r, cy - q)} ${P(cx + q, cy - r)} ${P(cx, cy - r)} c ${P(cx - q, cy - r)} ${P(cx - r, cy - q)} ${P(cx - r, cy)} c ${P(cx - r, cy + q)} ${P(cx - q, cy + r)} ${P(cx, cy + r)} c ${P(cx + q, cy + r)} ${P(cx + r, cy + q)} ${P(cx + r, cy)} c f Q`);
+  }
   // scale bar
   const step = niceBar(lay);
   const segMm = (step * 1000) / lay.scale;

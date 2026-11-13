@@ -226,7 +226,10 @@ export class Viewer extends EventTarget {
     this.models.splice(idx < 0 ? this.models.length : idx, 0, newModel);
     if (oldModel.overrideColor) newModel.setColor(oldModel.overrideColor);
     if (oldModel.opacity !== 1) newModel.setOpacity(oldModel.opacity);
-    newModel.setVisible(oldModel.visible);
+    newModel.alias = oldModel.alias;
+    newModel.groupId = oldModel.groupId;
+    newModel.setGroupHidden(!!oldModel.groupHidden);
+    newModel.setVisible(oldModel.ownVisible !== false);
     if (idx >= 0) this.removeModel(oldModel);
   }
 

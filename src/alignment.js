@@ -200,7 +200,7 @@ export class AlignmentLayer {
       const zOf = (s) => heightAt(al, s) ?? 0;
       const pts = al.poly.map((p, k) => this.viewer.fromIfc(p[0], p[1], zOf(al.cum[k])));
       const g = new THREE.BufferGeometry().setFromPoints(pts);
-      const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xe8590c, depthTest: false, transparent: true, opacity: 0.95 }));
+      const line = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xf08a24, depthTest: false, transparent: true, opacity: 0.95 }));
       line.renderOrder = 25;
       line.frustumCulled = false;
       this.group.add(line);
@@ -232,7 +232,7 @@ export class AlignmentLayer {
       }
       if (ticks.length) {
         const tg = new THREE.BufferGeometry().setFromPoints(ticks);
-        const tl = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: 0xe8590c, depthTest: false }));
+        const tl = new THREE.LineSegments(tg, new THREE.LineBasicMaterial({ color: 0xf08a24, depthTest: false }));
         tl.renderOrder = 25;
         tl.frustumCulled = false;
         this.group.add(tl);
@@ -294,7 +294,7 @@ export class SectionMarks {
     for (const o of [...this.group.children]) { this.group.remove(o); o.geometry?.dispose(); o.material?.dispose(); }
     for (const l of this.labels) l.el.remove();
     this.labels = [];
-    const col = 0xc0392b;
+    const col = 0xc8372d;
     const W = (p, z) => this.viewer.fromIfc(p[0], p[1], z);
     for (const it of items) {
       const { A, B, v, z, half } = it;

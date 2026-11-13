@@ -76,7 +76,7 @@ export class ContextMenu {
     const sel = new Map([...state.selection].map(([m, s]) => [m, [...s]]));
     const nSel = this.#count(sel);
     const items = [];
-    items.push({ head: model.label(id), sub: `${model.typeName(id)}${this.ctx.viewer.models.length > 1 ? ` · ${model.name}` : ''}` });
+    items.push({ head: model.label(id), sub: `${model.typeName(id)}${this.ctx.viewer.models.length > 1 ? ` · ${model.displayName}` : ''}` });
     items.push(
       { label: nSel > 1 ? t('ctx.hideSel', { n: fmtNum(nSel) }) : t('ctx.hideEl'), icon: 'hide', kbd: 'H', run: () => { this.#hide(sel); this.ctx.clearSelection(); } },
       { label: nSel > 1 ? t('ctx.isolateSel', { n: fmtNum(nSel) }) : t('ctx.isolateEl'), icon: 'isolate', kbd: 'I', run: () => this.#isolate(sel) },
@@ -109,7 +109,7 @@ export class ContextMenu {
     }
     // the model
     if (this.ctx.viewer.models.length > 1) {
-      items.push({ sep: true }, { head: t('ctx.model', { name: model.name }) },
+      items.push({ sep: true }, { head: t('ctx.model', { name: model.displayName }) },
         { label: t('ctx.hideModel'), icon: 'hide', run: () => this.ctx.setModelVisible(model, false) },
         { label: t('ctx.isolateModel'), icon: 'isolate', run: () => { for (const m of this.ctx.viewer.models) this.ctx.setModelVisible(m, m === model); } });
     }

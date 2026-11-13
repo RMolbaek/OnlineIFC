@@ -116,10 +116,27 @@ export class IfcModel {
     for (const b of this.buckets) this.#applyMaterial(b);
   }
 
+  /**
+   * Visibility: the model's own switch and the switch of its group in the model browser; the model
+   * is shown when both are on. `visible` is the result.
+   */
   setVisible(v) {
-    this.visible = v;
-    this.group.visible = v;
+    this.ownVisible = v;
+    this.#applyVisible();
   }
+
+  setGroupHidden(off) {
+    this.groupHidden = off;
+    this.#applyVisible();
+  }
+
+  #applyVisible() {
+    this.visible = this.ownVisible !== false && !this.groupHidden;
+    this.group.visible = this.visible;
+  }
+
+  /** The name shown in the app: the alias, or the file name. */
+  get displayName() { return this.alias || this.name; }
 
   // ---------------------------------------------------------------- synlighed
   #rebuild(b) {
