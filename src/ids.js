@@ -111,6 +111,8 @@ export function idsCsv(results) {
 
 export function specSummary(s) {
   if (s.skipped) return t('ids.skipped');
-  if (!s.applicable) return t('ids.noneApplicable');
+  // "prohibited": the applicable elements must not exist; "required": at least one must exist
+  if (s.cardinality === 'prohibited') return s.applicable ? t('ids.prohibitedFound', { n: fmtNum(s.applicable) }) : t('ids.prohibitedNone');
+  if (!s.applicable) return s.cardinality === 'required' ? t('ids.requiredNone') : t('ids.noneApplicable');
   return t('ids.specCounts', { pass: fmtNum(s.pass), fail: fmtNum(s.fail), total: fmtNum(s.applicable) });
 }
