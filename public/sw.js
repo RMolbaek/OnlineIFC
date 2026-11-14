@@ -5,7 +5,7 @@
 //   cache first. Other same-origin files (icons, manifest) use stale-while-revalidate.
 // - Requests to other origins (map tiles, Pyodide, Python wheels) are not touched.
 // IFC files are opened locally and never pass through here.
-const CACHE = 'vispecta-v1';
+const CACHE = 'vispecta-v2'; // v2: other pages (about, 404) are no longer stored as the app page
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './manifest.webmanifest', './icons/icon.svg'])).then(() => self.skipWaiting()));
@@ -24,17 +24,23 @@ self.addEventListener('message', (event) => {
 
 async function networkFirst(req) {
   const cache = await caches.open(CACHE);
+  // only the app itself is the cached "./" page; other pages (the about page) are cached under their own URL
+  const scope = new URL(self.registration.scope).pathname;
+  const path = new URL(req.url).pathname;
+  const isApp = path === scope || path === `${scope}index.html`;
   try {
     const res = await fetch(req);
-    if (res.ok) {
+    if (res.ok && isApp) {
       const old = await cache.match('./');
       const html = await res.clone().text();
       if (old && (await old.text()) !== html) await pruneAssets(cache, html);
       await cache.put('./', res.clone());
+    } else if (res.ok) {
+      await cache.put(req, res.clone());
     }
     return res;
   } catch {
-    return (await cache.match('./')) || Response.error();
+    return (isApp ? await cache.match('./') : await cache.match(req, { ignoreSearch: true })) || (await cache.match('./')) || Response.error();
   }
 }
 
