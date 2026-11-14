@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 import { execSync } from 'node:child_process';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 
 // Version shown in the About dialog: the latest GitHub release (git tag) plus the number of
 // changes since it, and the commit. Falls back to package.json when git is not available.
@@ -18,9 +18,28 @@ function buildInfo() {
   };
 }
 
+// sitemap.xml gets <lastmod> from git: the date of the last change to the app or the about page.
+function sitemapLastmod() {
+  const day = (paths) => { try { return execSync(`git log -1 --format=%cs -- ${paths}`, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { return ''; } };
+  const dates = { 'https://vispecta.com/': day('index.html src public/manifest.webmanifest'), 'https://vispecta.com/about/': day('public/about') };
+  let outDir = 'dist';
+  return {
+    name: 'sitemap-lastmod',
+    apply: 'build',
+    configResolved(c) { outDir = c.build.outDir; },
+    closeBundle() {
+      const file = `${outDir}/sitemap.xml`;
+      if (!existsSync(file)) return;
+      const xml = readFileSync(file, 'utf8').replace(/<loc>([^<]+)<\/loc>/g, (m, loc) => dates[loc] ? `${m}\n    <lastmod>${dates[loc]}</lastmod>` : m);
+      writeFileSync(file, xml);
+    },
+  };
+}
+
 // base: './' makes the built site work from any sub folder (e.g. GitHub Pages).
 export default defineConfig({
   base: './',
+  plugins: [sitemapLastmod()],
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 4000,

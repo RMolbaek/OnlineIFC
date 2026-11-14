@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page not found – Vispecta</title>
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#0C2A30" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <style>
+      @font-face { font-family: Inter; font-weight: 400; font-display: swap; src: url(/about/fonts/inter-latin-400-normal.woff2) format('woff2'); }
+      @font-face { font-family: Inter; font-weight: 600; font-display: swap; src: url(/about/fonts/inter-latin-600-normal.woff2) format('woff2'); }
+      @font-face { font-family: 'Space Grotesk'; font-weight: 700; font-display: swap; src: url(/about/fonts/space-grotesk-latin-700-normal.woff2) format('woff2'); }
+      :root {
+        --ink: #0C2A30; --ink-2: #11353C; --text: #E6F1F0; --muted: #8FB3B1; --line: #1D4850;
+        --accent: #2CC8BC; --accent-ink: #062024; --trace: #F08A24; --axis: #C8372D;
+        --font: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        --display: 'Space Grotesk', Inter, system-ui, sans-serif;
+        color-scheme: dark;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; }
+      body {
+        margin: 0; font: 17px/1.6 var(--font); color: var(--text); -webkit-font-smoothing: antialiased;
+        background: radial-gradient(1200px 600px at 75% -10%, #164A50 0%, transparent 60%), linear-gradient(180deg, var(--ink-2), var(--ink));
+        display: flex; flex-direction: column;
+      }
+      a { color: var(--accent); }
+      header, main, footer { width: min(1080px, 100% - 32px); margin: 0 auto; }
+      header { display: flex; align-items: center; height: 68px; }
+      .brand { display: inline-flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font: 700 20px var(--display); }
+      .mark { width: 30px; height: 30px; }
+      .mark-dot { fill: var(--accent); }
+      .mark-line { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+      .beta { font: 600 10px var(--font); letter-spacing: 0.08em; text-transform: uppercase; background: var(--trace); color: #1A0E02; border-radius: 4px; padding: 2px 6px; }
+      main { flex: 1; display: grid; grid-template-columns: 1.05fr 1fr; gap: 48px; align-items: center; padding: 24px 0 48px; }
+      .eyebrow { margin: 0 0 10px; color: var(--accent); font: 600 13px var(--font); letter-spacing: 0.12em; text-transform: uppercase; }
+      h1 { margin: 0 0 14px; font: 700 clamp(34px, 5vw, 54px)/1.08 var(--display); letter-spacing: -0.01em; color: #fff; }
+      .lead { margin: 0 0 28px; color: var(--muted); max-width: 34em; }
+      .cta { display: flex; flex-wrap: wrap; gap: 12px; }
+      .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px; font-weight: 600; text-decoration: none; }
+      .btn.primary { background: var(--accent); color: var(--accent-ink); box-shadow: 0 10px 30px -10px rgba(44, 200, 188, 0.6); }
+      .btn.ghost { color: #fff; border: 1px solid rgba(255, 255, 255, 0.22); }
+      .btn:hover { filter: brightness(1.08); }
+      .btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+      .path { margin-top: 26px; font: 13px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--muted); word-break: break-all; }
+      .path b { color: var(--text); font-weight: 400; }
+      figure { margin: 0; }
+      .art { width: 100%; height: auto; display: block; }
+      .art text { font-family: var(--display); }
+      footer { padding: 18px 0 26px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+      footer a { color: var(--muted); }
+      @media (max-width: 760px) {
+        main { grid-template-columns: 1fr; gap: 20px; padding-top: 8px; }
+        figure { order: -1; max-width: 420px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="/?app" aria-label="Vispecta">
+        <svg class="mark" viewBox="0 0 64 64" aria-hidden="true"><circle class="mark-dot" cx="32" cy="14" r="6"/><path class="mark-line" d="M6 30H19L28 48H36L45 30H58"/></svg>
+        <span>Vispecta</span><span class="beta">Beta</span>
+      </a>
+    </header>
+
+    <main>
+      <div>
+        <p class="eyebrow" data-t="eyebrow">404 · Page not found</p>
+        <h1 data-t="title">Station 0+404 is not on the alignment.</h1>
+        <p class="lead" data-t="lead">The page you were looking for does not exist – the link may be old or mistyped. The viewer and everything about it are just one click away.</p>
+        <div class="cta">
+          <a class="btn primary" href="/?app"><span data-t="open">Open Vispecta</span> <span aria-hidden="true">→</span></a>
+          <a class="btn ghost" href="/about/" data-t="about">About Vispecta</a>
+        </div>
+        <p class="path"><span data-t="asked">Requested:</span> <b id="path"></b></p>
+      </div>
+      <figure aria-hidden="true">
+        <!-- a plan view: the alignment with km posts, and a station marker that has run off the line -->
+        <svg class="art" viewBox="0 0 480 340">
+          <defs>
+            <pattern id="grid" width="24" height="24" patternUnits="userSpaceOnUse"><path d="M24 0H0V24" fill="none" stroke="#1D4850" stroke-width="1"/></pattern>
+          </defs>
+          <rect x="0" y="0" width="480" height="340" rx="18" fill="#0A2328"/>
+          <rect x="0" y="0" width="480" height="340" rx="18" fill="url(#grid)" opacity="0.7"/>
+          <!-- track: two rails along a curve -->
+          <path d="M-10 290 C 120 280, 200 220, 260 150 S 380 40, 500 30" fill="none" stroke="#2CC8BC" stroke-width="3"/>
+          <path d="M-10 302 C 124 292, 206 232, 268 160 S 386 52, 500 42" fill="none" stroke="#2CC8BC" stroke-width="1.5" opacity="0.45"/>
+          <!-- km posts -->
+          <g fill="#8FB3B1" font-size="12">
+            <circle cx="88" cy="282" r="4" fill="#2CC8BC"/><text x="74" y="268">0+100</text>
+            <circle cx="203" cy="211" r="4" fill="#2CC8BC"/><text x="214" y="216">0+200</text>
+            <circle cx="300" cy="105" r="4" fill="#2CC8BC"/><text x="311" y="110">0+300</text>
+          </g>
+          <!-- the station marker, off the line -->
+          <path d="M392 52 L 420 160" stroke="#F08A24" stroke-width="2" stroke-dasharray="6 6"/>
+          <circle cx="420" cy="170" r="10" fill="none" stroke="#F08A24" stroke-width="3"/>
+          <path d="M412 162l16 16M428 162l-16 16" stroke="#F08A24" stroke-width="3" stroke-linecap="round"/>
+          <rect x="356" y="192" width="104" height="32" rx="8" fill="#F08A24"/>
+          <text x="408" y="214" text-anchor="middle" font-size="16" font-weight="700" fill="#1A0E02">0+404 ?</text>
+          <!-- section marks A–A -->
+          <g fill="#C8372D">
+            <path d="M120 230 l18 -6 l-4 12 z"/><path d="M168 316 l18 -6 l-4 12 z"/>
+          </g>
+          <path d="M132 232 L 178 314" stroke="#C8372D" stroke-width="1.5" stroke-dasharray="8 5"/>
+          <text x="40" y="44" font-size="30" font-weight="700" fill="#fff">404</text>
+          <text x="40" y="66" font-size="13" fill="#8FB3B1">km ? · off the alignment</text>
+        </svg>
+      </figure>
+    </main>
+
+    <footer>
+      <span>© Vispecta</span>
+      <a href="/about/#privacy" data-t="privacy">Privacy</a>
+      <a href="https://github.com/vispecta-app/vispecta">GitHub</a>
+      <a href="https://github.com/vispecta-app/vispecta/issues/new/choose" data-t="report">Report a broken link</a>
+    </footer>
+
+    <script>
+      (function () {
+        var T = {
+          da: { eyebrow: '404 · Siden findes ikke', title: 'Station 0+404 ligger ikke på linjeføringen.', lead: 'Siden, du ledte efter, findes ikke – linket er måske gammelt eller skrevet forkert. Viewer og om-siden er kun et klik væk.', open: 'Åbn Vispecta', about: 'Om Vispecta', asked: 'Adresse:', privacy: 'Privatliv', report: 'Meld et dødt link', doc: 'Siden findes ikke – Vispecta' },
+          de: { eyebrow: '404 · Seite nicht gefunden', title: 'Station 0+404 liegt nicht auf der Achse.', lead: 'Die gesuchte Seite gibt es nicht – der Link ist vielleicht alt oder vertippt. Der Viewer und alles darüber sind nur einen Klick entfernt.', open: 'Vispecta öffnen', about: 'Über Vispecta', asked: 'Adresse:', privacy: 'Datenschutz', report: 'Defekten Link melden', doc: 'Seite nicht gefunden – Vispecta' }
+        };
+        var lang = '';
+        try { lang = localStorage.getItem('onlineifc.lang') || ''; } catch (e) { /* ignore */ }
+        if (!T[lang]) lang = (navigator.language || 'en').slice(0, 2).toLowerCase();
+        var d = T[lang];
+        if (d) {
+          document.documentElement.lang = lang;
+          document.title = d.doc;
+          var els = document.querySelectorAll('[data-t]');
+          for (var i = 0; i < els.length; i++) { var k = els[i].getAttribute('data-t'); if (d[k]) els[i].textContent = d[k]; }
+        }
+        var p = location.pathname; try { p = decodeURI(p); } catch (e) { /* keep it encoded */ }
+        document.getElementById('path').textContent = p;
+      })();
+    </script>
+  </body>
+</html>

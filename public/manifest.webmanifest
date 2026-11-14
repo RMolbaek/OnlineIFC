@@ -1,12 +1,14 @@
 {
   "name": "Vispecta – IFC viewer for infrastructure",
   "short_name": "Vispecta",
-  "description": "Review, edit, merge and script IFC models in the browser. Files never leave your computer.",
+  "description": "IFC viewer for rail and road projects: alignments and stationing, cross sections, longitudinal profiles and drawings, IDS checks and BCF. Free and open source; your files never leave your computer.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
+  "lang": "en",
+  "categories": ["productivity", "utilities"],
   "background_color": "#EEF5F4",
   "theme_color": "#0C2A30",
   "icons": [
