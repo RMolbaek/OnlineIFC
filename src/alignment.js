@@ -12,6 +12,22 @@ const num = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
+/**
+ * Distance along a polyline (IFC plan coordinates) of the point nearest to (x, y), or null when
+ * that point is more than maxDist away (then it does not lie on the alignment).
+ */
+function alongPoly(poly, cum, x, y, maxDist) {
+  let best = null, bestD = Infinity;
+  for (let k = 1; k < poly.length; k++) {
+    const [ax, ay] = poly[k - 1], [bx, by] = poly[k];
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    const t = L2 ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L2)) : 0;
+    const d = Math.hypot(ax + dx * t - x, ay + dy * t - y);
+    if (d < bestD) { bestD = d; best = cum[k - 1] + t * (cum[k] - cum[k - 1]); }
+  }
+  return bestD <= maxDist ? best : null;
+}
+
 /** Reads all alignments of a model. Returns [] for models without IfcAlignment. */
 export async function readAlignments(model) {
   const api = model.api, mid = model.modelID;
@@ -82,7 +98,9 @@ export async function readAlignments(model) {
         const rp = pl?.RelativePlacement?.value ? api.GetLine(mid, pl.RelativePlacement.value, false) : null;
         const loc = rp?.Location?.value ? api.GetLine(mid, rp.Location.value, false) : null;
         along = num(loc?.DistanceAlong);
-      } catch { /* not linearly placed */ }
+        // placed by a point (IfcCartesianPoint, e.g. ProVI): its distance along the alignment
+        if (along === null && loc?.Coordinates?.length >= 2) along = alongPoly(poly, cum, num(loc.Coordinates[0]) * scale, num(loc.Coordinates[1]) * scale, 1) / scale;
+      } catch { /* not placed along the alignment */ }
       let station = null;
       try {
         const psets = await api.properties.getPropertySets(mid, child, true);
