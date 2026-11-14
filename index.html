@@ -3,6 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      // Phones land on the about page the first time; "Open Vispecta" there (?app) opens the viewer
+      // and is remembered, so later visits open the viewer straight away. Installed apps, links
+      // with a hash or a query and computers always open the viewer.
+      (function () {
+        try {
+          var KEY = 'onlineifc.openedApp';
+          if (/[?&]app\b/.test(location.search)) {
+            localStorage.setItem(KEY, '1');
+            history.replaceState(null, '', location.pathname + location.hash);
+            return;
+          }
+          var phone = matchMedia('(max-width: 760px) and (pointer: coarse)').matches;
+          var installed = matchMedia('(display-mode: standalone)').matches;
+          if (phone && !installed && !location.search && !location.hash && localStorage.getItem(KEY) !== '1') location.replace('./about/');
+        } catch (e) { /* storage blocked: stay in the viewer */ }
+      })();
+    </script>
     <title>Vispecta – free IFC viewer for infrastructure: alignments, sections, IDS</title>
     <meta name="description" content="Free IFC viewer in the browser for rail and road projects: IFC 4.3 alignments and stationing, cross sections and longitudinal profiles as PDF/DXF, measuring, IDS checks and BCF issues. Your files are never uploaded." />
     <link rel="canonical" href="https://vispecta.com/" />
