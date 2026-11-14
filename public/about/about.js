@@ -54,7 +54,7 @@
       'q6': 'Hvilken browser skal jeg bruge?', 'a6': 'En opdateret Chrome, Edge, Firefox eller Safari på en computer. Telefoner og tablets kan vise modeller, men værktøjerne er lavet til en større skærm.',
       'con.title': 'Vær med til at forme Vispecta', 'con.text': 'Idéer fra rigtige projekter giver de bedste funktioner. Fortæl hvad du mangler, meld en fejl, eller bidrag med kode.',
       'con.idea': 'Del en idé eller en fejl', 'con.code': 'Bidrag med kode',
-      'foot.credit': 'Skærmbillederne viser IFC 4.3-eksempelscenen fra buildingSMART International (CC BY 4.0).',
+      'foot.credit': 'Skærmbillederne viser en øvelsesmodel af et dobbeltspor og IFC 4.3-eksempelscenen fra buildingSMART International (CC BY 4.0).',
       _title: 'Om Vispecta – en gratis IFC-viewer til bane- og vejprojekter',
     },
     de: {
@@ -106,7 +106,7 @@
       'q6': 'Welchen Browser brauche ich?', 'a6': 'Ein aktuelles Chrome, Edge, Firefox oder Safari auf einem Computer. Telefone und Tablets können Modelle anzeigen, die Werkzeuge sind aber für einen größeren Bildschirm gemacht.',
       'con.title': 'Gestalten Sie Vispecta mit', 'con.text': 'Ideen aus echten Projekten ergeben die besten Funktionen. Sagen Sie uns, was Sie brauchen, melden Sie einen Fehler oder tragen Sie Code bei.',
       'con.idea': 'Idee oder Fehler melden', 'con.code': 'Code beitragen',
-      'foot.credit': 'Die Bildschirmfotos zeigen die IFC-4.3-Beispielszene von buildingSMART International (CC BY 4.0).',
+      'foot.credit': 'Die Bildschirmfotos zeigen ein Übungsmodell einer zweigleisigen Strecke und die IFC-4.3-Beispielszene von buildingSMART International (CC BY 4.0).',
       _title: 'Über Vispecta – ein kostenloser IFC-Viewer für Bahn- und Straßenprojekte',
     },
   };

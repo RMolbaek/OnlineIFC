@@ -583,7 +583,7 @@ document.addEventListener('click', (e) => {
     'toggle-xray': () => setXray(!state.xray),
     'storey-cut': () => { state.storeyCut = !state.storeyCut; renderStoreyItems(); if (state.storey) showStorey(state.storey); },
     'toggle-alignments': () => {
-      if (!viewer.models.some((m) => m.alignments?.length)) return toast(t('aln.none'));
+      if (!allAlignments().length) return toast(t('aln.none')); // model alignments or drawn lines
       alignmentLayer.setVisible(!alignmentLayer.visible);
       $('#alignments-check').textContent = alignmentLayer.visible ? '☑' : '☐';
     },
