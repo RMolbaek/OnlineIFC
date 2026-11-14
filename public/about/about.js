@@ -153,6 +153,21 @@
   }
   zoom.addEventListener('click', () => zoom.close());
 
+  // short clips: play while on screen; with reduced motion, show the still and let the reader start it
+  const clips = document.querySelectorAll('.frame video');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || !('IntersectionObserver' in window)) {
+    for (const v of clips) v.controls = true;
+  } else {
+    const vo = new IntersectionObserver((entries) => {
+      for (const en of entries) {
+        const v = en.target;
+        if (en.isIntersecting) v.play().catch(() => { v.controls = true; });
+        else v.pause();
+      }
+    }, { threshold: 0.35 });
+    for (const v of clips) vo.observe(v);
+  }
+
   // reveal sections when they scroll into view
   if ('IntersectionObserver' in window && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
     const io = new IntersectionObserver((entries) => {

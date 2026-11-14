@@ -78,6 +78,8 @@ h1, h2, h3 { font-family: var(--display); letter-spacing: -0.02em; line-height: 
 .frame-bar span { margin-left: 10px; background: #fff; border-radius: 6px; padding: 2px 10px; }
 .hero-shot { transform: perspective(1600px) rotateY(-6deg) rotateX(2deg); transform-origin: left center; border: 0; box-shadow: 0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06); }
 .frame.paper { padding: 18px; }
+.frame.clip { cursor: default; }
+.frame video { display: block; width: 100%; height: auto; }
 
 /* story */
 .story { padding: 88px 0 24px; }
